@@ -207,6 +207,22 @@ QUESTION_START_RE = re.compile(
     re.I,
 )
 
+RECOMMENDATION_RE = re.compile(
+    r"\b(?:suggest|recommend)\b"
+    r"|\bwhat(?:'s| is) (?:the )?best\b"
+    r"|\bwhat (?:packaging|box(?:es)?|bags?|pouches?|materials?|styles?)\b[^.?!]{0,40}\bbest\b"
+    r"|\bbest (?:option|choice|fit|box(?:es)?|bags?|pouches?|packaging|materials?|styles?)\b"
+    r"|\bwhich (?:packaging|box(?:es)?|bags?|pouches?|materials?|styles?|option|one)\b"
+    r"|\bshould i (?:use|choose|pick|get|go with)\b"
+    r"|\bhelp me (?:choose|pick|decide)\b"
+    r"|\bwhat (?:packaging|box(?:es)?|bags?|pouches?|materials?|styles?) (?:should|would|do you)\b",
+    re.I,
+)
+
+
+def wants_recommendation(text: str) -> bool:
+    return bool(RECOMMENDATION_RE.search(str(text or "")))
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()

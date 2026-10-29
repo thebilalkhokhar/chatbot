@@ -88,7 +88,7 @@ CANON: dict[str, CanonFact] = {
         label="Location",
         answer="Our facility is in Rosenberg, Texas.",
         source="kb/facts/contact.md",
-        status=NEEDS_SIGNOFF,
+        status=CONFIRMED,
         triggers=(
             r"\bwhere\s+(?:are|is)\s+(?:you|print247|your\s+(?:company|office|factory|facility))\b",
             r"\blocated\b",
@@ -96,15 +96,15 @@ CANON: dict[str, CanonFact] = {
             r"\bbased\b",
             r"\baddress\b",
         ),
-        answer_tokens=(r"rosenberg", r"houston"),
-        note="Production facts say Houston; KB says Rosenberg is the facility and Houston is unconfirmed. Team lead must pick one.",
+        answer_tokens=(r"rosenberg",),
+        note="Signed off 2026-10-30: use Rosenberg (footer facility); Houston and Sylmar are mentions, not confirmed facilities.",
     ),
     "hours": CanonFact(
         key="hours",
         label="Office hours",
         answer="Our office is open Monday to Friday, 9am to 5pm.",
         source="kb/facts/support-hours.md",
-        status=NEEDS_SIGNOFF,
+        status=CONFIRMED,
         triggers=(
             r"\b(?:office|business|support)\s+hours\b",
             r"\bwhat\s+time\s+(?:are|do)\s+you\b",
@@ -115,17 +115,17 @@ CANON: dict[str, CanonFact] = {
             r"\bsunday\b",
         ),
         answer_tokens=(r"monday", r"9\s*(?:am|:00)", r"friday"),
-        note="Production facts say support is 24/7; KB says Mon-Fri 9-5. Team lead must pick the wording.",
+        note="Signed off 2026-10-30: office hours Mon-Fri 9-5; the 24/7 line is quote-page assistance wording and is not merged.",
     ),
     "payments": CanonFact(
         key="payments",
         label="Payment methods",
         answer=(
-            "We accept ACH, wire transfer and Zelle, and card payments through a payment "
-            "link with a 3% processing fee."
+            "We accept Visa, Mastercard, American Express, Discover and PayPal, as well as "
+            "ACH, Zelle, wire transfer and Zoho Payments."
         ),
-        source="production companyKnowledge.ts + kb/facts/payments.md",
-        status=NEEDS_SIGNOFF,
+        source="kb/facts/payments.md",
+        status=CONFIRMED,
         triggers=(
             r"\bpayment\b",
             r"\bpay\b",
@@ -137,8 +137,8 @@ CANON: dict[str, CanonFact] = {
             r"\bpaypal\b",
             r"\b(?:visa|mastercard|amex|discover)\b",
         ),
-        answer_tokens=(r"\bach\b", r"\bzelle\b", r"\bwire\b", r"\bcard\b"),
-        note="Site footer lists cards/PayPal; refund page lists ACH/Zelle/Wire/Zoho; 3% is script-only.",
+        answer_tokens=(r"\bvisa\b", r"\bpaypal\b", r"\bach\b", r"\bzelle\b", r"\bwire\b", r"\bzoho\b"),
+        note="Signed off 2026-10-30: site footer (cards, PayPal) + refund page (ACH, Zelle, wire, Zoho); the 3% card fee is script-only and is not stated.",
     ),
     "shipping": CanonFact(
         key="shipping",
@@ -211,11 +211,15 @@ CANON: dict[str, CanonFact] = {
     "samples": CanonFact(
         key="samples",
         label="Samples and proofs",
-        answer="Sample and proof options are included with your quote.",
+        answer=(
+            "Samples take 3-4 business days; they come pre-printed rather than with your own "
+            "artwork, and digital proofs arrive within 3 days."
+        ),
         source="kb/facts/samples.md",
-        status=NEEDS_SIGNOFF,
+        status=CONFIRMED,
         triggers=(r"\bsamples?\b", r"\bproofs?\b", r"\bmockups?\b", r"\bprototype\b", r"\bdieline\b"),
-        answer_tokens=(r"sample", r"proof"),
+        answer_tokens=(r"sample", r"proof", r"pre-printed", r"artwork"),
+        note="Signed off 2026-10-30: KB wording. Samples are standard pre-printed, not custom artwork; never promise a custom-artwork sample.",
     ),
     "quote_time": CanonFact(
         key="quote_time",

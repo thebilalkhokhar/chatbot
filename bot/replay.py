@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -44,6 +45,12 @@ def _baseline(judged_path: Path | None) -> dict:
     }
 
 
+def offline_config(config: Config) -> Config:
+    # A replay must never spend money by accident: load_dotenv can leave the
+    # process in live mode. Live replay is opt-in via allow_live=True.
+    return replace(config, mode="fake", allow_live=False, api_key="", max_llm_calls=0)
+
+
 def run_replay(
     config: Config,
     *,
@@ -51,7 +58,10 @@ def run_replay(
     limit: int = 100,
     judged_path: Path | None = None,
     out_dir: Path | None = None,
+    allow_live: bool = False,
 ) -> dict:
+    if not allow_live:
+        config = offline_config(config)
     chats = json.loads(chats_path.read_text(encoding="utf-8"))
     real = [chat for chat in chats if _visitor_messages(chat)]
     selected = real[:limit]

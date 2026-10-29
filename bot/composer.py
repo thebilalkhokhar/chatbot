@@ -16,6 +16,7 @@ from .state import (
     is_question,
     normalize_finish,
     size_is_unknown,
+    wants_recommendation,
 )
 
 HANDOFF_LINES = {
@@ -56,7 +57,7 @@ RULE_TEXT = """RULES FOR EVERY REPLY
 12. For banners there is no minimum order. For everything else the standard minimum is 1,000 per size, or 500 each with multiple designs, and smaller runs are possible.
 13. If the quantity they just gave is below the standard minimum, say smaller runs are possible and still ask the next question.
 14. If they already gave a detail, do not ask for it again.
-15. If they ask for a recommendation, suggest one option from the written answers or KB excerpts and say the team confirms the fit with the quote.
+15. If they ask for a recommendation, or name what they are packing and ask what to use, name one specific option from the KB excerpts, give one short reason it fits, and say the team confirms the exact fit with the quote.
 16. If they are unsure about size, explain there is no standard size — everything is custom made and sized around their product — then ask what they are packing.
 17. If they ask which styles or options you offer, answer with those options from the written answers or KB, then ask the open script question.
 18. If they ask which product a question is about, name their product first (for example "For your stand-up bags"), then repeat the open question.
@@ -260,6 +261,26 @@ def kb_block(chunks) -> str:
     return "\n\n".join(lines)
 
 
+# Some judged-correct chats used production facts that conflict with canon
+# (e.g. the old "based in Houston" line); they must never be fed back as examples.
+STALE_EXAMPLE_TOKENS = ("houston",)
+
+
+def select_examples(examples: list[dict], family: str, limit: int = 3) -> list[dict]:
+    safe = [
+        item
+        for item in examples
+        if not any(token in str(item.get("reply", "")).lower() for token in STALE_EXAMPLE_TOKENS)
+    ]
+    same = [item for item in safe if item.get("family") == family]
+    other = [item for item in safe if item.get("family") != family]
+    same_count = min(len(same), max(0, limit - 1))
+    picked = same[:same_count] + other[: limit - same_count]
+    if len(picked) < limit:
+        picked += same[same_count:][: limit - len(picked)]
+    return picked[:limit]
+
+
 def golden_block(examples: list[dict]) -> str:
     if not examples:
         return "(none)"
@@ -310,6 +331,12 @@ def build_user(
         f"\nTRANSCRIPT (last messages)\n{transcript}",
         f"\nTheir latest message: {visitor}",
         f"Topics their message asks about: {', '.join(topics) if topics else 'none recognised'}",
+        (
+            "They are asking for a recommendation: name one specific option from the KB excerpts, "
+            "say in one short clause why it fits, then ask the next question."
+            if wants_recommendation(visitor)
+            else ""
+        ),
         f"Next script question to ask if nothing else is needed: {expected[1] if expected else '(none — close gently)'}",
         (
             "They asked whether you are a bot: answer honestly and briefly, then continue."

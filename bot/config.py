@@ -9,6 +9,7 @@ ROOT_DIR = PACKAGE_DIR.parent
 PROJECT_DIR = ROOT_DIR.parent
 
 MODES = {"fake", "live", "dry_run", "shadow"}
+CONTEXTS = {"full", "retrieval"}
 
 
 class ConfigError(RuntimeError):
@@ -75,6 +76,11 @@ class Config:
     handoff_operator: str
     ui_enabled: bool = True
     max_llm_calls: int = 0
+    context: str = "full"
+
+    def __post_init__(self) -> None:
+        if self.context not in CONTEXTS:
+            raise ConfigError(f"BOT_CONTEXT must be one of {sorted(CONTEXTS)}, got {self.context!r}")
 
     @property
     def real_llm_enabled(self) -> bool:
@@ -97,6 +103,9 @@ class Config:
         mode = os.getenv("BOT_MODE", "fake").strip().lower()
         if mode not in MODES:
             raise ConfigError(f"BOT_MODE must be one of {sorted(MODES)}, got {mode!r}")
+        context = os.getenv("BOT_CONTEXT", "full").strip().lower()
+        if context not in CONTEXTS:
+            raise ConfigError(f"BOT_CONTEXT must be one of {sorted(CONTEXTS)}, got {context!r}")
         return cls(
             kb_dir=_path("BOT_KB_DIR", PROJECT_DIR / "kb"),
             data_dir=_path("BOT_DATA_DIR", ROOT_DIR / "data"),
@@ -115,6 +124,7 @@ class Config:
             handoff_operator=os.getenv("BOT_HANDOFF_OPERATOR", "johnhenry.it@print247.us").strip(),
             ui_enabled=_flag("BOT_UI", True),
             max_llm_calls=_int("BOT_MAX_LLM_CALLS", 0),
+            context=context,
         )
 
     def ensure_dirs(self) -> None:

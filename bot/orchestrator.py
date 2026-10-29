@@ -8,7 +8,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import canon, guards
-from .composer import Composed, HANDOFF_LINES, REPHRASES, clarify_reply, heuristic_turn, live_turn
+from .composer import (
+    Composed,
+    HANDOFF_LINES,
+    REPHRASES,
+    clarify_reply,
+    heuristic_turn,
+    live_turn,
+    select_examples,
+)
 from .config import Config
 from .kb import KBIndex, load_or_build
 from .llm import LLMClient, LLMError
@@ -166,6 +174,11 @@ class Orchestrator:
             chunks = self.index.search(text, top_k=min(3, self.config.top_k))
         return chunks
 
+    def _prompt_chunks(self, retrieved):
+        if self.config.context == "full":
+            return self.index.verified()
+        return retrieved
+
     def _handoff_reason(self, state: ConversationState, visitor: str) -> str:
         if explicit_human_request(visitor):
             return "human"
@@ -290,6 +303,8 @@ class Orchestrator:
             expected = None
 
         chunks = self._retrieve(visitor, state, topics)
+        prompt_chunks = self._prompt_chunks(chunks)
+        examples = select_examples(self.examples, state.family())
 
         clarification = clarify_reply(state) if is_context_question(visitor) else ""
 
@@ -312,9 +327,9 @@ class Orchestrator:
                     state,
                     visitor,
                     expected,
-                    chunks,
+                    prompt_chunks,
                     overrides=self.overrides,
-                    examples=self.examples[:3],
+                    examples=examples,
                     asked_if_bot=asks_if_bot(visitor),
                 )
                 source = "live"
@@ -336,29 +351,41 @@ class Orchestrator:
             )
             source = "heuristic"
 
-        result = self._guard(composed.reply, state, visitor, chunks, expected, bool(handoff_reason))
+        result = self._guard(
+            composed.reply, state, visitor, prompt_chunks, expected, bool(handoff_reason)
+        )
         blocked: list[dict] = []
         if not result.ok:
             blocked = [issue.to_dict() for issue in result.blockers]
 
-        if not result.ok and source == "live":
-            correction = guards.describe(result.blockers)
+        recommendation_gap = any(
+            issue.code == "recommendation_unanswered" for issue in result.warnings
+        )
+        if (not result.ok or recommendation_gap) and source == "live":
+            fixes = result.blockers or [
+                issue for issue in result.warnings if issue.code == "recommendation_unanswered"
+            ]
+            correction = guards.describe(fixes)
             try:
                 rewritten = live_turn(
                     self.llm,
                     state,
                     visitor,
                     expected,
-                    chunks,
+                    prompt_chunks,
                     overrides=self.overrides,
-                    examples=self.examples[:3],
+                    examples=examples,
                     asked_if_bot=asks_if_bot(visitor),
                     correction=correction,
                 )
                 rewritten_result = self._guard(
-                    rewritten.reply, state, visitor, chunks, expected, bool(handoff_reason)
+                    rewritten.reply, state, visitor, prompt_chunks, expected, bool(handoff_reason)
                 )
-                if rewritten.reply and rewritten_result.ok:
+                rewritten_gap = any(
+                    issue.code == "recommendation_unanswered"
+                    for issue in rewritten_result.warnings
+                )
+                if rewritten.reply and rewritten_result.ok and not rewritten_gap:
                     composed = rewritten
                     result = rewritten_result
                     source = "live-rewrite"
@@ -369,12 +396,12 @@ class Orchestrator:
         if not result.ok:
             fallback = self._safe_fallback(state, expected, handoff_reason)
             fallback_result = self._guard(
-                fallback, state, visitor, chunks, expected, bool(handoff_reason)
+                fallback, state, visitor, prompt_chunks, expected, bool(handoff_reason)
             )
             if fallback_result.blockers:
                 fallback = expected[1] if expected else (HANDOFF_LINES.get(handoff_reason) or "")
                 fallback_result = self._guard(
-                    fallback, state, visitor, chunks, expected, bool(handoff_reason)
+                    fallback, state, visitor, prompt_chunks, expected, bool(handoff_reason)
                 )
             composed = Composed(reply=fallback, source="fallback")
             result = fallback_result
@@ -440,6 +467,8 @@ class Orchestrator:
                 "handoff": state.handoff,
                 "issues": [issue.to_dict() for issue in result.issues],
                 "retrieved": [item.chunk.id for item in chunks],
+                "context": self.config.context,
+                "prompt_chunks": len(prompt_chunks),
                 "accepted": accepted,
                 "rejected": rejected,
             },

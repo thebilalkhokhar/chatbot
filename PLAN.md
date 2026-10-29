@@ -1,6 +1,6 @@
 # Print247 chatbot — status audit and plan
 
-**Last updated:** 2026-10-29
+**Last updated:** 2026-10-30
 **Status:** Phase 0 complete (build + fake-mode validation). Phases 1–6 are proposals — not executed.
 **Service:** `chatbot/` (Python, FastAPI) · **Knowledge base:** `kb/` · **QA data:** `server/`
 
@@ -53,7 +53,7 @@ These are proposals for review, not commitments.
 1. No real paid LLM/API call without explicit approval **for that run**.
 2. Never call the Anthropic API.
 3. Mask PII before any external LLM call (today: email + phone).
-4. `kb/` is the factual source; 4 facts conflict with production and need sales sign-off.
+4. `kb/` is the factual source; the 4 conflicting facts were signed off on 2026-10-30 using KB values.
 5. `server/data/chats.json` is read-only and is never modified.
 6. No push, deploy, or publish without explicit approval.
 7. Default model `gpt-5-nano`, 6-second budget, OpenAI-compatible API.
@@ -103,10 +103,11 @@ The new bot's design directly targets the top issues: answer the question first,
 | Area | Status | Evidence |
 | --- | --- | --- |
 | KB ingest + BM25 retrieval | Done | 39 documents → 60 chunks, all `verified` |
-| Canonical facts + sign-off tracking | Done, 4 facts unsigned | `chatbot/bot/canon.py`, `cli signoff` |
+| Canonical facts + sign-off tracking | Done, all 4 sign-offs resolved with KB values (2026-10-30) | `chatbot/bot/canon.py`, `cli signoff` |
 | Conversation state machine | Done | `chatbot/bot/state.py` (756 lines) |
 | Nine personas, round-robin | Done | `personas.py`, `store.py` (atomic counter) |
 | Deterministic composer (fake mode) | Done | `composer.py` |
+| Full-KB prompt + recommendation intent | Done (fake replay); live pending | `BOT_CONTEXT=full`, `recommendation_unanswered`, 84 tests |
 | Live LLM composer + verifier rewrite | Implemented; full path exercised against a local mock of the OpenAI wire format; real-key call pending | `composer.live_turn`, `llm.py`, `cli llm-check`, Section 5.4 |
 | Deterministic guards | Done | 20 block rules, 10 warnings |
 | Golden examples | Done | 88 examples from 121 judged-correct |
@@ -157,10 +158,10 @@ SalesIQ webhook  →  Orchestrator.handle
   1. load conversation state from SQLite
   2. extract + validate visitor fields; detect family and canon topics
   3. choose the next script question; decide handoff (human / quote / complex / max-turns / stalled / declined)
-  4. BM25 retrieve top-6 KB chunks (family-filtered, with fallback search)
+  4. BM25 retrieve top-6 KB chunks for telemetry (family-filtered); with `BOT_CONTEXT=full` the live prompt gets all verified chunks
   5. compose the reply:
        - fake mode  → deterministic heuristic composer
-       - live mode  → LLM with written answers + KB excerpts + 3 golden examples
+       - live mode  → LLM with written answers + full KB (or top-6 in retrieval mode) + 3 family-matched golden examples
   6. run the guard layer (20 block rules, 10 warnings)
   7. if live reply is blocked → one verifier rewrite with the blocker text
   8. still blocked → deterministic safe fallback (canon answers + next question), re-guarded
@@ -462,6 +463,43 @@ product question → bag size → unit → box styles answered + bag style quest
 stored → finish question → "For your stand-up bags. What finish..." → quantity question. There
 are no guard issues and Product never leaves bags. Covered by six new tests (68 total).
 
+### 5.9 Full-context prompt, recommendation intent, replay spend lock (2026-10-30)
+
+Implemented after the owner asked why the bot does not recommend packaging for the visitor's product:
+
+- **Full-KB prompt:** `BOT_CONTEXT=full` (default) sends every verified KB chunk (60 chunks,
+  5,367 words, ~12k prompt tokens) to the live prompt; `retrieval` keeps the top-6 BM25 path.
+  Top-6 retrieval still runs for telemetry, so the no-hit metric stays comparable.
+- **Recommendation intent:** `state.wants_recommendation` detects suggest/recommend/best-for/
+  which-packaging requests; the user prompt and rule 15 tell the model to name one option from
+  the KB and one reason it fits, then ask the next question. A `recommendation_unanswered`
+  warning fires when a draft names no option; a live draft with that warning gets one verifier
+  rewrite. The warning never triggers the fallback path, so it cannot deadlock a turn.
+- **Golden examples:** selected as 2 same-family + 1 cross-family examples instead of the first
+  three rows. Examples repeating stale production facts (the old "Houston" location line) are
+  filtered out.
+- **Validation:** 84 tests pass; the 300-chat fake replay has 0 blockers and 2 fallbacks.
+  13 `recommendation_unanswered` warnings remain because fake mode has no LLM to compose
+  suggestions. Live recommendation wording is not yet validated with a real key.
+
+**Replay spend incident:** the first replay after these changes loaded `.env`
+(`BOT_MODE=live`) and hit the 50-call cap; sources show 44 `live` + 1 `live-rewrite` replies,
+with 4 replaced by fallbacks. Estimated spend is well under US$0.10, but it was unauthorised.
+`run_replay` now forces `offline_config()` (fake mode, no key, no cap) unless `allow_live=True`
+is passed explicitly in code; a test covers the lock. No live replay without approval.
+
+### 5.10 KB fact sign-off (2026-10-30)
+
+The owner chose the KB values for the four conflicting facts. Canonical answers now:
+
+- location: Rosenberg, Texas (Houston/Sylmar mentions are not facilities);
+- hours: Monday–Friday, 9am–5pm (no 24/7 merge);
+- payments: cards + PayPal, plus ACH/Zelle/wire/Zoho; the 3% fee is no longer stated;
+- samples: 3-4 business days, pre-printed (not custom artwork), digital proofs within 3 days.
+
+`moq` (confirmed 2026-10-29) and `rush` (no date committed) are unchanged. All four moved from
+`needs_signoff` to `confirmed`; `cli signoff` now returns an empty list.
+
 ---
 
 ## 6. Gaps and risks (honest register)
@@ -470,7 +508,7 @@ are no guard issues and Product never leaves bags. Covered by six new tests (68 
 | --- | --- | --- | --- | --- |
 | G1 | Live LLM path not tested at scale | Prompt/guard behaviour on real traffic unknown; possible false blocks | Owner-run live chats fixed four defect rounds (5.5–5.8); run the keyed micro-run with call cap | 2 |
 | G2 | No judge comparison yet | Can't claim "better than production" | Same judge, same 300 chats | 3 |
-| G3 | 4 facts unsigned (location, hours, payments, samples) | Wrong-fact risk in live chat | Sales sign-off / overrides file | 1 |
+| G3 | 4 facts were unsigned | Wrong-fact risk in live chat | Closed 2026-10-30: KB values signed off for location, hours, payments, samples | 1 |
 | G4 | `cryptography` not in requirements; signature verification fails closed when key is set | Webhook 401 on deploy | Add dependency + tests, or run behind verified proxy | 4 |
 | G5 | PII masking covers email/phone only | Addresses/names may reach the LLM | Decide policy; extend regex if required | 2 |
 | G6 | No dollar-budget report (call cap exists) | Spend is capped by calls, not currency | Token usage is logged; add a per-run cost summary | 3 |
@@ -479,7 +517,7 @@ are no guard issues and Product never leaves bags. Covered by six new tests (68 
 | G9 | No rate limiting or body-size limit | Abuse/DoS surface | Add middleware at deploy | 4 |
 | G10 | No deployment artifact (Dockerfile/Railway config) | Can't shadow/canary | Add Dockerfile + healthcheck | 4 |
 | G11 | No metrics beyond `/health` + events table | Blind operation | Add request/latency/error counters | 4 |
-| G12 | 8.8% of fake replies had no KB hit | Some questions answered from canon only | Retrieval tuning after live data | 3 |
+| G12 | Top-6 retrieval misses some KB evidence (108/1,230 fake replies had no hit) | Full context now sends all 60 verified chunks; retrieval remains the fallback and the telemetry metric | Compare full vs retrieval on the live micro-run | 2 |
 | G13 | Golden set is small (88) with caps | Limited prompt guidance | Refresh from new judged chats | 6 |
 | G14 | No load/latency test | Unknown p95 under concurrency | Small load test before canary | 4 |
 | G15 | No multilingual output (production translates EN→6+ languages) | Non-English visitors get English, unlike production | Decide D9; if required, translate after guards pass, like production | 1 |
@@ -493,8 +531,8 @@ are no guard issues and Product never leaves bags. Covered by six new tests (68 
 **Goal:** freeze the facts and the scope before spending money.
 
 - [ ] Review this document; adjust targets and phases.
-- [ ] Answer the 4 sign-off items (Section 8.1); write decisions to
-      `chatbot/data/canon_overrides.json` (no code edit needed) or update `canon.py`.
+- [x] Answer the 4 sign-off items (Section 8.1); resolved with KB values directly in
+      `canon.py` (2026-10-30).
 - [ ] Decide the open questions D1–D9 (Section 8.2), especially disclosure, deployment target,
       and the definition of "multi-agent".
 - [ ] Re-run `cli ingest`, tests, and replay after fact changes.
@@ -576,24 +614,25 @@ attributable to the new bot; rollback tested.
 
 ## 8. Decisions needed from you
 
-### 8.1 Facts awaiting sales sign-off
+### 8.1 Facts signed off (2026-10-30)
 
-| Key | Current written answer | Conflict to resolve |
-| --- | --- | --- |
-| `location` | Facility in Rosenberg, Texas | Production facts say Houston |
-| `hours` | Monday–Friday, 9am–5pm | Production facts say 24/7 support |
-| `payments` | ACH, wire, Zelle; card via link with 3% fee | Site lists cards/PayPal; 3% is script-only |
-| `samples` | Sample/proof options included with the quote | Production wording differs |
+Owner decision: when production and KB conflict, use the KB values.
 
-**Needed:** one confirmed answer per row, or "keep current wording until confirmed".
-`moq` is now confirmed (2026-10-29) using the production chat wording: standard 1,000 per size,
-500 each with multiple designs, smaller runs possible, banners no minimum.
+| Key | Confirmed written answer |
+| --- | --- |
+| `location` | Our facility is in Rosenberg, Texas. |
+| `hours` | Our office is open Monday to Friday, 9am to 5pm. |
+| `payments` | We accept Visa, Mastercard, American Express, Discover and PayPal, as well as ACH, Zelle, wire transfer and Zoho Payments. |
+| `samples` | Samples take 3-4 business days; they come pre-printed rather than with your own artwork, and digital proofs arrive within 3 days. |
+
+`moq` was confirmed on 2026-10-29 from production chat wording and is unchanged.
+Rush wording is unchanged: no rush date is committed in chat.
 
 ### 8.2 Open decisions (brainstorm list)
 
 | # | Question | Options | Recommendation |
 | --- | --- | --- | --- |
-| D1 | Who wins when `kb/` and production facts conflict? | KB / production / sales lead | Sales lead confirms; KB is default until then; no live launch with unsigned facts |
+| D1 | Who wins when `kb/` and production facts conflict? | KB / production / sales lead | Resolved 2026-10-30: KB wins for the four sign-off facts |
 | D2 | Budget for the live micro-run | 30 chats / 100 chats / no spend | 30 chats, gpt-5-nano, hard cap US$0.10 |
 | D3 | Judge methodology | Existing `server/` judge / new rubric | Existing judge, same model, same 300 chats + human spot-check |
 | D4 | What "multiple agents round-robin" means | Persona rotation (current) / per-persona prompts or models | Keep persona rotation first; revisit only if quality data supports it |
@@ -619,7 +658,8 @@ python -m chatbot.bot.cli signoff
 # Requires .env: BOT_MODE=live, BOT_ALLOW_LIVE=1, BOT_LLM_API_KEY=...
 python -m chatbot.bot.cli llm-check
 
-# Run the offline replay (fake mode; no API calls)
+# Run the offline replay (hard-locked to fake mode; no API calls)
+# Live replay requires allow_live=True passed in code, not an env flag.
 python -m chatbot.bot.cli replay --limit 300
 
 # One message
@@ -641,6 +681,7 @@ python -m pytest chatbot/tests -q
 
 Key env vars (`.env`): `BOT_MODE` (`fake` default), `BOT_UI` (local chat page), `BOT_ALLOW_LIVE` (spend switch),
 `BOT_LLM_API_KEY`, `BOT_LLM_MODEL`, `BOT_MAX_LLM_CALLS`, `BOT_TIMEOUT_S`, `BOT_MAX_TURNS`, `BOT_TOP_K`,
+`BOT_CONTEXT` (`full` default, or `retrieval`),
 `BOT_SALESIQ_PUBLIC_KEY`, `BOT_ALLOW_UNVERIFIED`, `BOT_FORWARD_ON_HANDOFF`,
 `BOT_HANDOFF_OPERATOR`.
 

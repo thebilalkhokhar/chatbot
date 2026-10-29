@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 from . import canon
 from .personas import PERSONAS
-from .state import ConversationState, is_question
+from .state import ConversationState, is_question, wants_recommendation
 
 BLOCK = "block"
 WARN = "warn"
@@ -63,6 +63,17 @@ QUESTION_CLAUSE = re.compile(
 )
 NUMBER = re.compile(r"\b\d[\d,]*(?:\.\d+)?%?")
 WEEKDAY = r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+RECOMMENDATION_MARKER = re.compile(
+    r"\b(?:i(?:'d| would)? (?:suggest|recommend)|my recommendation|best (?:option|choice|fit)|"
+    r"good (?:fit|choice)|works? well|would work|both work|is a good|are a good)\b",
+    re.I,
+)
+OPTION_NOUN = re.compile(
+    r"\b(?:stand[- ]?up|flat[- ]?bottom|side gusset|pinch bottom|mailer|rigid|"
+    r"folding carton|sbs|kraft|mylar|pouches?|boxes?|labels?|stickers?|banners?|"
+    r"business cards?|corrugated|display box)\b",
+    re.I,
+)
 
 FIELD_PROBES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("email", re.compile(r"\b(?:email|e-mail|address to send|where (?:should|can|shall) (?:i|we) send|send (?:the|your) quote to)\b", re.I)),
@@ -440,6 +451,28 @@ def _check_answer_first(
             )
 
 
+def _check_recommendation(
+    reply: str,
+    visitor_text: str,
+    result: GuardResult,
+    handoff: bool = False,
+) -> None:
+    if handoff or not wants_recommendation(visitor_text):
+        return
+    if RECOMMENDATION_MARKER.search(reply):
+        return
+    if OPTION_NOUN.search(reply) and re.search(
+        r"\b(?:works?|fits?|suits?|good|best|right for|ideal for)\b", reply, re.I
+    ):
+        return
+    result.add(
+        "recommendation_unanswered",
+        WARN,
+        "They asked for a recommendation and the reply names no option. Suggest one from the KB excerpts.",
+        visitor_text[:120],
+    )
+
+
 def _check_repeat(
     reply: str,
     state: ConversationState,
@@ -589,6 +622,7 @@ def check_reply(
     _check_numbers(text, allowed_blob, result)
     _check_minimum(text, state, result)
     _check_answer_first(text, visitor, state, result, handoff)
+    _check_recommendation(text, visitor, result, handoff)
     _check_repeat(text, state, expected, result)
     _check_greeting(text, state, result)
     _check_asked_fields(text, state, expected, handoff, result)

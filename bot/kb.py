@@ -264,6 +264,9 @@ class KBIndex:
         index.save(index_path)
         return index
 
+    def verified(self) -> list[Chunk]:
+        return [chunk for chunk in self.chunks if chunk.status == "verified"]
+
     def search(
         self,
         query: str,
