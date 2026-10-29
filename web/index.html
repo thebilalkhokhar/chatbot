@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Print247 local chat</title>
+<style>
+  :root {
+    --ink: #15221b;
+    --muted: #6b7f71;
+    --line: #d8e2db;
+    --accent: #146c43;
+    --accent-soft: #e7f3ec;
+    --paper: #ffffff;
+    --canvas: #eef3ef;
+    --warn-bg: #fff8e6;
+    --warn-line: #f0dfae;
+    --warn-ink: #6b5200;
+    --debug-bg: #0f1b14;
+    --debug-line: #223b2c;
+    --debug-ink: #d6e6db;
+    --debug-muted: #8fa99a;
+    --block: #ff9b9b;
+    --warn: #ffd479;
+    --info: #9fc7ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--canvas);
+    color: var(--ink);
+  }
+  .topbar {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 16px 18px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .mark {
+    width: 42px; height: 42px; border-radius: 12px;
+    background: var(--accent); color: #fff;
+    display: grid; place-items: center;
+    font-weight: 800; font-size: 13px; letter-spacing: .5px;
+  }
+  h1 { margin: 0; font-size: 18px; letter-spacing: -.2px; }
+  .brand p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+  .status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .badge {
+    display: inline-flex; align-items: center;
+    padding: 5px 10px; border-radius: 999px;
+    font-size: 11.5px; font-weight: 600; letter-spacing: .2px;
+    background: #e8efe9; color: #41564a; border: 1px solid transparent;
+  }
+  .badge.fake { background: #e8efe9; color: #41564a; }
+  .badge.live { background: #d8f3e2; color: #0c5c36; }
+  .badge.dry_run, .badge.shadow { background: #fff1cc; color: #745300; }
+  .badge.muted { background: transparent; border-color: var(--line); color: var(--muted); font-weight: 500; }
+  button {
+    font: inherit; cursor: pointer;
+    border: 0; border-radius: 10px;
+    padding: 9px 14px;
+    background: var(--accent); color: #fff;
+    font-weight: 600; font-size: 13px;
+  }
+  button:hover { filter: brightness(1.06); }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  .ghost {
+    background: transparent; color: var(--ink);
+    border: 1px solid var(--line); font-weight: 500;
+  }
+  .layout {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 14px 18px 18px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 370px;
+    gap: 16px;
+    height: calc(100vh - 76px);
+  }
+  .chat-card {
+    display: flex; flex-direction: column; min-height: 0;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(20, 50, 32, .05);
+  }
+  .messages {
+    flex: 1; min-height: 0;
+    overflow-y: auto;
+    padding: 22px 22px 12px;
+    display: flex; flex-direction: column; gap: 14px;
+    scroll-behavior: smooth;
+  }
+  .msg { display: flex; flex-direction: column; }
+  .msg.visitor { align-items: flex-end; }
+  .bubble {
+    max-width: 78%;
+    padding: 10px 14px;
+    border-radius: 14px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: 14px;
+  }
+  .msg.bot .bubble {
+    background: #f1f6f2; border: 1px solid #dce8df;
+    border-bottom-left-radius: 4px;
+  }
+  .msg.visitor .bubble {
+    background: var(--accent); color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+  .meta { font-size: 11px; color: var(--muted); margin-top: 4px; padding: 0 4px; }
+  .msg.system { align-items: center; }
+  .msg.system .bubble {
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-line);
+    color: var(--warn-ink);
+    border-radius: 999px;
+    font-size: 12.5px;
+    max-width: 92%;
+    text-align: center;
+    padding: 8px 14px;
+  }
+  .typing { display: inline-flex; gap: 4px; align-items: center; padding: 4px 2px; }
+  .typing i {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #7d9b88; animation: blink 1.2s infinite;
+  }
+  .typing i:nth-child(2) { animation-delay: .15s; }
+  .typing i:nth-child(3) { animation-delay: .3s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+  .composer {
+    display: flex; gap: 10px; align-items: flex-end;
+    padding: 12px 14px;
+    border-top: 1px solid #e3ebe5;
+    background: #fbfdfb;
+  }
+  textarea {
+    flex: 1;
+    resize: none;
+    border: 1px solid #cad9cf;
+    border-radius: 12px;
+    padding: 11px 13px;
+    font: inherit;
+    font-size: 14px;
+    line-height: 1.4;
+    min-height: 44px;
+    max-height: 140px;
+    outline: none;
+    background: #fff;
+    color: var(--ink);
+  }
+  textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(20, 108, 67, .12);
+  }
+  .foot {
+    display: flex; justify-content: space-between; gap: 10px;
+    padding: 0 16px 10px;
+    font-size: 11px; color: var(--muted);
+    background: #fbfdfb;
+  }
+  .debug-card {
+    background: var(--debug-bg);
+    color: var(--debug-ink);
+    border: 1px solid var(--debug-line);
+    border-radius: 16px;
+    padding: 16px;
+    overflow-y: auto;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .debug-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; margin-bottom: 12px;
+  }
+  .debug-card h2 { margin: 0; font-size: 13px; letter-spacing: .4px; text-transform: uppercase; color: #b9d2c3; }
+  .debug-card h3 {
+    margin: 16px 0 7px;
+    font-size: 10.5px; letter-spacing: .8px; text-transform: uppercase;
+    color: var(--debug-muted); font-weight: 600;
+  }
+  .switch { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--debug-muted); cursor: pointer; }
+  .switch input { accent-color: #4ea978; }
+  .debug-card .empty { color: var(--debug-muted); font-size: 12px; }
+  .summary { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    background: #17291e; border: 1px solid #244030;
+    color: #c9ddcf; border-radius: 999px;
+    padding: 4px 9px; font-size: 10.5px;
+  }
+  .issue {
+    background: #17251c;
+    border: 1px solid var(--debug-line);
+    border-left: 3px solid var(--info);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+  }
+  .issue.block { border-left-color: var(--block); }
+  .issue.warn { border-left-color: var(--warn); }
+  .issue strong { display: block; font-size: 11px; color: #eef7f0; margin-bottom: 2px; }
+  .issue span { display: block; color: #b9cfc0; }
+  .issue code {
+    display: inline-block; margin-top: 5px; padding: 2px 6px;
+    border-radius: 5px; background: #0b130e; color: #9fc7a9;
+    font-size: 10.5px; overflow-wrap: anywhere;
+  }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; }
+  .kv dt { color: var(--debug-muted); }
+  .kv dd { margin: 0; color: #e2f0e6; overflow-wrap: anywhere; }
+  .chunks { display: flex; flex-direction: column; gap: 5px; }
+  .chunk {
+    background: #17251c; border: 1px solid var(--debug-line);
+    border-radius: 7px; padding: 7px 9px;
+  }
+  .chunk b { color: #dcebe0; font-weight: 600; }
+  .chunk span { color: var(--debug-muted); }
+  .debug-note { color: var(--debug-muted); font-size: 11px; margin-top: 8px; }
+  @media (max-width: 920px) {
+    .layout { grid-template-columns: 1fr; height: auto; }
+    .chat-card { height: calc(100vh - 130px); min-height: 420px; }
+    .debug-card { max-height: 460px; }
+    .bubble { max-width: 88%; }
+  }
+  @media (max-width: 560px) {
+    .topbar { padding-top: 12px; }
+    .layout { padding: 10px 10px 14px; gap: 10px; }
+    .messages { padding: 16px 14px 8px; }
+    .status .badge.muted { display: none; }
+    .foot { flex-direction: column; gap: 2px; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="mark">P247</div>
+    <div>
+      <h1>Print247 chat</h1>
+      <p>Local bot test console</p>
+    </div>
+  </div>
+  <div class="status">
+    <span id="mode-badge" class="badge muted">loading</span>
+    <span id="kb-badge" class="badge muted">KB</span>
+    <button id="new-chat" class="ghost" type="button">New chat</button>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="chat-card">
+    <div id="messages" class="messages" aria-live="polite"></div>
+    <form id="composer" class="composer">
+      <textarea id="input" rows="1" placeholder="Type a message..." maxlength="4000" autocomplete="off"></textarea>
+      <button id="send" type="submit">Send</button>
+    </form>
+    <div class="foot">
+      <span id="mode-note">Checking mode...</span>
+      <span>Enter to send · Shift+Enter for a new line</span>
+    </div>
+  </section>
+
+  <aside class="debug-card" aria-label="Turn debug output">
+    <div class="debug-head">
+      <h2>Debug</h2>
+      <label class="switch"><input id="debug-toggle" type="checkbox" checked> Show</label>
+    </div>
+    <div id="debug-empty" class="empty">Send a message to see the pipeline output.</div>
+    <div id="debug-content" hidden>
+      <div id="debug-summary" class="summary"></div>
+      <h3>Guard issues</h3>
+      <div id="debug-issues"></div>
+      <h3>Collected fields</h3>
+      <div id="debug-known" class="kv"></div>
+      <h3>Accepted / rejected</h3>
+      <div id="debug-fields" class="kv"></div>
+      <h3>Retrieved KB chunks</h3>
+      <div id="debug-retrieved" class="chunks"></div>
+      <div id="debug-note" class="debug-note"></div>
+    </div>
+  </aside>
+</main>
+
+<script>
+(() => {
+  const FIELD_LABELS = {
+    product: "Product", style: "Style", sizes: "Size", finishes: "Finish",
+    quantity: "Quantity", skus: "Designs / SKUs", material: "Material",
+    extras: "Extras", name: "Name", email: "Email", phone: "Phone"
+  };
+  const HANDOFF_TEXT = {
+    human: "A packaging specialist will take over from here.",
+    complex: "Several topics came up, so a specialist will cover the rest.",
+    max_turns: "A specialist will help finish this conversation.",
+    quote: "Everything needed for the quote is collected. The team will email it.",
+    stalled: "A specialist will take over to help with the rest.",
+    declined: "No problem. A specialist can help with the rest."
+  };
+
+  const els = {
+    messages: document.getElementById("messages"),
+    input: document.getElementById("input"),
+    send: document.getElementById("send"),
+    composer: document.getElementById("composer"),
+    newChat: document.getElementById("new-chat"),
+    modeBadge: document.getElementById("mode-badge"),
+    kbBadge: document.getElementById("kb-badge"),
+    modeNote: document.getElementById("mode-note"),
+    debugToggle: document.getElementById("debug-toggle"),
+    debugEmpty: document.getElementById("debug-empty"),
+    debugContent: document.getElementById("debug-content"),
+    debugSummary: document.getElementById("debug-summary"),
+    debugIssues: document.getElementById("debug-issues"),
+    debugKnown: document.getElementById("debug-known"),
+    debugFields: document.getElementById("debug-fields"),
+    debugRetrieved: document.getElementById("debug-retrieved"),
+    debugNote: document.getElementById("debug-note")
+  };
+
+  let conversationId = newId();
+  let busy = false;
+  let handedOff = false;
+  let handoffLocked = false;
+  let debugEnabled = true;
+  let lastTurn = null;
+  let typingElement = null;
+
+  function newId() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID();
+    }
+    return "ui-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+  }
+
+  function node(tag, className, text) {
+    const element = document.createElement(tag);
+    if (className) element.className = className;
+    if (text !== undefined && text !== null) element.textContent = text;
+    return element;
+  }
+
+  function addMessage(role, text, meta) {
+    const wrap = node("div", "msg " + role);
+    wrap.appendChild(node("div", "bubble", text));
+    if (meta) wrap.appendChild(node("div", "meta", meta));
+    els.messages.appendChild(wrap);
+    els.messages.scrollTop = els.messages.scrollHeight;
+    return wrap;
+  }
+
+  function addSystem(text) {
+    addMessage("system", text);
+  }
+
+  function addBot(turn) {
+    addMessage("bot", turn.reply, turn.persona + " · " + turn.source + " · " + turn.elapsed_ms + " ms");
+  }
+
+  function showTyping() {
+    if (typingElement) return;
+    typingElement = node("div", "msg bot");
+    const bubble = node("div", "bubble");
+    const dots = node("span", "typing");
+    for (let i = 0; i < 3; i++) dots.appendChild(node("i"));
+    bubble.appendChild(dots);
+    typingElement.appendChild(bubble);
+    els.messages.appendChild(typingElement);
+    els.messages.scrollTop = els.messages.scrollHeight;
+  }
+
+  function hideTyping() {
+    if (typingElement && typingElement.parentNode) typingElement.parentNode.removeChild(typingElement);
+    typingElement = null;
+  }
+
+  function setBusy(value) {
+    busy = value;
+    els.send.disabled = value || handoffLocked;
+    els.input.disabled = value || handoffLocked;
+    if (value) showTyping(); else hideTyping();
+  }
+
+  function setHandedOff(reason) {
+    handedOff = Boolean(reason);
+    handoffLocked = reason === "quote";
+    els.send.disabled = busy || handoffLocked;
+    els.input.disabled = busy || handoffLocked;
+    if (handedOff) {
+      const note = handoffLocked ? "" : " Local demo: you can keep chatting.";
+      addSystem((HANDOFF_TEXT[reason] || HANDOFF_TEXT.human) + note);
+    }
+  }
+
+  async function post(path, body) {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    return response.json();
+  }
+
+  async function loadHealth() {
+    try {
+      const response = await fetch("/health");
+      const data = await response.json();
+      const mode = data.mode || "unknown";
+      els.modeBadge.textContent = mode;
+      els.modeBadge.className = "badge " + mode;
+      els.kbBadge.textContent = "KB " + (data.kb && data.kb.chunks ? data.kb.chunks : 0) + " chunks";
+      els.modeNote.textContent = data.real_llm_enabled
+        ? "Live LLM enabled: replies can cost money."
+        : "Fake mode: heuristic replies, no API calls.";
+    } catch (error) {
+      els.modeBadge.textContent = "offline";
+      els.modeNote.textContent = "Could not read /health.";
+    }
+  }
+
+  async function startChat() {
+    handedOff = false;
+    handoffLocked = false;
+    lastTurn = null;
+    els.messages.replaceChildren();
+    els.debugContent.hidden = true;
+    els.debugEmpty.hidden = false;
+    els.debugEmpty.textContent = "Send a message to see the pipeline output.";
+    setBusy(true);
+    try {
+      const turn = await post("/api/start", { conversation_id: conversationId });
+      if (turn.reply) addBot(turn);
+      if (turn.handoff) setHandedOff(turn.handoff);
+      showDebug(turn);
+    } catch (error) {
+      addSystem("Could not start the chat: " + error.message);
+    } finally {
+      setBusy(false);
+      els.input.focus();
+    }
+  }
+
+  async function sendMessage() {
+    const text = els.input.value.trim();
+    if (!text || busy || handoffLocked) return;
+    els.input.value = "";
+    els.input.style.height = "auto";
+    addMessage("visitor", text);
+    setBusy(true);
+    try {
+      const turn = await post("/api/chat", { conversation_id: conversationId, text });
+      if (turn.reply) addBot(turn);
+      if (turn.handoff) setHandedOff(turn.handoff);
+      showDebug(turn);
+    } catch (error) {
+      addSystem("Request failed: " + error.message);
+    } finally {
+      setBusy(false);
+      els.input.focus();
+    }
+  }
+
+  function clear(node) {
+    while (node.firstChild) node.removeChild(node.firstChild);
+  }
+
+  function kv(parent, values, labels) {
+    clear(parent);
+    const keys = values ? Object.keys(values) : [];
+    if (!keys.length) {
+      parent.appendChild(node("p", "empty", "None."));
+      return;
+    }
+    const list = node("dl");
+    keys.forEach((key) => {
+      list.appendChild(node("dt", null, (labels && labels[key]) || key));
+      list.appendChild(node("dd", null, String(values[key])));
+    });
+    parent.appendChild(list);
+  }
+
+  function showDebug(turn) {
+    lastTurn = turn;
+    if (!debugEnabled) return;
+    els.debugEmpty.hidden = true;
+    els.debugContent.hidden = false;
+
+    clear(els.debugSummary);
+    const summaryLabels = [
+      "source: " + turn.source,
+      "persona: " + turn.persona,
+      "handoff: " + (turn.handoff || "none"),
+      "elapsed: " + turn.elapsed_ms + " ms"
+    ];
+    if (turn.flags && turn.flags.llm_error) {
+      summaryLabels.push("llm error: " + turn.flags.llm_error);
+    }
+    summaryLabels.forEach((label) => els.debugSummary.appendChild(node("span", "chip", label)));
+
+    clear(els.debugIssues);
+    const issues = turn.issues || [];
+    if (!issues.length) {
+      els.debugIssues.appendChild(node("p", "empty", "No guard issues."));
+    } else {
+      issues.forEach((issue) => {
+        const row = node("div", "issue " + issue.severity);
+        row.appendChild(node("strong", null, issue.code + " · " + issue.severity));
+        row.appendChild(node("span", null, issue.detail));
+        if (issue.excerpt) row.appendChild(node("code", null, issue.excerpt));
+        els.debugIssues.appendChild(row);
+      });
+    }
+    if (turn.blocked && turn.blocked.length) {
+      turn.blocked.forEach((issue) => {
+        const row = node("div", "issue block");
+        row.appendChild(node("strong", null, "rejected draft · " + issue.code));
+        row.appendChild(node("span", null, issue.detail));
+        if (issue.excerpt) row.appendChild(node("code", null, issue.excerpt));
+        els.debugIssues.appendChild(row);
+      });
+    }
+
+    kv(els.debugKnown, turn.known, FIELD_LABELS);
+
+    clear(els.debugFields);
+    const accepted = turn.accepted || {};
+    const rejected = turn.rejected || {};
+    if (!Object.keys(accepted).length && !Object.keys(rejected).length) {
+      els.debugFields.appendChild(node("p", "empty", "No field updates this turn."));
+    } else {
+      Object.keys(accepted).forEach((key) => {
+        els.debugFields.appendChild(node("div", "chunk", "accepted " + (FIELD_LABELS[key] || key) + ": " + accepted[key]));
+      });
+      Object.keys(rejected).forEach((key) => {
+        els.debugFields.appendChild(node("div", "chunk", "rejected " + (FIELD_LABELS[key] || key) + ": " + rejected[key]));
+      });
+    }
+
+    clear(els.debugRetrieved);
+    const chunks = turn.retrieved || [];
+    if (!chunks.length) {
+      els.debugRetrieved.appendChild(node("p", "empty", "No KB hit this turn."));
+    } else {
+      chunks.forEach((chunk) => {
+        const row = node("div", "chunk");
+        const title = node("b", null, chunk.title + " ");
+        row.appendChild(title);
+        row.appendChild(node("span", null, chunk.id + " · score " + chunk.score));
+        els.debugRetrieved.appendChild(row);
+      });
+    }
+
+    els.debugNote.textContent = "Conversation " + turn.conversation_id;
+  }
+
+  function applyDebugVisibility() {
+    if (!debugEnabled) {
+      els.debugContent.hidden = true;
+      els.debugEmpty.hidden = false;
+      els.debugEmpty.textContent = "Debug panel hidden.";
+      return;
+    }
+    if (lastTurn) {
+      els.debugContent.hidden = false;
+      els.debugEmpty.hidden = true;
+    } else {
+      els.debugContent.hidden = true;
+      els.debugEmpty.hidden = false;
+      els.debugEmpty.textContent = "Send a message to see the pipeline output.";
+    }
+  }
+
+  els.composer.addEventListener("submit", (event) => {
+    event.preventDefault();
+    sendMessage();
+  });
+
+  els.input.addEventListener("input", () => {
+    els.input.style.height = "auto";
+    els.input.style.height = Math.min(els.input.scrollHeight, 140) + "px";
+  });
+
+  els.input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      sendMessage();
+    }
+  });
+
+  els.newChat.addEventListener("click", () => {
+    conversationId = newId();
+    startChat();
+  });
+
+  els.debugToggle.addEventListener("change", () => {
+    debugEnabled = els.debugToggle.checked;
+    applyDebugVisibility();
+  });
+
+  loadHealth();
+  startChat();
+})();
+</script>
+</body>
+</html>
