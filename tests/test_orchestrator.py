@@ -671,6 +671,23 @@ def test_metalized_during_a_style_ask_is_saved_and_acknowledged(orchestrator):
     assert blockers(result) == []
 
 
+def test_a_greeting_is_answered_and_a_second_one_does_not_end_the_chat(orchestrator):
+    orchestrator.start("c-morning")
+    first = orchestrator.handle("c-morning", "morning")
+    assert "good morning" in first.reply.lower()
+    assert first.handoff == ""
+    assert "?" in first.reply
+    state = orchestrator.store.get_or_create("c-morning")
+    assert not state.fields["product"].done
+    second = orchestrator.handle("c-morning", "good morning")
+    assert second.handoff == ""
+    assert "good morning" in second.reply.lower()
+    assert "specialist" not in second.reply.lower()
+    state = orchestrator.store.get_or_create("c-morning")
+    assert state.family() == "unknown"
+    assert not state.fields["product"].value
+
+
 def test_a_zero_in_any_dimension_is_not_stored(orchestrator):
     orchestrator.start("c-zero")
     orchestrator.handle("c-zero", "I need custom boxes for candles")

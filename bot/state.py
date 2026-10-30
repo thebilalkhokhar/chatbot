@@ -557,6 +557,29 @@ def is_question(text: str) -> bool:
     return "?" in value or bool(QUESTION_START_RE.search(value))
 
 
+VISITOR_GREETING_RE = re.compile(
+    r"^\s*(?:good\s+(?:morning|afternoon|evening|day)|morning|afternoon|evening|hi|hello|hey)"
+    r"(?:\s+there)?\s*[!.]*\s*$",
+    re.I,
+)
+
+
+def is_visitor_greeting(text: str) -> bool:
+    """The whole message is a hello. It is not a product, a size, or any other answer."""
+    return bool(VISITOR_GREETING_RE.match(str(text or "").strip()))
+
+
+def greeting_ack(text: str) -> str:
+    value = str(text or "").lower()
+    if "afternoon" in value:
+        return "Good afternoon."
+    if "evening" in value:
+        return "Good evening."
+    if "morning" in value:
+        return "Good morning."
+    return "Hello."
+
+
 # Only a disambiguation of the question already asked. "Which one?", "for example?"
 # and "what do you have?" are option requests and go to the model or the catalogue
 # fallback, not this shortcut.
@@ -1087,9 +1110,13 @@ def traceable(key: str, value: str, visitor_text: str, state: ConversationState)
             return any(word in visitor for word in FINISH_WORDS["none"])
         return bool(normalized) and normalized in {"matte", "gloss", "soft touch", "spot uv", "foil", "embossing"}
     if key == "product":
-        family = family_of(candidate)
-        return family != "unknown" or any(token in visitor for token in candidate.lower().split())
+        # "boxes, bags, labels, or something else" is the menu, not a choice.
+        # "or" is also inside the word "morning", so a substring check is not enough.
+        wanted = family_of(candidate)
+        return wanted != "unknown" and family_of(visitor) == wanted
     if key in {"style", "material", "extras", "name", "use_case"}:
+        if is_question(candidate) or QUESTION_START_RE.match(candidate.strip()):
+            return False
         if key == "extras" and candidate.lower() in {"yes", "no", "none", "both", "neither"}:
             return True
         tokens = [token for token in re.findall(r"[a-z0-9]+", candidate.lower()) if len(token) > 2]
@@ -1115,6 +1142,8 @@ def apply_field_updates(
 
     accepted: dict[str, str] = {}
     rejected: dict[str, str] = {}
+    if is_visitor_greeting(visitor_text):
+        return accepted, rejected
     visitor_lower = str(visitor_text or "").lower()
     suggested_basis = BASIS_MODEL if source == "model" else BASIS_VISITOR
     for key, raw in (updates or {}).items():
@@ -1144,6 +1173,9 @@ def apply_field_updates(
         if key in PROSE_FIELDS and looks_like_contact(value):
             rejected[key] = value
             continue
+        if key in PROSE_FIELDS and (is_question(value) or QUESTION_START_RE.match(value)):
+            rejected[key] = value
+            continue
         # A question is not an answer. "your address" must not fill style.
         if basis == BASIS_VISITOR and question_as_answer(str(visitor_text or ""), key):
             rejected[key] = value
@@ -1156,6 +1188,16 @@ def apply_field_updates(
         if key == "style":
             normalized_style = normalize_style(value)
             if is_question(visitor_text) and not normalized_style and basis == BASIS_VISITOR:
+                rejected[key] = value
+                continue
+            # "pizza" is what they are packing, not a box style. Keep a free-text
+            # answer only when style is the question they were just asked.
+            if (
+                not normalized_style
+                and not STYLE_HINTS.search(value)
+                and not UNSPECIFIED_RE.search(visitor_text)
+                and (state.last_question != "style" or basis != BASIS_VISITOR)
+            ):
                 rejected[key] = value
                 continue
             if normalized_style:
@@ -1253,6 +1295,8 @@ def extract_fields(
     value = str(text or "")
     lowered = value.lower()
     updates: dict[str, str] = {}
+    if is_visitor_greeting(value):
+        return updates
 
     email = EMAIL_RE.search(value)
     if email:

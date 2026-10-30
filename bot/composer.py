@@ -17,6 +17,7 @@ from .state import (
     refuses_contact,
     is_price_objection,
     is_question,
+    is_visitor_greeting,
     normalize_finish,
     size_is_unknown,
     wants_recommendation,
@@ -92,7 +93,7 @@ If you are asking for contact details, shipping info, or design counts (SKUs), f
 
 If the user is just saying hello, asking off-topic questions, or providing impossible specs (like a size with any zero dimension: 0x0, 0x15, 10x0x5, or 0), answer naturally using your own reasoning. In these cases, you MUST leave proposed_configs completely EMPTY. End with the one allowed question so the conversation comes back to the order.
 
-Do not repeat greetings (like Good Morning or Hello) if you have already greeted the user in a previous turn.
+Do not open a later message with Good Morning or Hello on your own. If they just said good morning or hello, answer that greeting in a few words, then ask the one open question. A greeting is not their product.
 
 When a user asks for examples or options, you MUST strictly list ONLY the exact styles/materials found in the CATALOGUE PRIMER vocabulary. NEVER invent or hallucinate options like Square Boxes if they are not explicitly in the primer.
 
@@ -226,6 +227,14 @@ def heuristic_turn(
             parts.append(question)
             asked = expected[0] if expected else ""
         return Composed(reply=" ".join(parts).strip(), asked=asked, source="heuristic")
+
+    if is_visitor_greeting(visitor):
+        question = _question_text(state, expected) or "What are you looking to have made — boxes, bags, labels, or something else?"
+        return Composed(
+            reply=question,
+            asked=expected[0] if expected else "product",
+            source="heuristic",
+        )
 
     topics = canon.topics_to_answer(visitor)
     if handoff_reason:

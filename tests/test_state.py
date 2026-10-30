@@ -41,6 +41,27 @@ def test_units_are_folded_and_dimension_order_is_theirs():
     assert normalise_size("6 inches") == "6 in"
 
 
+def test_morning_does_not_become_the_product():
+    from chatbot.bot.state import family_of, is_visitor_greeting
+
+    assert is_visitor_greeting("morning")
+    assert is_visitor_greeting("good morning")
+    assert is_visitor_greeting("Good morning!")
+    assert is_visitor_greeting("morning I need boxes") is False
+    state = make_state("morning")
+    assert extract_fields("morning", "product", state) == {}
+    accepted, _rejected = apply_field_updates(
+        state,
+        {"product": "boxes, bags, labels, or something else", "use_case": "What use case is the boxes for?"},
+        "morning",
+        source="model",
+        bases={"product": "visitor", "use_case": "visitor"},
+    )
+    assert accepted == {}
+    assert not state.fields["product"].value
+    assert family_of("morning") == "unknown"
+
+
 def test_any_zero_dimension_is_rejected():
     from chatbot.bot.state import size_has_zero_dimension
 
@@ -384,7 +405,7 @@ def test_refusing_contact_waives_email_and_phone():
     assert "NEVER combine multiple asks" in RULE_TEXT
     assert "State that minimum ONLY when" in RULE_TEXT
     assert RULE_TEXT.startswith("You MUST ask ONLY ONE single question")
-    assert "Do not repeat greetings (like Good Morning or Hello)" in RULE_TEXT
+    assert "If they just said good morning or hello" in RULE_TEXT
     assert "NEVER invent or hallucinate options like Square Boxes" in RULE_TEXT
 
 

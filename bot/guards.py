@@ -22,6 +22,7 @@ from .state import (
     family_of,
     is_meta_question,
     is_question,
+    is_visitor_greeting,
     normalize_finish,
     normalize_style,
     use_case_from,
@@ -266,6 +267,9 @@ def asked_field(text: str) -> str | None:
         scope = value
     else:
         return None
+    # "Is 15x19 in inches, cm, or mm?" is the size question and never says "size".
+    if re.search(r"\binches\b", scope, re.I) and re.search(r"\b(?:cm|mm)\b", scope, re.I):
+        return "sizes"
     for key, pattern in FIELD_PROBES:
         if pattern.search(scope):
             return key
@@ -894,8 +898,8 @@ def _check_repeat(
         )
 
 
-def _check_greeting(reply: str, state: ConversationState, result: GuardResult) -> None:
-    if state.turn_count == 0:
+def _check_greeting(reply: str, state: ConversationState, result: GuardResult, visitor: str = "") -> None:
+    if state.turn_count == 0 or is_visitor_greeting(visitor):
         return
     if GREETING.search(reply):
         result.add("second_greeting", WARN, "Do not greet again after the first message.")
@@ -1325,7 +1329,7 @@ def check_reply(
     _check_answer_first(text, visitor, state, result, handoff)
     _check_recommendation(text, visitor, state, result, handoff)
     _check_repeat(text, state, expected, result)
-    _check_greeting(text, state, result)
+    _check_greeting(text, state, result, visitor)
     _check_asked_fields(text, state, expected, handoff, result)
     _check_sizes(text, state, result)
     _check_dimensions(text, state, visitor, registry, result)

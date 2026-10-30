@@ -31,10 +31,12 @@ from .state import (
     asks_if_bot,
     extract_fields,
     family_of,
+    greeting_ack,
     is_context_question,
     is_meta_question,
     is_option_request,
     is_question,
+    is_visitor_greeting,
     is_goodbye,
     is_job_pitch,
     refuses_contact,
@@ -389,18 +391,23 @@ class Orchestrator:
         """Drop an unsolicited MOQ lecture, a repeated greeting, and any extra question."""
         priority_key = expected[0] if expected else ""
         priority_text = expected[1] if expected else ""
+        visitor_greeted = is_visitor_greeting(visitor)
         polished = guards.prepare_reply(
             reply,
             visitor,
             priority_key=priority_key,
             priority_text=priority_text,
-            already_greeted=already_greeted,
+            already_greeted=already_greeted and not visitor_greeted,
         )
-        if polished:
-            return polished
-        if expected:
-            return expected[1]
-        return str(reply or "").strip()
+        if not polished and expected:
+            polished = expected[1]
+        elif not polished:
+            polished = str(reply or "").strip()
+        if visitor_greeted:
+            ack = greeting_ack(visitor)
+            if ack.lower() not in polished.lower():
+                polished = f"{ack} {polished}".strip()
+        return polished
 
     def _guard(
         self,
@@ -478,6 +485,7 @@ class Orchestrator:
             and not is_goodbye(visitor)
             and not is_job_pitch(visitor)
             and not asks_if_bot(visitor)
+            and not is_visitor_greeting(visitor)
             and len(visitor.split()) <= 8
         )
 
@@ -490,12 +498,27 @@ class Orchestrator:
             state.fields["email"].attempts = max(state.fields["email"].attempts, 2)
             state.fields["phone"].attempts = max(state.fields["phone"].attempts, 2)
 
+        if is_visitor_greeting(visitor):
+            # "morning" is not a product. A menu the model stored, or two hellos,
+            # must not empty the ask-set and hand the chat away.
+            product = state.fields["product"]
+            if product.value and family_of(product.value) == "unknown":
+                product.value = ""
+                product.raw_visitor_text = ""
+                product.status = "unknown"
+                product.attempts = min(product.attempts, 1)
+            elif not product.done and product.attempts >= 2:
+                product.attempts = 1
+
         expected = state.next_question()
         handoff_reason = self._handoff_reason(state, visitor, progressed=bool(accepted))
         if refused_contact:
             handoff_reason = "declined"
         if not expected and not handoff_reason and not state.complete():
-            handoff_reason = "stalled"
+            if is_visitor_greeting(visitor):
+                expected = ("product", state.question_for("product") or PRODUCT_QUESTION)
+            else:
+                handoff_reason = "stalled"
         if handoff_reason:
             state.handoff = handoff_reason
             expected = None
@@ -692,7 +715,7 @@ class Orchestrator:
                 # The unit follow-up is not a repeated size ask, so it must not
                 # count toward the attempt limit that marks a size unconfirmed.
                 state.flags["unit_asked"] = True
-            elif field_value and not field_value.done:
+            elif field_value and not field_value.done and not is_visitor_greeting(visitor):
                 field_value.attempts += 1
         else:
             state.last_question = ""
