@@ -35,7 +35,7 @@ def test_health_and_webhook_fake_flow(config, orchestrator):
     )
     assert message.status_code == 200
     reply = message.json()["replies"][0]["text"]
-    assert "size" in reply.lower()
+    assert "inside" in reply.lower()
 
 
 def test_webhook_close_and_empty_message(config, orchestrator):
@@ -82,7 +82,7 @@ def test_local_chat_ui_flow(config, orchestrator):
     )
     assert message.status_code == 200
     turn = message.json()
-    assert "size" in turn["reply"].lower()
+    assert "inside" in turn["reply"].lower()
     assert turn["source"] == "heuristic"
     assert "product" in turn["known"]
 

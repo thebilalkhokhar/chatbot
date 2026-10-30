@@ -37,6 +37,7 @@ REPHRASES = {
     "skus": "How many separate designs are going on this order?",
     "material": "Is there a particular material or special feature you want included?",
     "extras": "Would you like a zipper or tear notch added?",
+    "use_case": "What are you packing, or what is this order for?",
     "name": "Who am I speaking with?",
     "email": "Where should the quote go — which email works best?",
     "phone": "What number is best if the team needs to reach you?",
@@ -45,7 +46,7 @@ REPHRASES = {
 RULE_TEXT = """RULES FOR EVERY REPLY
 1. Answer what they asked first, in the written words you were given, before asking anything.
 2. One question per message. Never join two asks with "and".
-3. Ask the next script question, not a question they already answered.
+3. Ask at most one new question, and only about a field in the ASK SET in the chat state. Never ask about anything in the DO NOT ASK SET, not even to confirm it.
 4. Never give a price, a fee, a discount, a delivery date or a production date.
 5. Never say you will check, confirm, verify, find out or get back to them. The quote covers it.
 6. No markdown, bullets, headings or emoji. Plain chat text.
@@ -59,7 +60,7 @@ RULE_TEXT = """RULES FOR EVERY REPLY
 14. If they already gave a detail, do not ask for it again.
 15. If they ask for a recommendation, or name what they are packing and ask what to use, name one specific option from the KB excerpts, give one short reason it fits, and say the team confirms the exact fit with the quote.
 16. If they are unsure about size, explain there is no standard size — everything is custom made and sized around their product — then ask what they are packing.
-17. If they ask which styles or options you offer, answer with those options from the written answers or KB, then ask the open script question.
+17. If they ask which styles or options you offer, answer with those options from the written answers or KB, then ask one field from the ASK SET.
 18. If they ask which product a question is about, name their product first (for example "For your stand-up bags"), then repeat the open question.
 19. Return only the JSON object the schema asks for."""
 
@@ -316,10 +317,12 @@ def build_system(
 def build_user(
     state: ConversationState,
     visitor: str,
-    expected: tuple[str, str] | None,
+    _expected: tuple[str, str] | None,
     *,
     asked_if_bot: bool = False,
 ) -> str:
+    # `_expected` is the fake-mode sentence for this turn. It is not injected.
+    # The ASK SET below is the constraint, and the model chooses within it.
     transcript = "\n".join(
         f"{'Bot' if message.author == 'ai' else 'Visitor'}: {message.text}"
         for message in state.messages[-10:]
@@ -333,11 +336,14 @@ def build_user(
         f"Topics their message asks about: {', '.join(topics) if topics else 'none recognised'}",
         (
             "They are asking for a recommendation: name one specific option from the KB excerpts, "
-            "say in one short clause why it fits, then ask the next question."
+            "say in one short clause why it fits, then ask one field from the ASK SET."
             if wants_recommendation(visitor)
             else ""
         ),
-        f"Next script question to ask if nothing else is needed: {expected[1] if expected else '(none — close gently)'}",
+        "ASK SET CONSTRAINT — binding. Ask at most one new question, and only about a field "
+        "listed after 'You may ask about'. Anything listed after 'Do not ask about' is off "
+        "limits, even as a confirmation.\n"
+        + state.ask_constraint(),
         (
             "They asked whether you are a bot: answer honestly and briefly, then continue."
             if asked_if_bot

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from chatbot.bot.guards import settled_for_asking
+from chatbot.bot.composer import RULE_TEXT, build_user
 from chatbot.bot.state import (
     BASIS_MODEL,
     BASIS_VISITOR,
+    USE_CASE_QUESTION,
     ConversationState,
     FieldValue,
     STATUS_CONFIRMED,
@@ -198,3 +200,121 @@ def test_a_saved_conversation_round_trips_through_the_new_columns():
     assert restored.fields["use_case"].value == "candle business"
     assert restored.fields["use_case"].status == STATUS_VISITOR
     assert "source" not in restored.to_dict()["fields"]["sizes"]
+
+
+def _fill(state: ConversationState, key: str, value: str, status: str = STATUS_VISITOR) -> None:
+    state.set_field(key, value, BASIS_VISITOR, raw=value, status=status)
+
+
+def test_boxes_may_be_asked_what_is_inside_and_not_a_scripted_size():
+    # Section 3.4 and behaviour 1. The boxes script's first line is the size
+    # question; the ask-set must not hand that string over as the next move.
+    state = make_state("i am looking for boxes")
+    _fill(state, "product", "boxes")
+    assert state.ask_set() == ["use_case", "sizes", "quantity"]
+    key, question = state.next_question()
+    assert key == "use_case"
+    assert question == USE_CASE_QUESTION
+    assert "box size" not in question.lower()
+
+
+def test_finish_skus_and_extras_wait_until_the_quote_fields_are_known():
+    state = make_state("boxes")
+    _fill(state, "product", "boxes")
+    assert {"finishes", "skus", "extras", "style", "material"}.isdisjoint(state.ask_set())
+    _fill(state, "sizes", "4x6 in")
+    _fill(state, "quantity", "1000")
+    allowed = state.ask_set()
+    assert allowed[0] == "use_case"
+    assert "finishes" in allowed and "skus" in allowed
+    assert "extras" not in allowed, "boxes have no extras wording"
+    assert "style" in allowed and "material" in allowed
+
+
+def test_a_stated_field_is_on_the_do_not_ask_list_in_their_words():
+    state = make_state("boxes")
+    _fill(state, "product", "boxes")
+    _fill(state, "style", "kraft")
+    denied = dict(state.do_not_ask())
+    assert denied["product"] == "boxes"
+    assert denied["style"] == "kraft"
+    assert "product" not in state.ask_set()
+    assert "style" not in state.ask_set()
+    constraint = state.ask_constraint()
+    assert 'product (they said "boxes")' in constraint
+    assert 'style (they said "kraft")' in constraint
+    assert constraint.startswith("You may ask about: use_case, sizes, quantity.")
+
+
+def test_use_case_is_asked_and_does_not_stall_the_quote():
+    state = make_state("boxes")
+    _fill(state, "product", "boxes")
+    _fill(state, "sizes", "4x6 in")
+    _fill(state, "quantity", "1000")
+    assert state.specs_done()
+    assert state.ask_set()[0] == "use_case"
+    state.fields["use_case"].attempts = 2
+    assert "use_case" not in state.ask_set()
+    assert state.next_question()[0] == "style"
+    assert state.next_question() is not None
+
+
+def test_the_script_is_only_the_wording_once_a_field_is_selected():
+    state = make_state("boxes")
+    _fill(state, "product", "boxes")
+    _fill(state, "use_case", "candles")
+    _fill(state, "sizes", "4x6 in")
+    _fill(state, "quantity", "1000")
+    key, question = state.next_question()
+    assert key == "style"
+    assert question == "What style of box do you need, or can you share a reference image?"
+
+
+def test_a_waived_size_leaves_the_ask_set():
+    state = make_state("boxes")
+    _fill(state, "product", "boxes")
+    _fill(state, "sizes", "to be confirmed", status=STATUS_WAIVED)
+    state.fields["sizes"].raw_visitor_text = "no idea"
+    assert "sizes" not in state.ask_set()
+    assert dict(state.do_not_ask())["sizes"] == "no idea"
+
+
+def test_a_size_missing_its_unit_stays_askable_and_off_the_do_not_ask_list():
+    state = make_state("boxes")
+    _fill(state, "product", "boxes")
+    _fill(state, "use_case", "candles")
+    _fill(state, "sizes", "100x150")
+    assert state.size_needs_unit()
+    assert state.ask_set()[0] == "sizes"
+    assert state.next_question()[1] == "Is that in inches, cm or mm?"
+    assert "sizes" not in dict(state.do_not_ask())
+
+
+def test_plain_orders_do_not_get_a_sku_question():
+    state = make_state("plain boxes")
+    _fill(state, "product", "boxes")
+    _fill(state, "use_case", "shipping")
+    _fill(state, "sizes", "4x6 in")
+    _fill(state, "quantity", "1000")
+    state.flags["plain"] = True
+    assert "skus" not in state.ask_set()
+
+
+def test_an_unknown_family_may_only_be_asked_which_product():
+    state = make_state("hello")
+    assert state.ask_set() == ["product"]
+    state.fields["product"].attempts = 2
+    assert state.ask_set() == []
+    assert state.next_question() is None
+
+
+def test_the_prompt_injects_the_ask_set_and_drops_the_script_line():
+    state = make_state("i am looking for boxes")
+    _fill(state, "product", "boxes")
+    _fill(state, "style", "kraft")
+    user = build_user(state, "thanks", None)
+    assert "You may ask about: use_case, sizes, quantity." in user
+    assert 'Do not ask about: product (they said "boxes"), style (they said "kraft").' in user
+    assert "Next script question" not in user
+    assert "ASK SET" in RULE_TEXT
+    assert "next script question" not in RULE_TEXT.lower()

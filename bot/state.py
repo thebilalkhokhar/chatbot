@@ -70,7 +70,37 @@ LEGACY_STATUSES = {
 LEGACY_SOURCES = {"visitor": BASIS_VISITOR, "model": BASIS_MODEL, "llm": BASIS_MODEL}
 
 USE_CASE_QUESTION = "What will be inside it, or who is it going to?"
+EMAIL_QUESTION = "What is the best email to send the quote to?"
+PHONE_QUESTION = "What is the best phone number to reach you on?"
 
+# Section 3.4. Highest decision impact first. The ask-set is this order, filtered
+# to fields that are still missing and that change the recommendation or the quote.
+# `use_case` always qualifies and is deliberately not in `BLOCKING_FIELDS`: putting
+# it there would stall every chat that never names the contents.
+ASK_PRIORITY = (
+    "product",
+    "use_case",
+    "sizes",
+    "quantity",
+    "style",
+    "material",
+    "finishes",
+    "skus",
+    "extras",
+    "email",
+    "phone",
+)
+ALWAYS_ASK_FIELDS = frozenset({"product", "use_case", "sizes", "quantity"})
+# Nice-to-haves and contact. Rule 6: while a quote-blocking field is empty the
+# model does not ask these. finish / skus / extras are named in rule 3; style and
+# material are the same class in Section 3.1 (they change the option, not the quote).
+AFTER_BLOCKING_FIELDS = frozenset(
+    {"style", "material", "finishes", "skus", "extras", "email", "phone"}
+)
+
+# Wording catalogue only. Phase 2b: this dict does not choose the next question —
+# `ConversationState.ask_set` does. `question_for` reads a sentence from here when
+# a field has been selected, and nowhere else consults the order of these lists.
 SCRIPTS: dict[str, list[tuple[str, str]]] = {
     "bags": [
         ("sizes", "What bag size are you looking for?"),
@@ -114,6 +144,19 @@ SCRIPTS: dict[str, list[tuple[str, str]]] = {
         ("finishes", "What finish do you prefer: matte, gloss or soft touch?"),
         ("material", "Any special paper or finishing in mind?"),
     ],
+}
+
+# Last-resort sentences for a field the selected family's script does not list.
+# The script line wins whenever one exists.
+FALLBACK_QUESTIONS = {
+    "sizes": "What size are you looking for?",
+    "quantity": "What quantity are you looking to order for your first run?",
+    "style": "What style do you need?",
+    "finishes": "What finish do you prefer: matte, gloss or soft touch?",
+    "skus": "How many total designs or SKUs do you have?",
+    "material": "Do you have any specific material or special features in mind?",
+    "extras": "Do you want any extras on this order?",
+    "name": "Who am I speaking with?",
 }
 
 PRODUCT_QUESTION = "What are you looking to have made — boxes, bags, labels, or something else?"
@@ -679,22 +722,117 @@ class ConversationState:
         return self.specs_done() and self.reachable()
 
     def script(self) -> list[tuple[str, str]]:
+        """The family's wording catalogue. Order here is not the order we ask in."""
         family = self.family()
         return SCRIPTS.get(family, [])
 
+    def blocking_open(self) -> bool:
+        """A quote-blocking field is still empty. `use_case` is not one of them."""
+        for key in BLOCKING_FIELDS:
+            if key == "sizes" and self.size_needs_unit():
+                return True
+            if not self.fields[key].done:
+                return True
+        return False
+
+    def _askable(self, key: str, blocking_open: bool, family_fields: set[str]) -> bool:
+        value = self.fields[key]
+        # A number without a unit is still the visitor's size, and still askable once.
+        if key == "sizes" and self.size_needs_unit() and not self.flags.get("unit_asked"):
+            return True
+        # `suggested` waits on a yes/no, not a fresh question. `done` includes a waiver.
+        # Two attempts is the existing cap; offering the field again would re-ask it.
+        if value.status == STATUS_SUGGESTED or value.done or value.attempts >= 2:
+            return False
+        if key in ALWAYS_ASK_FIELDS:
+            return True
+        if blocking_open or key not in AFTER_BLOCKING_FIELDS:
+            return False
+        if key in {"email", "phone"}:
+            if self.reachable():
+                return False
+            # Email twice, then phone — the same contact order as before, just no longer
+            # gated on walking the script to the end.
+            if key == "phone" and not self.fields["email"].done and self.fields["email"].attempts < 2:
+                return False
+            return True
+        if key == "skus" and self.is_plain():
+            return False
+        return key in family_fields
+
+    def ask_set(self) -> list[str]:
+        """Missing fields that materially change the recommendation or the quote.
+
+        Section 3.4. Injected into the prompt as the only fields that may be asked.
+        With no family yet, the only legal ask is which product — anything else
+        assumes an answer the visitor has not given.
+        """
+        if self.handoff:
+            return []
+        if self.family() == "unknown":
+            if self._askable("product", True, set()):
+                return ["product"]
+            return []
+        blocking_open = self.blocking_open()
+        family_fields = {key for key, _question in self.script()}
+        return [
+            key
+            for key in ASK_PRIORITY
+            if key in self.fields and self._askable(key, blocking_open, family_fields)
+        ]
+
+    def do_not_ask(self) -> list[tuple[str, str]]:
+        """Settled fields with the visitor's own words. Off limits, even as a confirmation."""
+        denied: list[tuple[str, str]] = []
+        for key in FIELD_LABELS:
+            value = self.fields.get(key)
+            if value is None or not (value.stated or value.status == STATUS_WAIVED):
+                continue
+            # The number is known; the unit is not. Asking which unit is still legal.
+            if key == "sizes" and self.size_needs_unit() and not self.flags.get("unit_asked"):
+                continue
+            words = " ".join((value.raw_visitor_text or value.value).split())
+            if words:
+                denied.append((key, words))
+        return denied
+
+    def ask_constraint(self) -> str:
+        """The hard prompt lines from Section 3.4: allowed asks, then their words."""
+        allowed = self.ask_set()
+        ask = ", ".join(allowed) if allowed else "(nothing — do not ask a new question)"
+        denied = self.do_not_ask()
+        if denied:
+            parts = []
+            for key, words in denied:
+                shown = words.replace('"', "'")
+                if len(shown) > 80:
+                    shown = shown[:77] + "..."
+                parts.append(f'{key} (they said "{shown}")')
+            deny = ", ".join(parts)
+        else:
+            deny = "(nothing yet)"
+        return f"You may ask about: {ask}.\nDo not ask about: {deny}."
+
     def question_for(self, key: str) -> str:
+        """Wording for a field the ask-set already selected. The script is one source."""
         if key == "use_case":
             return USE_CASE_QUESTION
+        if key == "product":
+            return PRODUCT_QUESTION
+        if key == "email":
+            return EMAIL_QUESTION
+        if key == "phone":
+            return PHONE_QUESTION
         if key == "sizes" and self.size_needs_unit():
             return "Is that in inches, cm or mm?"
         for field_key, question in self.script():
             if field_key == key:
                 return question
-        return ""
+        return FALLBACK_QUESTIONS.get(key, "")
 
     def repair_fields(self) -> list[str]:
         # Older turns could store the visitor's question in a free-text field
-        # (style, material, extras). Clear those values so the script re-asks.
+        # (style, material, extras). Clear those so the field can be asked again.
         repaired: list[str] = []
         for key in ("style", "material", "extras"):
             field_value = self.fields[key]
@@ -719,32 +857,20 @@ class ConversationState:
         return [self.last_question]
 
     def next_question(self) -> tuple[str, str] | None:
+        """The single highest-impact ask, for fake mode and the wording fallback.
+
+        The live prompt shows the whole ask-set and the model picks. This is not
+        a script position: `SCRIPTS` only supplies the sentence, via `question_for`.
+        """
         if self.handoff:
             return None
-        family = self.family()
-        if family == "unknown":
-            product = self.fields["product"]
-            if product.done or product.attempts >= 2:
-                return None
-            return "product", PRODUCT_QUESTION
-
-        if self.size_needs_unit() and not self.flags.get("unit_asked"):
-            return "sizes", "Is that in inches, cm or mm?"
-
-        for key, question in self.script():
-            if key == "skus" and self.is_plain():
-                continue
-            value = self.fields[key]
-            if value.done or value.attempts >= 2:
-                continue
-            return key, question
-
-        for key in BLOCKING_FIELDS:
-            if not self.fields[key].done:
-                return None
-
-        contact = self.next_contact_question()
-        return contact
+        for key in self.ask_set():
+            question = self.question_for(key)
+            if question:
+                return key, question
+        if self.blocking_open():
+            return None
+        return self.next_contact_question()
 
     def finalize_stalled(self) -> list[str]:
         """The unit follow-up gets exactly one turn; after it, the size is the team's to confirm."""
@@ -760,9 +886,9 @@ class ConversationState:
         if self.reachable():
             return None
         if email.attempts < 2:
-            return "email", "What is the best email to send the quote to?"
+            return "email", EMAIL_QUESTION
         if phone.attempts < 2:
-            return "phone", "What is the best phone number to reach you on?"
+            return "phone", PHONE_QUESTION
         return None
 
     def missing_for_prompt(self) -> list[str]:
@@ -772,8 +898,10 @@ class ConversationState:
             value = self.fields[key]
             if value.done and not (key == "sizes" and self.size_needs_unit()):
                 continue
-            if key in BLOCKING_FIELDS or key == "use_case":
+            if key in BLOCKING_FIELDS:
                 missing.append(f"{FIELD_LABELS[key]} (blocking)")
+            elif key == "use_case":
+                missing.append(f"{FIELD_LABELS[key]} (needed for a recommendation)")
             elif key in CONTACT_FIELDS:
                 if not self.reachable() and key != "name":
                     missing.append(FIELD_LABELS[key])
@@ -798,14 +926,13 @@ class ConversationState:
         return "; ".join(parts) if parts else "nothing yet"
 
     def summary(self) -> str:
-        next_q = self.next_question()
         lines = [
             f"Persona: {self.persona}",
             f"Family: {self.family()}",
             f"Known: {self.known_for_prompt()}",
             f"Missing: {', '.join(self.missing_for_prompt()) or 'none'}",
             f"Turn: {self.turn_count + 1}",
-            f"Next question: {next_q[1] if next_q else '(none — contact or handoff)'}",
+            self.ask_constraint(),
         ]
         if self.flags.get("minimum_stated"):
             lines.append("Minimum already stated once: do not repeat it.")

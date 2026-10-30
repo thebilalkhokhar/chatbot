@@ -560,10 +560,12 @@ def _check_greeting(reply: str, state: ConversationState, result: GuardResult) -
 def _check_asked_fields(
     reply: str,
     state: ConversationState,
-    expected: tuple[str, str] | None,
+    _expected: tuple[str, str] | None,
     handoff: bool,
     result: GuardResult,
 ) -> None:
+    # `_expected` is the single highest-impact ask. A reply may ask any other
+    # field the ask-set still allows, so this check no longer compares to it.
     field_asked = asked_field(reply)
     if field_asked:
         value = state.fields.get(field_asked)
@@ -583,29 +585,25 @@ def _check_asked_fields(
             )
     if handoff:
         return
-    if expected and field_asked and field_asked != expected[0]:
-        if state.fields.get(field_asked) and state.fields[field_asked].value:
-            result.add(
-                "off_script",
-                WARN,
-                f"The state expected the {expected[0]} question, but the reply asks for {field_asked}.",
-                reply[:120],
-            )
-        else:
-            result.add(
-                "off_script",
-                WARN,
-                f"The script's next question is {expected[0]}; the reply asks {field_asked}.",
-                reply[:120],
-            )
-    if expected and not field_asked and not handoff:
-        word = expected[1].lower().split("?")[0]
-        if not any(token in reply.lower() for token in word.split()[:4]):
-            result.add(
-                "no_question_asked",
-                WARN,
-                f"The script still needs the {expected[0]}; the reply does not ask it.",
-            )
+    # Section 3.4: the model may pick any field in the ask-set. `off_script` stays
+    # (Phase 2 keeps every v1 guard) but it no longer enforces script position —
+    # it fires only when the reply asks about a field the ask-set does not allow.
+    allowed = state.ask_set()
+    allowed_set = set(allowed)
+    if field_asked and field_asked not in allowed_set:
+        listed = ", ".join(allowed) if allowed else "nothing may be asked"
+        result.add(
+            "off_script",
+            WARN,
+            f"The reply asks about {field_asked}, which is outside the ask-set ({listed}).",
+            reply[:120],
+        )
+    if allowed and not field_asked:
+        result.add(
+            "no_question_asked",
+            WARN,
+            f"The ask-set is {', '.join(allowed)}; the reply does not ask about one of them.",
+        )
 
 
 def _check_sizes(reply: str, state: ConversationState, result: GuardResult) -> None:

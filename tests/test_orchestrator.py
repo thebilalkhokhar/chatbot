@@ -15,10 +15,13 @@ def test_start_sets_persona_and_greeting(orchestrator):
     assert blockers(result) == []
 
 
-def test_first_product_message_asks_size(orchestrator):
+def test_first_product_message_asks_what_they_are_packing(orchestrator):
+    # Behaviour 1: "boxes" is not a size. The ask-set leads with use_case.
     orchestrator.start("c-boxes")
     result = orchestrator.handle("c-boxes", "I need custom boxes")
-    assert "size" in result.reply.lower()
+    lowered = result.reply.lower()
+    assert "inside" in lowered
+    assert "box size" not in lowered
     assert result.reply.count("?") == 1
     assert blockers(result) == []
     assert result.accepted.get("product")
@@ -55,10 +58,8 @@ def test_human_request_handoff(orchestrator):
 
 def test_small_quantity_gets_smaller_runs_answer(orchestrator):
     orchestrator.start("c-small")
-    orchestrator.handle("c-small", "I need custom boxes")
+    orchestrator.handle("c-small", "I need custom boxes for shipping candles")
     orchestrator.handle("c-small", "4 x 6 x 2 inches")
-    orchestrator.handle("c-small", "mailer box")
-    orchestrator.handle("c-small", "matte")
     result = orchestrator.handle("c-small", "300")
     lowered = result.reply.lower()
     assert "smaller runs" in lowered
@@ -70,13 +71,13 @@ def test_small_quantity_gets_smaller_runs_answer(orchestrator):
 def test_full_flow_reaches_quote_handoff(orchestrator):
     orchestrator.start("c-full")
     steps = [
-        "I need custom boxes",
+        "I need custom boxes for shipping candles",
         "4 x 6 x 2 inches",
-        "mailer box",
-        "matte",
         "1000",
+        "mailer box",
+        "kraft",
+        "matte",
         "1 design",
-        "none",
         "buyer@example.com",
     ]
     result = None
@@ -115,7 +116,7 @@ def test_pack_count_is_not_an_order_quantity(orchestrator):
     orchestrator.start("c-pouch")
     result = orchestrator.handle("c-pouch", "flat pouch for my 2 count gummy")
     assert result.accepted.get("product")
-    assert "bag size" in result.reply.lower()
+    assert "inside" in result.reply.lower()
     state = orchestrator.store.get_or_create("c-pouch")
     assert not state.fields["quantity"].done
     assert blockers(result) == []
@@ -132,7 +133,8 @@ def test_sign_is_a_banner(orchestrator):
     orchestrator.start("c-sign")
     result = orchestrator.handle("c-sign", "Parking Sign")
     assert result.accepted.get("product")
-    assert "banner size" in result.reply.lower()
+    assert orchestrator.store.get_or_create("c-sign").family() == "banners"
+    assert "inside" in result.reply.lower()
 
 
 def test_size_without_unit_asks_for_the_unit(orchestrator):
@@ -226,7 +228,8 @@ def test_custom_display_tray_is_a_box(orchestrator):
     orchestrator.start("c-tray")
     result = orchestrator.handle("c-tray", "I need a custom countertop display tray")
     assert result.accepted.get("product")
-    assert "box size" in result.reply.lower()
+    assert orchestrator.store.get_or_create("c-tray").family() == "boxes"
+    assert "inside" in result.reply.lower()
     assert blockers(result) == []
 
 
@@ -326,8 +329,9 @@ def test_dry_meat_suggestion_covers_bags_and_boxes(orchestrator):
 
 def test_style_question_keeps_the_product_and_answers(orchestrator):
     orchestrator.start("c-style-q")
-    orchestrator.handle("c-style-q", "bags")
+    orchestrator.handle("c-style-q", "I need bags for shipping coffee")
     orchestrator.handle("c-style-q", "12 x 51 cm")
+    orchestrator.handle("c-style-q", "1000")
     result = orchestrator.handle("c-style-q", "what style of boxes do you have")
     lowered = result.reply.lower()
     state = orchestrator.store.get_or_create("c-style-q")
@@ -341,26 +345,28 @@ def test_style_question_keeps_the_product_and_answers(orchestrator):
 
 def test_style_answer_later_in_the_chat_is_kept(orchestrator):
     orchestrator.start("c-style-late")
-    orchestrator.handle("c-style-late", "bags")
+    orchestrator.handle("c-style-late", "I need bags for shipping coffee")
     orchestrator.handle("c-style-late", "12 x 51 cm")
+    orchestrator.handle("c-style-late", "1000")
     orchestrator.handle("c-style-late", "what style of boxes do you have")
     result = orchestrator.handle("c-style-late", "i want standup style bags")
     state = orchestrator.store.get_or_create("c-style-late")
     assert state.fields["style"].value == "stand-up"
     assert state.fields["product"].value == "bags"
-    assert "finish" in result.reply.lower()
+    assert "material" in result.reply.lower()
     assert blockers(result) == []
 
 
 def test_clarifying_question_names_the_product(orchestrator):
     orchestrator.start("c-clarify")
-    orchestrator.handle("c-clarify", "bags")
+    orchestrator.handle("c-clarify", "I need bags for shipping coffee")
     orchestrator.handle("c-clarify", "12 x 51 cm")
+    orchestrator.handle("c-clarify", "1000")
     orchestrator.handle("c-clarify", "flat")
     result = orchestrator.handle("c-clarify", "for what? bag or box?")
     lowered = result.reply.lower()
     assert "your flat bags" in lowered
-    assert "finish" in lowered
+    assert "material" in lowered
     assert "possibly_unanswered_question" not in [issue["code"] for issue in result.issues]
     assert result.reply.count("?") == 1
     assert blockers(result) == []
@@ -382,19 +388,20 @@ def test_saved_question_in_a_field_is_repaired(orchestrator):
 
 def test_no_style_preference_gets_style_options(orchestrator):
     orchestrator.start("c-style-none")
-    orchestrator.handle("c-style-none", "I need custom boxes")
+    orchestrator.handle("c-style-none", "I need custom boxes for shipping candles")
     orchestrator.handle("c-style-none", "4 x 6 x 2 inches")
+    orchestrator.handle("c-style-none", "1000")
     result = orchestrator.handle("c-style-none", "i dont have")
     lowered = result.reply.lower()
     assert "mailer" in lowered and "display boxes" in lowered
-    assert "finish" in lowered
+    assert "material" in lowered
     assert result.accepted.get("style") == "no preference"
     assert blockers(result) == []
 
 
 def test_unknown_size_is_explained_not_stored_verbatim(orchestrator):
     orchestrator.start("c-size-unknown")
-    orchestrator.handle("c-size-unknown", "I need custom boxes")
+    orchestrator.handle("c-size-unknown", "I need custom boxes for shipping candles")
     result = orchestrator.handle("c-size-unknown", "not sure")
     lowered = result.reply.lower()
     assert "no standard size" in lowered
@@ -429,12 +436,13 @@ def test_webhook_channel_stays_handed_off(orchestrator):
 def test_contact_refusal_stops_the_email_loop(orchestrator):
     orchestrator.start("c-declined")
     for text in [
-        "i need 3 design boxes",
+        "i need boxes for shipping candles",
         "4 x 6 x 2 inches",
-        "mailer box",
-        "matte",
         "1000",
-        "no preference",
+        "mailer box",
+        "kraft",
+        "matte",
+        "3 designs",
     ]:
         orchestrator.handle("c-declined", text)
     result = orchestrator.handle("c-declined", "no i don;t want it")
@@ -451,15 +459,15 @@ def test_contact_refusal_stops_the_email_loop(orchestrator):
 
 
 def test_size_unit_follow_up_completes_the_size(orchestrator):
-    orchestrator.start("c-unit")
-    orchestrator.handle("c-unit", "I need custom boxes")
-    first = orchestrator.handle("c-unit", "100 x 150")
+    orchestrator.start("c-unit-follow")
+    orchestrator.handle("c-unit-follow", "I need custom boxes for shipping candles")
+    first = orchestrator.handle("c-unit-follow", "100 x 150")
     assert "inches, cm or mm" in first.reply.lower()
-    result = orchestrator.handle("c-unit", "mm")
-    state = orchestrator.store.get_or_create("c-unit")
+    result = orchestrator.handle("c-unit-follow", "mm")
+    state = orchestrator.store.get_or_create("c-unit-follow")
     assert state.fields["sizes"].value == "100x150 mm"
     assert state.fields["sizes"].status == STATUS_VISITOR
-    assert "style" in result.reply.lower()
+    assert "quantity" in result.reply.lower()
     assert blockers(result) == []
 
 

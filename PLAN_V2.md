@@ -1522,12 +1522,38 @@ still need their own written approval.
 > warnings, and a 20-chat fake replay of the real corpus finished with **0 blockers, 0 errors** and
 > only 2 `repeated_wording` warnings — the ask-discipline work in 2b/2c.
 
+> **Progress, 2026-10-31 (Phase 2b — the ask-set). One more checklist item done. Fake mode only;
+> no paid call was made.**
+> 1. **The ask-set is computed in code.** `ConversationState.ask_set` returns the missing fields
+>    that change the recommendation or the quote, highest decision impact first: product, use_case,
+>    sizes, quantity, then — only once product, sizes and quantity are settled — style, material,
+>    finish, skus, extras, then email and phone. `use_case` always qualifies and is **not** in
+>    `BLOCKING_FIELDS`, so a chat that never names the contents moves on after two asks instead of
+>    stalling. finish, skus, extras, style and material stay out while a quote-blocking field is
+>    empty. A plain order skips skus. With no family yet, the only legal ask is the product.
+> 2. **It is a hard prompt constraint.** The per-turn tail now carries
+>    `You may ask about: use_case, sizes, quantity.` / `Do not ask about: product (they said "boxes"), style (they said "kraft").`
+>    Rule 3 points at that list. The "Next script question" line is gone.
+> 3. **`SCRIPTS` is a wording catalogue.** `next_question` picks the first open field in the ask-set
+>    and `question_for` reads the sentence. Fake mode still has to ask one question; that pick is
+>    decision impact, not script position. "I need boxes" now asks what will be inside, not the box size.
+> 4. **`off_script` no longer enforces a position.** It stays (every v1 guard is still active) and
+>    warns only when the reply asks about a field the ask-set does not allow. `redundant_ask` is
+>    still Phase 2c — `question_already_answered` remains the block for a field the customer stated.
+>
+> **Suite: 134 passing** — 10 new tests in `chatbot/tests/test_state.py` (ask-set membership,
+> deferred finish/skus/extras, the do-not-ask wording, use_case not stalling the quote, script
+> wording used only after a field is selected, a waived size leaving the set, a unitless size
+> staying askable, plain orders skipping skus, an unknown family only being asked which product,
+> and the prompt constraint with the script line gone).
+
 - [x] `GoalState` with `{value, raw_visitor_text, basis, status}` per field, replacing script
       position; add `use_case`; normalise units and dimension order. **Done 2026-10-31, with the
       order half reversed on purpose: units normalise, dimension order is the customer's (§3.1).
-      Script position still drives the scripted path — its demotion is the next item.**
-- [ ] Ask-set computation (Section 3.4): missing **and** materially-affecting fields only, with a
+      Script position stopped driving on 2026-10-31 (Phase 2b).**
+- [x] Ask-set computation (Section 3.4): missing **and** materially-affecting fields only, with a
       do-not-ask list generated from state and injected into the prompt as a constraint.
+      **Done 2026-10-31.** `SCRIPTS` is now a wording catalogue only.
 - [ ] Guards `redundant_ask` and `question_as_answer`; regression test for the exact logged failure
       ("your address" must never satisfy `style`).
 - [ ] Fix `_safe_fallback` concatenating every detected topic (top match only + meta-question path).
@@ -1782,15 +1808,15 @@ loop that writes new rules from found loopholes. v2 continues that path rather t
 | `chatbot/data/catalogue_primer.txt` | **generated, 2026-10-30** — the rendered primer (**2,856 tokens** against the 2,900 bound, from the kb_v2 registry). Written by `cli ingest`, never hand-edited: `cli capability` exits 1 if the file on disk differs from a fresh render |
 | ~~`chatbot/bot/sizing.py`~~ | **deleted by Revision D** — never written. No `estimate_size()`, no sizing module; the sizing policy is one prompt paragraph plus the `unsanctioned_dimension` guard (§4.4, §7) |
 | `chatbot/bot/cli.py` | **`capability` subcommand done 2026-10-30** (registry integrity, per-family row counts, primer-drift check; exit 1 on errors) · `probe` subcommand still owed (Section 4.7 Stage A + the S1/S2/S3 strata, Phase 4) · `ingest` now also writes the primer |
-| `chatbot/bot/state.py` | **Phase 2a done 2026-10-31** — `FieldValue` is `{value, status, attempts, raw_visitor_text, basis}` with `unknown\|visitor\|suggested\|confirmed\|waived` × `canon\|catalogue\|model_knowledge\|visitor`, `done`/`stated` predicates, the v1 status+`source` translation in `from_dict`, `normalise_size` (units fold, order preserved), `use_case_from`, `looks_like_contact` guarding `PROSE_FIELDS`, `confirm_suggested` for propose-and-confirm and `CUSTOMER_ONLY_FIELDS` for §4.4. Still owed here: the ask-set / do-not-ask computation and `SCRIPTS` demoted to a wording source |
-| `chatbot/bot/composer.py` | Prompt split into a **cacheable static prefix** (persona, rules, primer, allow-list, sizing policy) and a per-turn tail; the no-external-source line (D-13) and the **approved D-1 identity paragraph**; drop "next script question"; `move` + `proposed_configs[]` + `basis` in the schema |
-| `chatbot/bot/guards.py` | **Phase 2a part done** — `settled_for_asking()` is the one re-ask predicate both repeat-checks share, and `FIELD_PROBES` has a `use_case` entry. Tier reclassification (Section 7) + the new codes; `catalogue_grounding` superseded by the registry states; `unsanctioned_dimension`; `reply_config_mismatch`; `contact_offered_unasked`; apostrophe fix |
+| `chatbot/bot/state.py` | **Phase 2b done 2026-10-31** — `ask_set` / `do_not_ask` / `ask_constraint` (Section 3.4). `use_case` always qualifies and is not a blocking field. finish, skus, extras, style and material stay out while product, sizes or quantity is open. `SCRIPTS` is a wording catalogue: `question_for` reads it, `next_question` does not walk it. Phase 2a provenance (`FieldValue`, `done`/`stated`, unit folding, `use_case_from`, `confirm_suggested`, `CUSTOMER_ONLY_FIELDS`) is unchanged |
+| `chatbot/bot/composer.py` | **Phase 2b part done** — rule 3 and the per-turn tail bind the model to the ask-set; the "next script question" line is gone. Still owed (Phase 3): the cacheable static prefix (persona, primer, allow-list, sizing policy), the no-external-source line (D-13), the approved D-1 identity paragraph, and `move` + `proposed_configs[]` + `basis` in the schema |
+| `chatbot/bot/guards.py` | **Phase 2b part done** — `off_script` warns when the reply asks a field outside the ask-set, not when it skips a script position. `no_question_asked` uses the same list. Phase 2a `settled_for_asking()` and the `use_case` probe stay. Still owed: tier reclassification (Section 7), `redundant_ask`, `unsanctioned_dimension`, `reply_config_mismatch`, `contact_offered_unasked`, the apostrophe fix |
 | `chatbot/bot/orchestrator.py` | **Phase 2a part done** — a bare affirmation is resolved before extraction, and the model's own fields go through `apply_field_updates(..., source="model")` so they land `suggested`. Goal-driven flow; family-filtered context assembly; **reply ↔ config reconciliation, re-run after any rewrite**; context-aware `_safe_fallback`; meta-question path; basis recorded per event |
 | `chatbot/bot/config.py` | `BOT_ARCH=v1\|v2`; `BOT_CONTEXT=catalogue\|full\|retrieval` with **`catalogue` the v2 default**; model tier per arch; `cost_usd` accounting. **No `sizing.mode` value exists** (Revision D) — there is nothing for the loader to gate |
 | `chatbot/bot/llm.py` | Cost logging; prompt-caching experiment flag |
 | `chatbot/bot/replay.py` | Side-by-side v1/v2 runs; spend lock unchanged |
 | `chatbot/web/index.html` | Debug panel shows `move`, `proposed_configs[]`, registry state per claim, the context tier actually sent and its token count, and the goal checklist |
-| `chatbot/tests/` | **`test_state.py` new 2026-10-31** (16 goal-state tests: unit folding, dimension order, visitor provenance, waivers, model proposals, invented-size rejection, affirmation promotion, use-case extraction, the v1 legacy load and the round-trip); `test_guards.py` and `test_orchestrator.py` moved to the new status names plus a unit-still-open test. Still owed: Registry/tuple-membership tests, excluded-pair tests, primer render + token-budget tests, reply↔config reconciliation tests, sizing-policy tests, **D-1 disclosure tests (unasked AI mention blocks, explicit identity question gets the approved sentence, denial blocks, the Ethan transcript regression)**, ask-discipline tests, Tier boundary tests, probe fixtures |
+| `chatbot/tests/` | **Phase 2b: suite 134 passing.** `test_state.py` gained 10 ask-set tests on top of the 16 goal-state tests from Phase 2a. Orchestrator and service tests that asserted the old script's first question ("what box size") now assert the use-case ask. Still owed: `redundant_ask` / `question_as_answer` regressions (Phase 2c), registry/tuple tests, primer token-budget tests, reply↔config tests, sizing-policy tests, **D-1 disclosure tests**, Tier boundary tests, probe fixtures |
 
 ## Appendix B — v1's 19 prompt rules in v2
 
