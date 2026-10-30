@@ -369,7 +369,7 @@ class Orchestrator:
                 parts.append(urgent)
             return " ".join(parts)
         parts: list[str] = []
-        topics = canon.detect_topics(visitor)
+        topics = canon.topics_to_answer(visitor)
         if topics:
             parts.append(canon.effective_answer(topics[0], self.overrides))
         if urgent:
@@ -377,6 +377,30 @@ class Orchestrator:
         elif expected:
             parts.append(REPHRASES.get(expected[0]) or expected[1])
         return " ".join(parts).strip() or "What are you looking to have made — boxes, bags, labels, or something else?"
+
+    def _finish_reply(
+        self,
+        reply: str,
+        visitor: str,
+        expected: tuple[str, str] | None,
+        *,
+        already_greeted: bool = False,
+    ) -> str:
+        """Drop an unsolicited MOQ lecture, a repeated greeting, and any extra question."""
+        priority_key = expected[0] if expected else ""
+        priority_text = expected[1] if expected else ""
+        polished = guards.prepare_reply(
+            reply,
+            visitor,
+            priority_key=priority_key,
+            priority_text=priority_text,
+            already_greeted=already_greeted,
+        )
+        if polished:
+            return polished
+        if expected:
+            return expected[1]
+        return str(reply or "").strip()
 
     def _guard(
         self,
@@ -531,6 +555,10 @@ class Orchestrator:
             )
             source = "heuristic"
 
+        already_greeted = bool(state.bot_texts())
+        composed.reply = self._finish_reply(
+            composed.reply, visitor, expected, already_greeted=already_greeted
+        )
         result = self._guard(
             composed.reply,
             state,
@@ -569,6 +597,9 @@ class Orchestrator:
                     registry=self.registry,
                 )
                 rewritten.reply = guards.strip_unsanctioned_claims(rewritten.reply, self.registry)
+                rewritten.reply = self._finish_reply(
+                    rewritten.reply, visitor, expected, already_greeted=already_greeted
+                )
                 # A rewrite is reconciled again. Fixing a price and quietly adding
                 # an option the new configs do not name still blocks.
                 rewritten_result = self._guard(
@@ -595,18 +626,28 @@ class Orchestrator:
                 log.warning("Live rewrite failed (%s); continuing with fallback", error)
 
         if not result.ok:
-            fallback = self._safe_fallback(
-                state,
+            fallback = self._finish_reply(
+                self._safe_fallback(
+                    state,
+                    expected,
+                    handoff_reason,
+                    guard=result,
+                    configs=composed.proposed_configs,
+                ),
+                visitor,
                 expected,
-                handoff_reason,
-                guard=result,
-                configs=composed.proposed_configs,
+                already_greeted=already_greeted,
             )
             fallback_result = self._guard(
                 fallback, state, visitor, prompt_chunks, expected, bool(handoff_reason)
             )
             if fallback_result.blockers:
-                fallback = expected[1] if expected else (HANDOFF_LINES.get(handoff_reason) or "")
+                fallback = self._finish_reply(
+                    expected[1] if expected else (HANDOFF_LINES.get(handoff_reason) or ""),
+                    visitor,
+                    expected,
+                    already_greeted=already_greeted,
+                )
                 fallback_result = self._guard(
                     fallback, state, visitor, prompt_chunks, expected, bool(handoff_reason)
                 )

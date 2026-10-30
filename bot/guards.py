@@ -7,6 +7,7 @@ from . import canon
 from .capability import Candidate, Registry, fold, value_forms
 from .personas import PERSONAS
 from .state import (
+    ASK_PRIORITY,
     BARE_QTY_RE,
     EMAIL_RE,
     MATERIAL_HINTS,
@@ -80,7 +81,15 @@ DELIVERY_VERB = re.compile(
 )
 MARKDOWN = re.compile(r"\*\*|__|`|^\s*#{1,6}\s|^\s*[-*•]\s|^\s*\d+[.)]\s", re.M)
 EMOJI = re.compile("[\U0001f300-\U0001faff\u2600-\u27bf]")
-GREETING = re.compile(r"^\s*(?:hi|hello|hey|good (?:morning|afternoon|evening))\b", re.I)
+GREETING = re.compile(
+    r"^\s*(?:hi|hello|hey|morning|afternoon|evening|good (?:morning|afternoon|evening|day))\b",
+    re.I,
+)
+_GREETING_PREFIX = re.compile(
+    r"^(?:good\s+(?:morning|afternoon|evening|day)|morning|afternoon|evening|"
+    r"(?:hi|hello|hey)(?:\s+there)?)\b(?!-)[!.,:]*\s*",
+    re.I,
+)
 QUESTION_CLAUSE = re.compile(
     r"(?:^|[.!?]\s+|\band\s+|\balso\s+|\bplus\s+)(?:what|which|when|where|who|how|"
     r"can|could|would|will|do|does|did|is|are|should|any)\b"
@@ -587,6 +596,183 @@ def _check_minimum(reply: str, state: ConversationState, result: GuardResult) ->
             )
 
 
+_ASK_JOIN = re.compile(
+    r"\s*,?\s+\b(?:and|also|plus)\b\s+(?=(?:what|which|when|where|who|how|"
+    r"can|could|would|will|do|does|did|is|are|should|any)\b)",
+    re.I,
+)
+_ASK_START = re.compile(
+    r"^(?:what|which|when|where|who|how|do|does|did|is|are|should|any)\b"
+    r"|^(?:can|could|would|will)\s+you\b",
+    re.I,
+)
+# The production MOQ sentence and its pieces. A quantity must not drag these in.
+_MOQ_LECTURE = re.compile(
+    r"\b(?:our\s+)?standard\s+moq\b"
+    r"|\bmoq\s+is\b"
+    r"|\b1[,.]?000\s+per\s+size\b"
+    r"|\bsmaller\s+runs\b"
+    r"|\bno\s+minimum\b"
+    r"|\bminimum\s+order\s+is\b"
+    r"|\b(?:the\s+)?minimum\s+is\s+(?:1[,.]?000|500)\b"
+    r"|\bjust tell me the quantity\b"
+    r"|\b500\s+each\b"
+    r"|\b(?:under|below|less than|lower than|at least)\s+1[,.]?000\b"
+    r"|\bminimum\b[^.]{0,40}\b(?:1[,.]?000|500)\b"
+    r"|\b(?:1[,.]?000|500)\b[^.]{0,40}\b(?:minimum|moq)\b",
+    re.I,
+)
+_MOQ_START = re.compile(
+    r"\b(?:our\s+standard\s+moq|standard\s+moq|no\s+minimum|"
+    r"minimum\s+order\s+is|(?:the\s+)?minimum\s+is\s+(?:1[,.]?000|500)|"
+    r"smaller\s+runs|just tell me the quantity|500\s+each|"
+    r"(?:under|below|less than|lower than|at least)\s+1[,.]?000)\b",
+    re.I,
+)
+
+
+def _field_of_clause(clause: str) -> str:
+    for key, pattern in FIELD_PROBES:
+        if pattern.search(clause):
+            return key
+    # "inches, cm, or mm" is the size-unit question and does not say "size".
+    if re.search(r"\b(?:inches|cm|mm|unit)\b", clause, re.I):
+        return "sizes"
+    return ""
+
+
+def _is_ask(clause: str) -> bool:
+    text = clause.strip()
+    if "?" in text:
+        return True
+    return bool(_ASK_START.match(text))
+
+
+def _ask_clauses(text: str) -> list[str]:
+    clauses: list[str] = []
+    for sentence in _sentences(text):
+        for part in _ASK_JOIN.split(sentence):
+            cleaned = part.strip(" ,;")
+            if cleaned:
+                clauses.append(cleaned)
+    return clauses
+
+
+def _as_question(clause: str) -> str:
+    text = clause.strip().rstrip(" ,;.")
+    if text.endswith("?"):
+        return text
+    return f"{text}?"
+
+
+def _is_moq_lecture(sentence: str) -> bool:
+    return bool(_MOQ_LECTURE.search(sentence))
+
+
+def _without_moq_lecture(sentence: str) -> str:
+    """Drop a canon MOQ sentence. Keep a short acknowledgement that sat in front of it."""
+    if not _is_moq_lecture(sentence):
+        return sentence
+    match = _MOQ_START.search(sentence)
+    if match and match.start() > 0:
+        prefix = sentence[: match.start()].rstrip(" ,;—-")
+        if prefix and not _is_moq_lecture(prefix):
+            if prefix[-1] not in ".!?":
+                prefix += "."
+            return prefix
+    return ""
+
+
+def strip_repeated_greeting(reply: str) -> str:
+    """Drop a hello that follows the opening greeting. 'Morning!' is one of these.
+
+    A sentence that merely starts with the word morning ("Morning production...") stays.
+    """
+    kept: list[str] = []
+    for sentence in _sentences(reply):
+        text = sentence.strip()
+        match = _GREETING_PREFIX.match(text)
+        if not match:
+            kept.append(sentence)
+            continue
+        rest = text[match.end():].strip()
+        token = match.group(0).strip(" !.,:").lower()
+        if rest and token in {"morning", "afternoon", "evening"}:
+            kept.append(sentence)
+            continue
+        if rest:
+            kept.append(rest)
+    return re.sub(r"\s+", " ", " ".join(kept)).strip()
+
+
+def strip_unsolicited_moq(reply: str, visitor: str) -> str:
+    """Remove the MOQ sentence unless they asked what the minimum is."""
+    text = str(reply or "").strip()
+    if not text or canon.asks_for_minimum(visitor):
+        return text
+    kept = [_without_moq_lecture(sentence) for sentence in _sentences(text)]
+    kept = [sentence for sentence in kept if sentence]
+    if not kept:
+        return ""
+    return re.sub(r"\s+", " ", " ".join(kept)).strip()
+
+
+def enforce_single_question(reply: str, priority_key: str = "", priority_text: str = "") -> str:
+    """Keep one question: the highest-priority missing field, then stop."""
+    text = str(reply or "").strip()
+    if count_questions(text) <= 1:
+        return text
+    clauses = _ask_clauses(text)
+    ask_indexes = [index for index, clause in enumerate(clauses) if _is_ask(clause)]
+    if len(ask_indexes) <= 1:
+        return text
+
+    def rank(index: int) -> tuple:
+        clause = clauses[index]
+        field = _field_of_clause(clause)
+        overlap = sentence_similarity(clause, priority_text) if priority_text else 0.0
+        if priority_key and (field == priority_key or overlap >= 0.34):
+            band, order = 0, 0
+        elif field in ASK_PRIORITY:
+            band, order = 1, ASK_PRIORITY.index(field)
+        else:
+            band, order = 2, 0
+        return (band, order, -overlap, -index)
+
+    keep = min(ask_indexes, key=rank)
+    kept: list[str] = []
+    for index, clause in enumerate(clauses):
+        if index in ask_indexes and index != keep:
+            continue
+        if index == keep:
+            kept.append(_as_question(clause))
+            continue
+        piece = clause.strip()
+        if piece and piece[-1] not in ".!?":
+            piece += "."
+        kept.append(piece)
+    collapsed = re.sub(r"\s+", " ", " ".join(kept)).strip()
+    if count_questions(collapsed) <= 1:
+        return collapsed
+    # A compound ask that would not split still has to leave as one question.
+    return _as_question(clauses[keep])
+
+
+def prepare_reply(
+    reply: str,
+    visitor: str,
+    *,
+    priority_key: str = "",
+    priority_text: str = "",
+    already_greeted: bool = False,
+) -> str:
+    """Outgoing reply rules: no unsolicited MOQ, no second greeting, one question."""
+    text = strip_unsolicited_moq(reply, visitor)
+    if already_greeted:
+        text = strip_repeated_greeting(text)
+    return enforce_single_question(text, priority_key, priority_text).strip()
+
+
 def _check_answer_first(
     reply: str,
     visitor_text: str,
@@ -599,7 +785,7 @@ def _check_answer_first(
     # visitor with no reply at all.
     if handoff and re.search(r"\b(?:specialist|human|team member|colleague)\b", reply, re.I):
         return
-    topics = canon.detect_topics(visitor_text)
+    topics = canon.topics_to_answer(visitor_text)
     for topic in topics:
         if topic == "moq" and state.family() == "banners":
             covered = bool(re.search(r"\bno minimum\b", reply, re.I))

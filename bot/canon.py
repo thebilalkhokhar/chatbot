@@ -253,7 +253,7 @@ CANON: dict[str, CanonFact] = {
         label="Style options",
         answer=(
             "Bag styles include stand-up, flat, flat-bottom, side gusset and pinch bottom. "
-            "Box styles include display, mailer, gift, kraft, square, cosmetic and apparel boxes."
+            "Box styles include display, mailer, gift and kraft boxes."
         ),
         source="kb/products/pouches-mylar-styles.md + kb/products/boxes-campaign-styles.md",
         status=CONFIRMED,
@@ -413,6 +413,55 @@ def detect_topics(text: str) -> list[str]:
     return dedupe_topics(topics)
 
 
+_MINIMUM_TOPIC = re.compile(
+    r"\b(?:moqs?|minimum(?:\s+order(?:\s+quantity)?)?|min\.?\s*(?:order|quantity)|"
+    r"smallest\s+(?:order|run|quantity)|lowest\s+(?:order|quantity)|"
+    r"least\s+(?:amount|order|quantity))\b",
+    re.I,
+)
+# A request to be told the figure. A complaint, or a bare quantity, is not one.
+_EXPLICIT_MINIMUM_ASK = re.compile(
+    r"\b(?:what(?:'s|s| is| are)?|whats)\b[^?.!]{0,60}\b(?:moq|minimum|smallest|lowest|least)\b"
+    r"|\b(?:do|does|can|could)\s+(?:you|we|i)\b[^?.!]{0,48}\b(?:moq|minimum)\b"
+    r"|\bis\s+there\b[^?.!]{0,40}\b(?:moq|minimum)\b"
+    r"|\b(?:any|got)\s+(?:a\s+)?minimum\b"
+    r"|\b(?:please\s+)?(?:share|tell(?:\s+me)?|give(?:\s+me)?|confirm|send|list)\b[^?.!]{0,48}\b(?:moq|minimum)\b"
+    r"|\b(?:your|the|a|our)\s+(?:standard\s+)?(?:moq|minimum(?:\s+order(?:\s+quantity)?)?)\s*\?",
+    re.I,
+)
+_MINIMUM_COMPLAINT = re.compile(
+    r"\b(?:too high|too much|too low|too big|ridiculous|crazy)\b",
+    re.I,
+)
+
+
+def asks_for_minimum(text: str) -> bool:
+    """True only when they are asking what the minimum is.
+
+    "300", "I need 300", and "your minimum is too high" are not that question.
+    "What is your minimum?" and "do you have an MOQ?" are.
+    """
+    value = str(text or "").strip()
+    if not value or not _MINIMUM_TOPIC.search(value):
+        return False
+    complaint = bool(_MINIMUM_COMPLAINT.search(value))
+    if "?" in value and not complaint:
+        return True
+    return bool(_EXPLICIT_MINIMUM_ASK.search(value))
+
+
+def topics_to_answer(text: str) -> list[str]:
+    """Facts this message actually asked for.
+
+    The word "minimum" inside a quantity or a complaint must not pull the
+    canon MOQ sentence into the reply.
+    """
+    topics = detect_topics(text)
+    if "moq" in topics and not asks_for_minimum(text):
+        return [key for key in topics if key != "moq"]
+    return topics
+
+
 def fact(key: str) -> CanonFact | None:
     return CANON.get(key)
 
@@ -423,6 +472,8 @@ OFFERABLE_FACTS = {
     "contact": True,
     "location": False,
     "hours": False,
+    # The MOQ sentence is not a volunteer line. A quantity is not a request for it.
+    "moq": False,
 }
 OPERATOR_EMAIL = "johnhenry.it@print247.us"
 

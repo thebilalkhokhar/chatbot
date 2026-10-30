@@ -41,6 +41,27 @@ def test_units_are_folded_and_dimension_order_is_theirs():
     assert normalise_size("6 inches") == "6 in"
 
 
+def test_any_zero_dimension_is_rejected():
+    from chatbot.bot.state import size_has_zero_dimension
+
+    for text in ("0x0", "0x15", "10x0x5", "0", "0.0 x 4", "10 x 0 x 5 in", "0 in"):
+        assert size_has_zero_dimension(text), text
+    for text in ("4x6", "4x6x2", "100x150", "8x12+4 inches", "6 inches", "A4"):
+        assert size_has_zero_dimension(text) is False, text
+
+    state = make_state("0x15")
+    updates = extract_fields("0x15", "sizes", state)
+    assert "sizes" not in updates
+    accepted, rejected = apply_field_updates(state, {"sizes": "10x0x5"}, "10x0x5")
+    assert "sizes" not in accepted
+    assert rejected["sizes"] == "10x0x5"
+    assert not state.fields["sizes"].value
+    assert "size_pending_unit" not in state.flags
+    accepted_zero, rejected_zero = apply_field_updates(state, {"sizes": "0"}, "0")
+    assert "sizes" not in accepted_zero
+    assert rejected_zero["sizes"] == "0"
+
+
 def test_the_same_answer_in_two_spellings_is_one_value():
     state = make_state("4 x 6 inches")
     apply_field_updates(state, {"sizes": "4 x 6 inches"}, "4 x 6 inches")
@@ -360,7 +381,11 @@ def test_refusing_contact_waives_email_and_phone():
     assert "Do NOT re-assert or re-emit proposed_configs" in RULE_TEXT
     assert "leave proposed_configs completely EMPTY" in RULE_TEXT
     assert "ONLY ONE single question" in RULE_TEXT
+    assert "NEVER combine multiple asks" in RULE_TEXT
     assert "State that minimum ONLY when" in RULE_TEXT
+    assert RULE_TEXT.startswith("You MUST ask ONLY ONE single question")
+    assert "Do not repeat greetings (like Good Morning or Hello)" in RULE_TEXT
+    assert "NEVER invent or hallucinate options like Square Boxes" in RULE_TEXT
 
 
 def test_unknown_design_count_uses_the_single_design_minimum():

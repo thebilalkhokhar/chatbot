@@ -43,6 +43,75 @@ def test_draft_content_never_reaches_an_answer(kb_index):
         assert all(hit.chunk.status == "verified" for hit in kb_index.search(query, top_k=10))
 
 
+def test_a_quantity_is_not_a_minimum_question():
+    assert canon.asks_for_minimum("300") is False
+    assert canon.asks_for_minimum("I need 300 boxes") is False
+    assert canon.asks_for_minimum("Your minimum is too high. I only need 100.") is False
+    assert canon.asks_for_minimum("500 is fine if the minimum is lower than 1000.") is False
+    assert canon.asks_for_minimum("What is your minimum?") is True
+    assert canon.asks_for_minimum("Do you have a minimum") is True
+    assert canon.asks_for_minimum("What is your MOQ and what is the lead time?") is True
+    assert canon.asks_for_minimum("Is there a minimum on banners?") is True
+    assert canon.asks_for_minimum("Please share your minimum order quantity and the lead time.") is True
+
+
+def test_a_bare_quantity_loses_the_injected_moq_sentence():
+    reply = (
+        "Got it, 300 works. Our standard MOQ is 1,000 per size "
+        "(500 each if you have multiple designs), but we do smaller runs too, "
+        "so just tell me the quantity you need. What size do you need? And how many designs?"
+    )
+    cleaned = guards.prepare_reply(reply, "300", priority_key="sizes")
+    lowered = cleaned.lower()
+    assert "1,000" not in cleaned
+    assert "moq" not in lowered
+    assert "minimum" not in lowered
+    assert "smaller runs" not in lowered
+    assert cleaned.count("?") == 1
+    assert "size" in lowered
+    assert "design" not in lowered
+    assert guards.count_questions(cleaned) == 1
+
+
+def test_an_explicit_minimum_question_keeps_the_moq_sentence():
+    reply = (
+        "Our standard MOQ is 1,000 per size (500 each if you have multiple designs), "
+        "but we do smaller runs too, so just tell me the quantity you need. "
+        "What size do you need? Which style do you want?"
+    )
+    cleaned = guards.prepare_reply(reply, "What is your minimum?", priority_key="sizes")
+    assert "1,000" in cleaned
+    assert "smaller runs" in cleaned.lower()
+    assert cleaned.count("?") == 1
+    assert "size" in cleaned.lower()
+    assert "style" not in cleaned.lower()
+
+
+def test_three_questions_collapse_to_the_priority_field():
+    reply = "Is that in inches, cm, or mm? How many units do you need? Which style do you want?"
+    cleaned = guards.prepare_reply(reply, "8x8", priority_key="sizes", priority_text="Is 8x8 in inches, cm, or mm?")
+    assert cleaned.count("?") == 1
+    assert "inches" in cleaned.lower()
+    assert "how many" not in cleaned.lower()
+    assert "style" not in cleaned.lower()
+
+
+def test_a_repeated_morning_is_removed_and_a_real_sentence_stays():
+    repeated = guards.prepare_reply(
+        "Morning! What size do you need? How many units?",
+        "8x8",
+        priority_key="sizes",
+        already_greeted=True,
+    )
+    assert "morning" not in repeated.lower()
+    assert repeated.count("?") == 1
+    assert "size" in repeated.lower()
+    kept = guards.strip_repeated_greeting("Morning production runs with the quote. What size do you need?")
+    assert kept.lower().startswith("morning production")
+    first = guards.prepare_reply("Good morning. What are you looking to have made?", "hi", already_greeted=False)
+    assert first.lower().startswith("good morning")
+
+
 def test_multiple_questions_blocked():
     state = make_state("I need boxes")
     result = guards.check_reply(

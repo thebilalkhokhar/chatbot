@@ -671,6 +671,31 @@ def test_metalized_during_a_style_ask_is_saved_and_acknowledged(orchestrator):
     assert blockers(result) == []
 
 
+def test_a_zero_in_any_dimension_is_not_stored(orchestrator):
+    orchestrator.start("c-zero")
+    orchestrator.handle("c-zero", "I need custom boxes for candles")
+    result = orchestrator.handle("c-zero", "0x15")
+    state = orchestrator.store.get_or_create("c-zero")
+    assert not state.fields["sizes"].value
+    assert "size_pending_unit" not in state.flags
+    assert blockers(result) == []
+    orchestrator.handle("c-zero", "10x0x5")
+    state = orchestrator.store.get_or_create("c-zero")
+    assert not state.fields["sizes"].value
+
+
+def test_a_complaint_about_the_minimum_does_not_recite_it(orchestrator):
+    orchestrator.start("c-moq-complaint")
+    result = orchestrator.handle(
+        "c-moq-complaint", "Your minimum is too high. I only need 100."
+    )
+    lowered = result.reply.lower()
+    assert "1,000" not in result.reply
+    assert "standard moq" not in lowered
+    assert "smaller runs" not in lowered
+    assert blockers(result) == []
+
+
 def test_a_quantity_does_not_trigger_the_minimum_sentence(orchestrator):
     orchestrator.start("c-moq-once")
     orchestrator.handle("c-moq-once", "I need boxes for pizza")

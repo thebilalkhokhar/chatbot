@@ -22,6 +22,12 @@ from .state import (
     wants_recommendation,
 )
 
+SINGLE_QUESTION_RULE = (
+    "You MUST ask ONLY ONE single question per message. NEVER combine multiple asks "
+    "(e.g., do not ask for quantity and style in the same turn). Pick the highest "
+    "priority missing field and ask only about that."
+)
+
 HANDOFF_LINES = {
     "human": "Of course — let me bring a packaging specialist into the chat.",
     "complex": "Let me bring a packaging specialist in to cover the rest with you.",
@@ -46,7 +52,9 @@ REPHRASES = {
     "phone": "What number is best if the team needs to reach you?",
 }
 
-RULE_TEXT = """You decide what to do next. You may: answer what they asked; ask the one thing that most blocks
+RULE_TEXT = f"""{SINGLE_QUESTION_RULE}
+
+You decide what to do next. You may: answer what they asked; ask the one thing that most blocks
 their quote; propose a specific option and ask them to confirm it; or offer the contact details the
 FACTS block marks as offerable so the conversation can move forward.
 
@@ -82,19 +90,21 @@ When you answer, mark where it came from: FACTS, CATALOGUE, YOUR_JUDGEMENT, or T
 
 If you are asking for contact details, shipping info, or design counts (SKUs), focus ONLY on that ask. Do NOT re-assert or re-emit proposed_configs for styles/materials/finishes that were discussed in previous turns unless you are actively presenting a new recommendation.
 
-If the user is just saying hello, asking off-topic questions, or providing impossible specs (like size 0x0), answer naturally using your own reasoning. In these cases, you MUST leave proposed_configs completely EMPTY. ALWAYS end your reply with a question to steer the conversation back to the product order.
+If the user is just saying hello, asking off-topic questions, or providing impossible specs (like a size with any zero dimension: 0x0, 0x15, 10x0x5, or 0), answer naturally using your own reasoning. In these cases, you MUST leave proposed_configs completely EMPTY. End with the one allowed question so the conversation comes back to the order.
+
+Do not repeat greetings (like Good Morning or Hello) if you have already greeted the user in a previous turn.
+
+When a user asks for examples or options, you MUST strictly list ONLY the exact styles/materials found in the CATALOGUE PRIMER vocabulary. NEVER invent or hallucinate options like Square Boxes if they are not explicitly in the primer.
 
 Never ask about something they already told you. You may only ask about fields in the ASK SET;
 anything in the DO NOT ASK SET is off limits even as a confirmation.
 
-For banners there is no minimum order. For everything else the standard minimum is 1,000 per size,
-or 500 each with multiple designs, and smaller runs are possible. State that minimum ONLY when
-they ask what the minimum or MOQ is. If they just give a quantity, accept it and do not mention
-the minimum.
-
-You MUST ask ONLY ONE single question per message. NEVER combine multiple asks (e.g., do not ask
-for quantity and style in the same turn). Pick the highest priority missing field and ask only
-about that.
+NEVER append, quote, or paraphrase the standard MOQ sentence. For banners there is no minimum
+order. For everything else the standard minimum is 1,000 per size, or 500 each with multiple
+designs, and smaller runs are possible. State that minimum ONLY when they explicitly ask what
+the minimum or MOQ is, in words like "what is your minimum" or "do you have an MOQ". If they
+just give a quantity such as 300, accept that number and do not mention the minimum, the MOQ,
+1,000, or smaller runs at all.
 
 Style: plain chat text, no markdown, no emoji, roughly 25-60 words. Return only the JSON object
 the schema asks for. The ASK SET is the only list of questions."""
@@ -121,7 +131,7 @@ def _topic_answer(key: str, family: str, overrides: dict[str, str] | None) -> st
         if family == "bags":
             return "Bag styles include stand-up, flat, flat-bottom, side gusset and pinch bottom."
         if family == "boxes":
-            return "Box styles include display, mailer, gift, kraft, square, cosmetic and apparel boxes."
+            return "Box styles include display, mailer, gift and kraft boxes."
     if key == "materials":
         if family == "bags":
             return "For bags and pouches we use PET, PE, kraft and foil films."
@@ -217,7 +227,7 @@ def heuristic_turn(
             asked = expected[0] if expected else ""
         return Composed(reply=" ".join(parts).strip(), asked=asked, source="heuristic")
 
-    topics = canon.detect_topics(visitor)
+    topics = canon.topics_to_answer(visitor)
     if handoff_reason:
         topics = topics[:2]
     asked_family = family_of(visitor)
@@ -394,6 +404,7 @@ def build_system(state: ConversationState, registry=None) -> str:
     primer = registry.render_primer() if registry is not None else "CATALOGUE PRIMER\n(not loaded)"
     return "\n\n".join(
         [
+            SINGLE_QUESTION_RULE,
             f"You are {persona.name}. You work at Print247, a custom packaging and printing company "
             f"in Rosenberg, Texas. You are chatting with a customer on their website. Your tone is "
             f"{persona.tone}. Your job is to understand what they need well enough that the quoting "
@@ -454,12 +465,13 @@ def build_user(
         for message in state.messages[-10:]
         if message.author != "system"
     )
-    topics = canon.detect_topics(visitor)
+    topics = canon.topics_to_answer(visitor)
     lines = [
         f"GOAL\n{state.summary()}",
-        "ASK SET CONSTRAINT — binding. You MUST ask ONLY ONE single question, and only about "
-        "the highest priority field listed after 'You may ask about'. NEVER combine multiple "
-        "asks. Anything listed after 'Do not ask about' is off limits, even as a confirmation.\n"
+        "ASK SET CONSTRAINT — binding. "
+        + SINGLE_QUESTION_RULE
+        + " Ask only about the highest priority field listed after 'You may ask about'. "
+        "Anything listed after 'Do not ask about' is off limits, even as a confirmation.\n"
         + state.ask_constraint(),
         "FACTS — Tier B, verbatim. offerable: true may be volunteered; "
         "offerable: false only when they asked.\n"
@@ -471,6 +483,18 @@ def build_user(
         f"Their latest message: {visitor}",
         f"Intent: {_intent(visitor)}",
         f"Topics their message asks about: {', '.join(topics) if topics else 'none recognised'}",
+        (
+            ""
+            if canon.asks_for_minimum(visitor)
+            else "They did not ask what the minimum is. Do not mention MOQ, minimum, "
+            "1,000 per size, or smaller runs."
+        ),
+        (
+            "They asked for examples or options. List ONLY the exact styles and materials "
+            "in the CATALOGUE PRIMER vocabulary. Do not invent a name such as Square Boxes."
+            if is_option_request(visitor)
+            else ""
+        ),
         (
             "They are asking for a recommendation: name one specific option from the catalogue, "
             "say in one short clause why it fits, then ask one field from the ASK SET."

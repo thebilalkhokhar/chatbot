@@ -213,7 +213,11 @@ REPLY_SCHEMA = {
     "properties": {
         "reply": {
             "type": "string",
-            "description": "Plain-text chat message. One short answer and exactly one question, never two.",
+            "description": (
+                "Plain-text chat message. You MUST ask ONLY ONE single question. "
+                "Never combine multiple asks. Do not mention MOQ or the minimum unless "
+                "they asked what the minimum is."
+            ),
         },
         "move": {
             "type": "string",

@@ -374,6 +374,37 @@ def size_is_unknown(text: str) -> bool:
     return bool(SIZE_UNKNOWN_RE.search(str(text or "")))
 
 
+def size_has_zero_dimension(text: str) -> bool:
+    """True when width, length, or depth is zero.
+
+    `0x0` is not the only impossible size. `0x15`, `10x0x5`, and a bare `0`
+    are the same failure: a dimension of zero cannot be made.
+    """
+    value = re.sub(r"\s+", " ", str(text or "")).strip(" .,;")
+    if not value:
+        return False
+    numbers: list[str] = []
+    match = SIZE_DIM_RE.search(value)
+    if match:
+        numbers = [item for item in match.groups()[:3] if item]
+    else:
+        folded = re.sub(r'(?<=\d)\s*"', " ", value)
+        dim = DIM_SET_RE.match(folded)
+        if dim:
+            numbers = [item for item in (dim.group(1), dim.group(2), dim.group(3)) if item]
+            tail = (dim.group(4) or "").strip()
+            # "A4" and prose do not start with a digit. A leftover word after one
+            # number ("2 count") is not a size, so it is not a zero dimension.
+            if not dim.group(2) and tail and not _canonical_unit(tail):
+                return False
+        elif re.fullmatch(r"0+(?:\.0+)?", value):
+            return True
+    try:
+        return any(float(item) == 0 for item in numbers)
+    except ValueError:
+        return False
+
+
 def refuses_contact(text: str) -> bool:
     return bool(CONTACT_REFUSAL_RE.search(str(text or "")))
 
@@ -535,7 +566,8 @@ CONTEXT_QUESTION_RE = re.compile(
     re.I,
 )
 OPTION_REQUEST_RE = re.compile(
-    r"\bfor example\b|\bwhat do you have\b|\bwhich ones?\b",
+    r"\bfor example\b|\bwhat do you have\b|\bwhich ones?\b"
+    r"|\b(?:which|what)\s+options?\b",
     re.I,
 )
 
@@ -1139,7 +1171,13 @@ def apply_field_updates(
                 rejected[key] = value
                 continue
         if key == "sizes":
+            if size_has_zero_dimension(value):
+                rejected[key] = value
+                continue
             value = normalise_size(value)
+            if size_has_zero_dimension(value):
+                rejected[key] = value
+                continue
             pending_size = str(state.flags.get("size_pending_unit") or "").strip()
             if pending_size and UNIT_ONLY_RE.match(str(visitor_text or "")):
                 value = normalise_size(f"{pending_size} {str(visitor_text).strip()}")
@@ -1244,8 +1282,11 @@ def extract_fields(
         size_match = SIZE_DIM_RE.search(value) or SINGLE_SIZE_RE.search(value)
         if last_question == "sizes" and pending_size and UNIT_ONLY_RE.match(value):
             updates["sizes"] = f"{pending_size} {value.strip()}"
-        elif size_match:
+        elif size_match and not size_has_zero_dimension(size_match.group(0)):
             updates["sizes"] = size_match.group(0)
+        elif size_match or (last_question == "sizes" and size_has_zero_dimension(value)):
+            # A zero dimension is not a size. Leave the field empty so it is asked again.
+            pass
         elif size_is_unknown(value):
             updates["sizes"] = value.strip()[:60]
 
