@@ -1,0 +1,47 @@
+# v1 vocabulary, pinned 2026-10-30 from the registry that was built from the six v1 campaign page files.
+# build_registry_v2.py compares these strings against kb_v2 to list what the new corpus no longer uses.
+# This file is a snapshot: it is not read by the bot and must not be regenerated from the kb_v2 registry.
+# family|slot|values
+bags|style|stand-up pouch; flat pouch; 3-side seal pouch; pinch bottom pouch; side gusset pouch; flat bottom pouch; spout pouch; clear pouch; child-resistant pouch; jerky pouch; vape pouch; coffee pouch; chocolate pouch; pre-roll pouch; CBD pouch; inside-printed pouch; poly mailer; custom
+bags|form_selectable|stand-up pouch; flat pouch; 3-side seal pouch; pinch bottom pouch; side gusset pouch; flat bottom pouch; custom; clear pouch
+bags|material|mylar; high-barrier metalized foil; metalized + clear front; kraft paper laminate; clear/transparent film; foil; PET; PE; kraft film; PLA; compostable multi-layer
+bags|finish|matte; glossy; soft-touch; spot UV; holographic; metalized foil; foil pouch; plain white; clear/transparent; kraft paper laminate; metalized + clear front; matte lamination; gloss lamination; soft-touch lamination; foil stamping; gold foil; copper foil; rose-gold foil; holographic foil printing; embossing; drip-off; AQ coating
+bags|extras|zipper; resealable zipper; tear notch; hang hole; window; clear window; Euro hole; degassing valve; child-resistant zipper; Child-Guard zipper; easy-open standard zipper; press-to-close zipper; heat-sealed
+bags|gauge|80-150 micron pouch film; 5-7 mil for sharp or heavy products
+bags|free_params|size within the offered range or customer-supplied; quantity; ink/colour; artwork; gusset
+bags|insert|-
+boxes|style|product box; display box; mailer box; gift box; kraft box; other; square box; cosmetic box; apparel box; straight tuck end; reverse tuck end; crash lock; snap lock bottom; gable box; dispenser box; perforated box; double wall box; window cutout box; hang tab box; folding carton; rigid box; metalized box; CBD box; pharmaceutical box; food and beverage box
+boxes|form_selectable|product box; display box; mailer box; gift box; kraft box; other
+boxes|style_card|custom product; gift; mailer; kraft; display; square; cosmetic; apparel
+boxes|material|kraft paperboard; corrugated cardboard; SBS paperboard; rigid chipboard; metalized
+boxes|insert|none; die-cut foam insert; die-cut cardboard insert; tamper-evident glue pattern; perforated tear strip; braille embossing
+boxes|finish|matte lamination; gloss lamination; soft-touch lamination; spot UV; foil stamping; gold foil; copper foil; rose-gold foil; holographic foil; embossing; drip-off; AQ coating; full-colour print
+boxes|gauge|board 12 to 24pt general; kraft paperboard 18-24pt; SBS paperboard 12-18pt; pharmaceutical SBS 14pt to 24pt; food boxes 14pt to 16pt lightweight; food boxes 18pt to 20pt standard; food boxes 24pt heavy duty; rigid chipboard 32-80pt; corrugated 3-6mm
+boxes|free_params|size; quantity; ink/colour; artwork; board grade within the stated range
+boxes|extras|-
+labels|style|custom label; product label; business label; specialty label; custom sticker; product sticker; barcode label; die-cut label; roll label; kiss-cut label; oval label; round label; paper label; sheet label; bottle label; beverage label; wine label; whiskey bottle label; spirits label
+labels|material|white paper; silver film; clear film; vinyl; holographic film; BOPP
+labels|finish|gloss laminate; matte laminate; foil gold; foil silver; foil rose
+labels|free_params|size; quantity; core size; roll direction; maximum roll diameter; sheet format A4 or letter; cut shape
+labels|insert|-
+labels|extras|-
+banners|style|vinyl banner; pull-up banner standard; pull-up banner premium; double-sided pull-up banner; wide-format pull-up banner; tabletop pull-up banner; banner stand; flag; angled flag; rectangle flag; outdoor sign; rigid sign; office sign; decal; table covering; event display; tradeshow display
+banners|material|vinyl 9 oz; vinyl 10 oz; vinyl 13 oz; vinyl 15 oz; vinyl 18 oz; vinyl 20 oz; vinyl 22 oz
+banners|finish|heat-welded hem; grommets; reinforced corners; pole pockets; CMYK print
+banners|free_params|size; quantity; artwork
+banners|insert|-
+banners|extras|-
+business_cards|style|standard card; shape card; NFC card
+business_cards|material|cardstock; kraft; PVC; PET; acrylic
+business_cards|finish|single-sided; double-sided; any Pantone colour
+business_cards|extras|NFC tap profile
+business_cards|gauge|13 PT; 14 PT; 16 PT; 18 PT
+business_cards|free_params|quantity; artwork AI/PDF/PSD; corner style; ink/colour
+business_cards|insert|-
+print|style|postcard; flyer; brochure; bookmark; presentation folder; booklet; magnet; greeting card; invitation
+print|finish|die-cut; weather-proof stock; eco-friendly ink
+print|extras|QR code; numbering; variable data
+print|material|-
+print|fold|bi-fold; tri-fold; Z-fold; gate-fold; accordion-fold; roll-fold; french fold; cross-fold; double parallel fold; half-fold; step-down; envelope; insert and folder; poster-style; die-cut
+print|free_params|size; quantity; ink/colour; artwork
+print|insert|-

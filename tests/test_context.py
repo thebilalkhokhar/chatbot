@@ -27,10 +27,12 @@ def test_replay_forces_fake_mode(config):
     assert offline.max_llm_calls == 0
 
 
-def test_verified_returns_every_indexed_chunk(kb_index):
+def test_verified_excludes_the_draft_registry(kb_index):
     verified = kb_index.verified()
-    assert len(verified) == len(kb_index.chunks)
     assert all(chunk.status == "verified" for chunk in verified)
+    assert len(verified) == sum(1 for chunk in kb_index.chunks if chunk.status == "verified")
+    # BOT_CONTEXT=full serves verified(), so registry rows must never reach a v1 prompt
+    assert not any(chunk.category == "capabilities" for chunk in verified)
 
 
 def test_full_kb_prompt_contains_product_use_cases(kb_index):

@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import canon
+from .capability import PRIMER_NAME, PRIMER_TOKEN_BUDGET, CapabilityError, Registry, estimate_tokens
 from .config import Config, ConfigError
 from .golden import build_golden
 from .kb import KBIndex
@@ -25,11 +26,69 @@ def cmd_ingest(config: Config, args) -> int:
     index.save(path)
     print("KB indexed:", json.dumps(index.stats(), ensure_ascii=False))
     print("Index file:", path)
+    try:
+        primer_path = Registry.load(config.kb_dir).write_primer(config.data_dir)
+        print("Primer file:", primer_path)
+    except CapabilityError as error:
+        # v1 ingest must keep working even while the v2 capability files are still draft
+        print(f"primer not written: {error}", file=sys.stderr)
     report = canon.signoff_report()
     print(f"\nFacts needing sign-off: {len(report)}")
     for item in report:
         print(f"- {item['label']} [{item['key']}]: {item['note']}")
     return 0
+
+
+def cmd_capability(config: Config, args) -> int:
+    """Load the capability registry as structured data and report drift, errors and warnings."""
+    try:
+        registry = Registry.load(config.kb_dir)
+    except CapabilityError as error:
+        print(f"capability files are malformed: {error}", file=sys.stderr)
+        return 1
+
+    errors, warnings = registry.validate(config.kb_dir.parent / "kb_v2")
+    primer = registry.render_primer()
+    primer_tokens = estimate_tokens(primer)
+    if primer_tokens > PRIMER_TOKEN_BUDGET:
+        errors = [*errors, f"primer renders {primer_tokens} tokens, over the {PRIMER_TOKEN_BUDGET} bound"]
+    primer_path = config.data_dir / PRIMER_NAME
+    drift = None
+    if primer_path.exists() and primer_path.read_text(encoding="utf-8") != primer:
+        drift = f"{primer_path} does not match the registry; re-run `chatbot ingest`"
+    if drift:
+        errors = [*errors, drift]
+
+    rows_per_family: dict[str, int] = {}
+    signed_per_family: dict[str, int] = {}
+    for offering in registry.offerings:
+        rows_per_family[offering.family] = rows_per_family.get(offering.family, 0) + 1
+        if offering.signed:
+            signed_per_family[offering.family] = signed_per_family.get(offering.family, 0) + 1
+
+    _print_json({
+        "families": list(registry.families),
+        "rows_per_family": rows_per_family,
+        "signed_rows_per_family": signed_per_family,
+        "offerings": len(registry.offerings),
+        "exclusions": len(registry.exclusions),
+        "size_rows": len(registry.sizes),
+        "gauge_rows": len(registry.gauges),
+        "gauge_rows_from_a_page": sum(1 for g in registry.gauges if g.basis == "page"),
+        "unmapped_pages": len(registry.unmapped),
+        "aliases": len(registry.aliases),
+        "vocabulary_pairs": sum(len(vals) for slots in registry.vocabulary.values() for vals in slots.values()),
+        "production_questions": len(registry.production_questions),
+        "not_attested": len(registry.not_attested),
+        "not_attested_probes": sum(1 for row in registry.not_attested if row.klass == "probe"),
+        "allowlist_claims": len(registry.claims),
+        "allowlist_bans": len(registry.bans),
+        "primer_tokens": primer_tokens,
+        "primer_budget": PRIMER_TOKEN_BUDGET,
+        "errors": errors,
+        "warnings": warnings,
+    })
+    return 1 if errors else 0
 
 
 def cmd_signoff(config: Config, args) -> int:
@@ -184,6 +243,10 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("ingest", help="build the KB search index").set_defaults(func=cmd_ingest)
     sub.add_parser("signoff", help="list facts that need sales sign-off").set_defaults(func=cmd_signoff)
+    sub.add_parser(
+        "capability",
+        help="validate the capability registry, count rows, and check primer drift (no LLM call)",
+    ).set_defaults(func=cmd_capability)
     sub.add_parser(
         "llm-check",
         help="send one tiny live OpenAI call to verify the key and model (paid)",

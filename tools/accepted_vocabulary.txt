@@ -1,0 +1,116 @@
+# Accepted kb_v2 vocabulary — the review queue output of tools/extract_capabilities.py.
+#
+# Every line is a value that kb_v2 product pages print verbatim under their own `## Materials`,
+# `## Finishes` or `## Add-ons` heading, and that the curated registry vocabulary did not yet name.
+# Format: `slot: canonical form | written variant | written variant` — variants are how the site
+# spells the same value; the canonical form is what the registry cell uses.
+#
+# Not accepted, on purpose:
+#   - gauge and capacity figures ("13 PT", "70 lbs to 100 lbs", "1 oz"): those are `gauge`/`sizes`
+#     rows, not vocabulary;
+#   - bare colour words ("Clear", "White", "Silver", "Frosted"): they sit under `## Materials` on
+#     the site but they are not substrates, so they get their own `colour` slot and stay out of the
+#     capability tuple;
+#   - marketing qualifiers ("premium", "high quality", "eco friendly", "more options",
+#     "customizable based on requirements") and product-form words ("Stickers", "Clear Bags"):
+#     they name no material;
+#   - compliance wording ("FDA-approved virgin chipboard", "puncture resistant", "uv resistant"):
+#     that belongs to compliance-allowlist.md, never to a vocabulary cell.
+
+material: White Cardboard
+material: Silver Cardboard
+material: Holographic Cardboard
+material: Rigid Cardboard
+material: Cardboard
+material: Corrugated Board | Corrugated | Corrugated Stock | corrugated substrates
+material: E-Flute | E-Flute Corrugated | e flute | Corrugated E-Flute
+material: B-Flute
+material: C-Flute
+material: E-B Flute
+material: B/C Flute
+material: Paperboard
+material: Recycled Paperboard
+material: Kraft Board
+material: Grayboard | Greyboard | GrayBoard | Rigid Grayboard
+material: Bux Board | Buxboard | bux board
+material: Rigid Board | Rigid stocks | Rigid
+material: Double Coated Card Stock
+material: SBS
+material: Gloss Paper
+material: Textured Paper | textured papers
+material: PE | Polyethylene
+material: PP | Polypropylene
+material: PET | Polyethylene Terephthalate
+material: ABS
+material: Nylon
+material: Acetate
+material: Polyester | Polyester Fabric | Transparent Polyester
+material: Foamcore
+material: Corrugated Plastic | Corflute | Corrugated Plastics
+material: Metallized Film | Metallized film layer
+material: Static Cling
+material: PLA
+
+colour: White
+colour: Clear
+colour: Silver
+colour: Frosted
+colour: Iridescent
+colour: Metallic/Chrome
+colour: White/Opaque
+colour: Transparent
+
+finish: Gloss
+finish: Spot Gloss
+finish: Gloss Laminated
+finish: Lamination | laminations
+finish: Debossing
+finish: Deep Debossing
+finish: Deep Embossing
+finish: 3D Raised UV | 3-dimensional Raised UV | 3 Dimensional Raised UV effects | Raised UV
+finish: Tactile Feel
+finish: soft-touch | Softouch
+finish: soft-touch lamination | Softouch Lamination
+finish: Aqueous Coating | Aqueous | Sheen Aqueous | aqueous coating
+finish: Satin
+finish: Textured
+finish: UV Coating | UV | UV coating
+finish: Gloss UV
+finish: Matte UV
+finish: Varnish | Varnishing | varnish
+finish: Die Cutting
+finish: Kiss Cutting
+finish: Reverse Printing | Inside-Glass | Inside-Glass Printing | Reverse (Inside-Glass) Printing
+finish: Anti-Scratch Lamination
+finish: Hot Foil Stamping | hot-stamp foiling | Hot-Stamp Foiling | Hot foil stamping | Hot Stamp | hot stamp
+finish: Spot Foiling | foiling | Spot Foil
+finish: Spot Matte
+finish: spot UV | SpotUV
+finish: Foil Printing | Gold Foiling
+finish: Inside Printing | inside printing
+
+extras: Handles | Carry handles | carry handles
+extras: Ribbon Pulls
+extras: Lift Tabs | tabs
+extras: Vent Holes
+extras: Resealable Tabs
+extras: Cut-Outs | cut outs | cut-outs
+extras: Perforations | Perforations | perforated
+extras: Full Bleed
+extras: White Border
+extras: No Border
+extras: LED Light Modules
+extras: Colour Customization | color customization
+extras: Stackable Designs
+extras: Raised Inks
+extras: Magnetic Closures
+extras: Layered Reveal Mechanisms
+extras: Child-Resistant Zippers
+extras: Easy-Open Zippers
+
+insert: Foam Inserts
+insert: Sauce Cup Insert
+insert: Molded Pulp Trays
+insert: Paperboard Dividers
+insert: Velvet-Lined Trays
+insert: Tamper-Evident Features
