@@ -462,10 +462,39 @@ def _allowlist_covers(registry: Registry | None, reply: str, claim: str) -> bool
     return False
 
 
+def _claim_stands_alone(registry: Registry | None, reply: str, claim: str) -> bool:
+    """True when the word is still there after catalogue style names are removed.
+
+    "Biodegradable Stand-Up Pouches" is a style we list. Saying that name is not a
+    certification. "These pouches are biodegradable" still is.
+    """
+    if registry is None:
+        return True
+    needle = fold(claim).replace(" ", "")
+    if not needle:
+        return True
+    compact = fold(reply).replace(" ", "")
+    names: set[str] = set()
+    for slots in registry.vocabulary.values():
+        for values in slots.values():
+            for value in values:
+                token = fold(value).replace(" ", "")
+                if needle in token and len(token) > len(needle) + 2:
+                    names.add(token)
+    for token in sorted(names, key=len, reverse=True):
+        for variant in (token + "es", token + "s", token):
+            compact = compact.replace(variant, " ")
+    return needle in compact.replace(" ", "")
+
+
 def _check_claims(reply: str, _allowed_blob: str, result: GuardResult, registry: Registry | None = None) -> None:
     lowered_reply = reply.lower()
     for claim in SAFETY_CLAIMS:
-        if claim in lowered_reply and not _allowlist_covers(registry, reply, claim):
+        if (
+            claim in lowered_reply
+            and not _allowlist_covers(registry, reply, claim)
+            and _claim_stands_alone(registry, reply, claim)
+        ):
             result.add(
                 "unsupported_claim",
                 BLOCK,
@@ -903,8 +932,9 @@ def _slot_list(item: dict, *keys: str) -> list[str]:
             continue
         raw = item[key]
         if isinstance(raw, str):
-            return [raw] if raw.strip() else []
-        return [str(value) for value in raw if str(value).strip()]
+            text = raw.strip()
+            return [text] if text else []
+        return [str(value).strip() for value in raw if str(value).strip()]
     return []
 
 
@@ -944,7 +974,7 @@ def _check_configs(
     configs = [item for item in proposed_configs if isinstance(item, dict)]
     families = tuple(
         dict.fromkeys(
-            str(item.get("family") or "").strip()
+            str(item.get("family") or "").strip().lower()
             for item in configs
             if str(item.get("family") or "").strip()
         )
@@ -952,7 +982,7 @@ def _check_configs(
     mentions = registry.prose_mentions(reply, families or None)
     parsed: list[tuple[dict, Candidate, tuple[str, ...]]] = []
     for item in configs:
-        family = str(item.get("family") or "").strip() or "unknown"
+        family = str(item.get("family") or "").strip().lower() or "unknown"
         slots = {
             "style": _canonical_slots(registry, family, "style", _slot_list(item, "style")),
             "material": _canonical_slots(registry, family, "material", _slot_list(item, "material")),
@@ -1117,6 +1147,33 @@ def check_reply(
     return result
 
 
+def strip_unsanctioned_claims(reply: str, registry: Registry | None) -> str:
+    """Drop a safety or eco word the allow-list does not quote in full.
+
+    A catalogue style name that contains the word is left as the name. The exact
+    allow-list sentence is left as the sentence.
+    """
+    text = str(reply or "")
+    for claim in sorted(SAFETY_CLAIMS, key=len, reverse=True):
+        if claim.lower() not in text.lower():
+            continue
+        if _allowlist_covers(registry, text, claim):
+            continue
+        if not _claim_stands_alone(registry, text, claim):
+            continue
+        text = re.sub(re.escape(claim), "", text, flags=re.I)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(r" +([,.])", r"\1", text)
+    return text.strip()
+
+
 def describe(issues: list[Issue] | GuardResult) -> str:
     items = issues.issues if isinstance(issues, GuardResult) else issues
-    return "; ".join(f"{item.code}: {item.detail}" for item in items)
+    text = "; ".join(f"{item.code}: {item.detail}" for item in items)
+    if any(item.code == "unsupported_claim" for item in items):
+        text += (
+            ". REWRITE RULE: delete eco-friendly, biodegradable, compostable, recyclable, "
+            "food safe, waterproof, FDA, BPA, and certified unless the reply contains the "
+            "exact allow-list sentence that uses that word. Do not keep a paraphrase."
+        )
+    return text

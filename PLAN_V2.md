@@ -1680,6 +1680,35 @@ spend lock ([chatbot/bot/replay.py:48](./bot/replay.py#L48)) stays exactly where
 C5 ≤ 1 of the attested set; `redundant_ask = 0`; a written decision on whether any family needs
 candidate-set narrowing (D-11). All numbers recorded in this file.
 
+**Result, 2026-10-31 re-run — C3 is clear, the exit is not.** After the Phase 4b fixes, one
+catalogue run finished Stage A (12), Stage B (46 = S1 30 + S2 12 + S3 4), and the 30-line
+nano-vs-mini set. Spend **$0.075**, 225 calls, under the $1.90 lock. Report:
+`chatbot/out/probe_phase4.json`. D-12 stays catalogue; this run did not repeat the full-context A/B.
+Zero offerings are signed, so C5's denominator is 0. Hedging a pending row is correct. The 30 lines
+are the Section 10 category grid, one turn each, because `server/data/chats.json` is not in this
+workspace. Turns-to-quote was not measured.
+
+| Set | C1 | C2 | C3 | C4 (`move=propose`) | C5 | redundant_ask |
+| --- | --- | --- | --- | --- | --- | --- |
+| Stage A | 5/12 | 0/0 | **0/12** | mean **2.50** (12); no safety 0 or 1 | 0/0 | 0/12 |
+| Stage B | 21/46 | **11/22** | **0/46** | mean 1.00 (5 propose-moves) | 0/0 | 0/46 |
+| A+B | 26/58 | 11/22 | **0/58** | mean **2.06** (17) | 0/0 | 0/58 |
+
+`unsanctioned_dimension` was 0/58. The eco-friendly soap leak did not recur. C1 is not cleared:
+leftover slot strings include `Mailers`, `MailBox`, `inside printing`, `Wine label`, and `reseed`.
+Of 24 unsigned site rows, 18 were asserted with a capability verb and 0 were hedged. That is not
+C5. C2 is a capability verb on an unattested or excluded tuple ("we can do …").
+
+Section 10, same prompt, one turn, catalogue context:
+
+| Model | Turns | Tier B | Latency p50 / p95 | Prompt tokens p50 | Cost | Cost per turn |
+| --- | --- | --- | --- | --- | --- | --- |
+| gpt-5-nano | 30 | **0/30** | 4,235 / 5,251 ms | 7,083 | $0.0098 | $0.00033 |
+| gpt-5-mini | 30 | 1/30 (`wrong_minimum` on a banner MOQ) | 8,020 / 11,942 ms | 7,083 | $0.0451 | $0.00150 |
+
+Mini costs about 4.6× nano and is about 1.9× the p50 latency. Nano had more invented-slot hits on
+this grid (11/30 vs 6/30) and no Tier B hit. Phase 5 was not started.
+
 ### Phase 4b — what happens if the probe fails broadly
 The full rule is Section 4.7; in one line each:
 - Cause (c) — the model inventing or asserting rather than misreading a rail — twice in one family,
@@ -1861,16 +1890,16 @@ loop that writes new rules from found loopholes. v2 continues that path rather t
 | `chatbot/bot/capability.py` | **new, written 2026-10-30** — loads the registry as structured data; normalises synonyms and card→dropdown values; classifies each config tuple as `attested` / `unknown_capability` / `excluded`; **renders the CATALOGUE PRIMER deterministically at ingest** (§4.9). Parses the two `.md` files directly (strict pipe-table DSL, `CapabilityError` on a malformed row); no new dependency |
 | `chatbot/data/catalogue_primer.txt` | **generated, 2026-10-30** — the rendered primer (**2,856 tokens** against the 2,900 bound, from the kb_v2 registry). Written by `cli ingest`, never hand-edited: `cli capability` exits 1 if the file on disk differs from a fresh render |
 | ~~`chatbot/bot/sizing.py`~~ | **deleted by Revision D** — never written. No `estimate_size()`, no sizing module; the sizing policy is one prompt paragraph plus the `unsanctioned_dimension` guard (§4.4, §7) |
-| `chatbot/bot/cli.py` | **`capability` subcommand done 2026-10-30** (registry integrity, per-family row counts, primer-drift check; exit 1 on errors) · `probe` subcommand still owed (Section 4.7 Stage A + the S1/S2/S3 strata, Phase 4) · `ingest` now also writes the primer |
+| `chatbot/bot/cli.py` | **`capability` subcommand done 2026-10-30** (registry integrity, per-family row counts, primer-drift check; exit 1 on errors) · **`probe` subcommand added 2026-10-31** (Stage A, S1/S2/S3, dollar cap; the Phase 4 run itself did not pass) · `ingest` now also writes the primer |
 | `chatbot/bot/state.py` | **Phase 3 part done** — `is_meta_question` covers identity, a complaint, and "why are you asking". A catalogue size may be stored with basis `catalogue`. Phase 2 ask-set and provenance are unchanged |
 | `chatbot/bot/composer.py` | **Phase 3 done 2026-10-31** — cacheable prefix (persona, D-1, D-13, Tier A/B, primer, allow-list, sizing). Tail holds the goal, ask-set, FACTS, family detail, transcript and intent. `move`, `proposed_configs` and `fields_proposed` are parsed off the model object |
 | `chatbot/bot/guards.py` | **Phase 3 done 2026-10-31** — Section 7 severities applied (`off_script` removed). Registry guards, `unsanctioned_dimension`, `reply_config_mismatch`, `unstructured_recommendation`, `contact_offered_unasked`, `canon_conflict`. Allow-list sentences are the only way a safety word passes. Phase 2c `redundant_ask` and `question_as_answer` stay |
 | `chatbot/bot/orchestrator.py` | **Phase 3 done 2026-10-31** — catalogue context keeps family-scoped chunks; live turns and rewrites are reconciled against `proposed_configs`; the event records `move`, configs and primer token count. Meta fallback stays a fixed line. Identity fallback from Phase 2c stays |
-| `chatbot/bot/config.py` | **Phase 3 done 2026-10-31** — `BOT_ARCH=v1\|v2` (default `v2`); `BOT_CONTEXT=catalogue\|full\|retrieval` (default `catalogue`). **No `sizing.mode`.** `cost_usd` is still Phase 4+'s accounting |
-| `chatbot/bot/llm.py` | **Phase 3 part done** — reply schema requires `move`, `proposed_configs[]` (with `basis` and `size_source`) and `fields_proposed[]`. Cost logging is still owed |
+| `chatbot/bot/config.py` | **Phase 3 done 2026-10-31** — `BOT_ARCH=v1\|v2` (default `v2`); `BOT_CONTEXT=catalogue\|full\|retrieval` (default `catalogue`). **No `sizing.mode`.** |
+| `chatbot/bot/llm.py` | **Phase 4 accounting added 2026-10-31** — `cost_usd` from published gpt-5-nano / mini / gpt-5 rates (longest prefix first; an unknown model bills at the mini rate). Each live completion stores usage, latency and dollars. The orchestrator event records `cost_usd`, prompt tokens, completion tokens and latency |
 | `chatbot/bot/replay.py` | Side-by-side v1/v2 runs; spend lock unchanged |
 | `chatbot/web/index.html` | Debug panel shows `move`, `proposed_configs[]`, registry state per claim, the context tier actually sent and its token count, and the goal checklist |
-| `chatbot/tests/` | **Phase 3: suite 159 passing.** `test_phase3.py` covers the foil pair, price, food-safe, uncited judgement, sizing policy, config mismatch, the operator email, and the catalogue family filter. Probe fixtures stay with Phase 4 |
+| `chatbot/tests/` | **Phase 4 probe fixtures in, suite 170 passing (2026-10-31).** `test_probe.py` covers the rate table, the 12-scenario grid, the 60-case cap, C1/C2/C3 examples, an uppercase family, and a catalogue style name that contains a safety word. The paid run did not pass its exit |
 
 ## Appendix B — v1's 19 prompt rules in v2
 

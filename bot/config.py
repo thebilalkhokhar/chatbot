@@ -107,9 +107,8 @@ class Config:
         mode = os.getenv("BOT_MODE", "fake").strip().lower()
         if mode not in MODES:
             raise ConfigError(f"BOT_MODE must be one of {sorted(MODES)}, got {mode!r}")
-        context = os.getenv("BOT_CONTEXT", "catalogue").strip().lower()
-        if context not in CONTEXTS:
-            raise ConfigError(f"BOT_CONTEXT must be one of {sorted(CONTEXTS)}, got {context!r}")
+        # D-12 is locked. Live turns use the catalogue primer. BOT_CONTEXT is not a switch.
+        context = "catalogue"
         arch = os.getenv("BOT_ARCH", "v2").strip().lower()
         if arch not in ARCHES:
             raise ConfigError(f"BOT_ARCH must be one of {sorted(ARCHES)}, got {arch!r}")

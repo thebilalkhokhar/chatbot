@@ -230,6 +230,30 @@ def cmd_transcript(config: Config, args) -> int:
     return 0
 
 
+def cmd_probe(config: Config, args) -> int:
+    from .probe import run_probe
+
+    path = config.out_dir / "probe_phase4.json"
+    report = run_probe(config, max_usd=args.max_usd, stage=args.stage, out_path=path)
+    brief = {
+        "stopped": report.get("stopped", ""),
+        "spent_usd": report.get("spent_usd"),
+        "calls": report.get("calls"),
+        "call_budget": report.get("call_budget"),
+        "signed_offerings": report.get("signed_offerings"),
+        "stage_b_cases": report.get("stage_b_cases"),
+        "stage_b_by_stratum": report.get("stage_b_by_stratum"),
+        "official_catalogue": report.get("official_catalogue"),
+        "sections": {
+            name: {"summary": section.get("summary"), "usage": section.get("usage")}
+            for name, section in (report.get("sections") or {}).items()
+        },
+    }
+    print("report:", path)
+    _print_json(brief)
+    return 1 if report.get("stopped") else 0
+
+
 def cmd_serve(config: Config, args) -> int:
     import uvicorn
 
@@ -275,6 +299,14 @@ def main(argv: list[str] | None = None) -> int:
     chat_parser = sub.add_parser("chat", help="interactive local chat")
     chat_parser.add_argument("--conversation-id")
     chat_parser.set_defaults(func=cmd_chat)
+
+    probe_parser = sub.add_parser(
+        "probe",
+        help="Phase 4 grounding probe (paid). Stops on a Tier B violation and at the dollar cap.",
+    )
+    probe_parser.add_argument("--stage", default="all", choices=["all", "A", "B", "T", "a", "b", "t"])
+    probe_parser.add_argument("--max-usd", type=float, default=1.90)
+    probe_parser.set_defaults(func=cmd_probe)
 
     transcript_parser = sub.add_parser("transcript", help="print conversations from a state database")
     transcript_parser.add_argument("--db", required=True, help="sqlite file, e.g. out/replay_<stamp>.sqlite3")

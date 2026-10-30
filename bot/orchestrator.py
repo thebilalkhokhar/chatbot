@@ -273,6 +273,7 @@ class Orchestrator:
 
     def handle(self, conversation_id: str, text: str, *, channel: str = "website") -> TurnResult:
         started = time.perf_counter()
+        spent_before = self.llm.spent_usd
         state = self.store.get_or_create(conversation_id)
         visitor = str(text or "").strip()
 
@@ -427,6 +428,7 @@ class Orchestrator:
                     correction=correction,
                     registry=self.registry,
                 )
+                rewritten.reply = guards.strip_unsanctioned_claims(rewritten.reply, self.registry)
                 # A rewrite is reconciled again. Fixing a price and quietly adding
                 # an option the new configs do not name still blocks.
                 rewritten_result = self._guard(
@@ -532,6 +534,10 @@ class Orchestrator:
                 "proposed_configs": composed.proposed_configs or [],
                 "primer_tokens": self.primer_tokens,
                 "prompt_chunks": len(prompt_chunks),
+                "cost_usd": round(self.llm.spent_usd - spent_before, 6),
+                "prompt_tokens": (self.llm.last_usage or {}).get("prompt_tokens"),
+                "completion_tokens": (self.llm.last_usage or {}).get("completion_tokens"),
+                "latency_ms": self.llm.last_latency_ms,
                 "accepted": accepted,
                 "rejected": rejected,
             },

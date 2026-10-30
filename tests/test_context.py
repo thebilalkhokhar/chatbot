@@ -12,6 +12,16 @@ from chatbot.bot.replay import offline_config
 from chatbot.bot.state import ConversationState, wants_recommendation
 
 
+def test_load_locks_catalogue_and_ignores_the_context_switch(monkeypatch):
+    monkeypatch.setenv("BOT_MODE", "fake")
+    monkeypatch.setenv("BOT_ARCH", "v2")
+    monkeypatch.setenv("BOT_CONTEXT", "full")
+    from chatbot.bot.config import Config
+
+    loaded = Config.load(dotenv=False)
+    assert loaded.context == "catalogue"
+
+
 def test_context_defaults_to_catalogue(config):
     assert config.context == "catalogue"
     assert config.arch == "v2"

@@ -203,7 +203,7 @@ def test_normaliser_rules(registry):
     assert (matte.slot, matte.value) == ("finish", "matte")
 
     zipper = registry.normalise("bags", "finish", "resealable zipper")
-    assert (zipper.slot, zipper.value) == ("extras", "resealable zipper")
+    assert (zipper.slot, zipper.value) == ("extras", "easy-open zipper")
 
     pack = registry.normalise("bags", "size", "100 pack")
     assert pack.answers_nothing is True and pack.value == ""
@@ -214,6 +214,19 @@ def test_normaliser_rules(registry):
     passthrough = registry.normalise("bags", "style", "stand-up pouch")
     assert (passthrough.slot, passthrough.answers_nothing) == ("style", False)
     assert fold(passthrough.value) in value_forms("Stand Up Pouches")
+
+
+def test_phase4_synonyms_map_onto_vocabulary(registry):
+    mail = registry.normalise("boxes", "style", "Mail Box")
+    assert (mail.family, mail.slot, mail.value) == ("boxes", "style", "Mailer Boxes")
+    mailing = registry.normalise("boxes", "style", "mailing box")
+    assert mailing.value == "Mailer Boxes"
+    foil = registry.normalise("bags", "material", "metalized foil")
+    assert (foil.family, foil.slot, foil.value) == ("bags", "material", "metalized")
+    zipper = registry.normalise("bags", "finish", "re-sealable zipper")
+    assert (zipper.slot, zipper.value) == ("extras", "easy-open zipper")
+    vinyl = registry.normalise("labels", "material", "PP white vinyl")
+    assert (vinyl.family, vinyl.slot, vinyl.value) == ("labels", "material", "vinyl")
 
 
 def test_value_forms_bridge_page_titles_and_customer_wording():

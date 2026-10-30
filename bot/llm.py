@@ -12,6 +12,35 @@ from .pii import mask
 
 log = logging.getLogger("chatbot.llm")
 
+# Published text rates, USD per million tokens. Cached input is billed at the cache rate.
+# https://developers.openai.com/api/docs/pricing — gpt-5-nano and gpt-5-mini.
+_MODEL_RATES = (
+    ("gpt-5-nano", (0.05, 0.005, 0.40)),
+    ("gpt-5-mini", (0.25, 0.025, 2.00)),
+    ("gpt-5", (1.25, 0.125, 10.00)),
+)
+
+
+def cost_usd(model: str, usage: dict | None) -> float:
+    """Dollar cost of one completion. Unknown models use the mini rate so a guess cannot under-bill."""
+    usage = usage or {}
+    name = str(model or "").lower()
+    # Longest prefix first. "gpt-5" is a prefix of "gpt-5-nano", and matching the
+    # short name first would bill nano at the full gpt-5 rate.
+    rates = _MODEL_RATES[-2][1]
+    for prefix, candidate in sorted(_MODEL_RATES, key=lambda item: len(item[0]), reverse=True):
+        if name.startswith(prefix):
+            rates = candidate
+            break
+    prompt = int(usage.get("prompt_tokens") or 0)
+    completion = int(usage.get("completion_tokens") or 0)
+    details = usage.get("prompt_tokens_details") or {}
+    cached = int(details.get("cached_tokens") or 0) if isinstance(details, dict) else 0
+    cached = min(cached, prompt)
+    fresh = prompt - cached
+    input_rate, cached_rate, output_rate = rates
+    return (fresh * input_rate + cached * cached_rate + completion * output_rate) / 1_000_000
+
 REASONING_MODEL = re.compile(
     r"^o[0-9]|^gpt-5(\.\d+)?(-mini|-nano|-pro)?(-\d{4}-\d{2}-\d{2})?$", re.I
 )
@@ -65,6 +94,10 @@ class LLMClient:
 
     config: Config
     calls: int = field(default=0, init=False)
+    spent_usd: float = field(default=0.0, init=False)
+    last_usage: dict = field(default_factory=dict, init=False)
+    last_cost_usd: float = field(default=0.0, init=False)
+    last_latency_ms: int = field(default=0, init=False)
     _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
     def _reserve_call(self) -> None:
@@ -112,14 +145,21 @@ class LLMClient:
         except (KeyError, IndexError, TypeError) as error:
             raise LLMError(f"Unexpected LLM response: {body}") from error
         usage = body.get("usage") or {}
+        elapsed = int((time.perf_counter() - started) * 1000)
+        billed = cost_usd(body.get("model") or self.config.model, usage)
+        self.last_usage = usage
+        self.last_cost_usd = billed
+        self.last_latency_ms = elapsed
+        self.spent_usd += billed
         log.info(
-            "llm %s model=%s ms=%d in=%s out=%s total=%s",
+            "llm %s model=%s ms=%d in=%s out=%s total=%s cost=%.6f",
             name,
             body.get("model") or self.config.model,
-            int((time.perf_counter() - started) * 1000),
+            elapsed,
             usage.get("prompt_tokens", "?"),
             usage.get("completion_tokens", "?"),
             usage.get("total_tokens", "?"),
+            billed,
         )
         text = str(raw or "").strip()
         if text.startswith("```"):

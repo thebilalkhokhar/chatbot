@@ -61,7 +61,10 @@ listed option, and say the team will confirm the build.
 
 NEVER state, estimate or imply: a price, a fee, a discount, a minimum order number, a production
 or delivery date, a shipping time, payment terms, a refund promise, or any safety, food-contact or
-environmental claim. Those come only from the FACTS block, word for word. Contact details: offer only
+environmental claim. Those come only from the FACTS block, word for word. Do not use these words
+as a claim, even as a feeling or a benefit: eco-friendly, biodegradable, compostable, recyclable,
+food safe, waterproof, FDA, BPA, certified. Repeating a catalogue style name that contains one of
+those words is allowed. Saying the product has that property is not. Contact details: offer only
 what the FACTS block marks offerable (phone, support email); state the address or hours only if asked.
 Everything else about packaging is yours to discuss.
 
@@ -112,7 +115,7 @@ def _topic_answer(key: str, family: str, overrides: dict[str, str] | None) -> st
         if family == "bags":
             return "For bags and pouches we use PET, PE, kraft and foil films."
         if family == "labels":
-            return "Our labels are printed on PP white vinyl."
+            return "Our labels are printed on vinyl."
         if family == "boxes":
             return "Our boxes are board, never film."
     return canon.effective_answer(key, overrides)
@@ -385,6 +388,36 @@ def build_system(state: ConversationState, registry=None) -> str:
     )
 
 
+def _candidate_block(registry, state: ConversationState, chunks) -> str:
+    """D-11. Boxes and bags may be named only from the retrieved offering rows."""
+    if registry is None:
+        return ""
+    family = state.family()
+    rows = registry.candidate_offerings(family, chunks)
+    if not rows:
+        return ""
+    lines = [
+        "CANDIDATE SET — hard filter. This family is boxes or bags, so a recommendation "
+        "may use only a style, material, finish, insert, or extra from the rows below. "
+        "Do not invent a gauge, a point size, or a name that is not on one of these rows.",
+    ]
+    for row in rows:
+        parts = []
+        if row.styles:
+            parts.append("style: " + "; ".join(row.styles))
+        if row.materials:
+            parts.append("material: " + "; ".join(row.materials))
+        if row.finishes:
+            parts.append("finish: " + "; ".join(row.finishes))
+        if row.inserts:
+            parts.append("insert: " + "; ".join(row.inserts))
+        if row.extras:
+            parts.append("extra: " + "; ".join(row.extras))
+        if parts:
+            lines.append("- " + " | ".join(parts))
+    return "\n".join(lines)
+
+
 def build_user(
     state: ConversationState,
     visitor: str,
@@ -393,6 +426,7 @@ def build_user(
     asked_if_bot: bool = False,
     chunks=(),
     examples: list[dict] | None = None,
+    registry=None,
 ) -> str:
     # `_expected` is the fake-mode sentence for this turn. It is not injected.
     # The ASK SET below is the constraint, and the model chooses within it.
@@ -412,6 +446,7 @@ def build_user(
         "offerable: false only when they asked.\n"
         + _strip_signoff(canon.facts_for_prompt()),
         "FAMILY DETAIL\n" + kb_block(chunks),
+        _candidate_block(registry, state, chunks),
         "EXAMPLES OF CORRECT REPLIES\n" + golden_block(examples or []),
         f"TRANSCRIPT (last messages)\n{transcript}",
         f"Their latest message: {visitor}",
@@ -430,8 +465,10 @@ def build_user(
             else ""
         ),
         "Write the next message as JSON. `proposed_configs` has one object per option the reply "
-        "names. `fields_proposed` repeats only details the visitor stated, or a catalogue size, "
-        "each with its basis. Leave everything else empty.",
+        "names. Copy style, material, finish, insert and extras character for character from the "
+        "CATALOGUE PRIMER; leave a field empty when the reply does not name it. Do not invent a "
+        "point size, a gauge, or a style name. `fields_proposed` repeats only details the visitor "
+        "stated, or a catalogue size, each with its basis. Leave everything else empty.",
     ]
     return "\n".join(line for line in lines if line != "")
 
@@ -459,6 +496,7 @@ def live_turn(
         asked_if_bot=asked_if_bot,
         chunks=chunks,
         examples=examples,
+        registry=registry,
     )
     if correction:
         user = f"{user}\n\nCORRECTION FROM THE VERIFIER — fix these and rewrite:\n{correction}"

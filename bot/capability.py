@@ -64,6 +64,24 @@ FINISH_VALUES_THAT_ARE_EXTRAS = frozenset(
 # "rigid" is a box material on the site's pages, never a product name.
 MATERIAL_WORDS = {"rigid": "rigid cardboard", "rigid box": "rigid cardboard"}
 
+# Phase 4 cause (b). fold(variant) -> (slot, canonical vocabulary value, family or None).
+# None keeps the family the caller already has.
+_SYNONYMS = {
+    "mail box": ("style", "Mailer Boxes", "boxes"),
+    "mail boxes": ("style", "Mailer Boxes", "boxes"),
+    "mailing box": ("style", "Mailer Boxes", "boxes"),
+    "mailing boxes": ("style", "Mailer Boxes", "boxes"),
+    "metalized foil": ("material", "metalized", None),
+    "metallized foil": ("material", "metalized", None),
+    "resealable zipper": ("extras", "easy-open zipper", None),
+    "re sealable zipper": ("extras", "easy-open zipper", None),
+    "resealable zippers": ("extras", "easy-open zipper", None),
+    "pp white vinyl": ("material", "vinyl", "labels"),
+}
+
+# D-11. These families may be recommended only from retrieved offering rows.
+CONSTRAINED_FAMILIES = frozenset({"boxes", "bags"})
+
 # A pack count answers neither size nor quantity.
 PACK_COUNT = re.compile(
     r"^\d+\s*(?:-|\s)?\s*(?:count|ct|pack|pcs|pieces|capsules per bag|bags per case)\.?$",
@@ -659,6 +677,15 @@ class Registry:
             return Normalised("labels", "style", canonical, note="a sticker is a labels value, not a banners one")
         if slot == "style" and lowered in {"decal", "decals"}:
             return Normalised("banners", "style", canonical, note="a decal is a banners value, not a labels one")
+        synonym = _SYNONYMS.get(fold(text))
+        if synonym is not None:
+            forced_slot, forced_value, forced_family = synonym
+            return Normalised(
+                forced_family or family,
+                forced_slot,
+                forced_value,
+                note="probe synonym",
+            )
         if slot == "material" and canonical.lower() in {"matte", "gloss", "soft touch"}:
             return Normalised(
                 family, "finish", canonical, note=f"'{canonical}' is a finish here; it never answers material"
@@ -666,6 +693,33 @@ class Registry:
         if slot == "finish" and fold(canonical) in {fold(v) for v in FINISH_VALUES_THAT_ARE_EXTRAS}:
             return Normalised(family, "extras", canonical, note="the page files this under finishes; the quote slot is extras")
         return Normalised(family, slot, canonical)
+
+    def candidate_offerings(self, family: str, chunks=()) -> tuple[Offering, ...]:
+        """Offering rows a boxes or bags reply may name.
+
+        Rows whose style appears in the retrieved chunks win. With no chunk text, or
+        when no style is named there, every offering of the family is the set, so the
+        filter is never an empty list.
+        """
+        if family not in CONSTRAINED_FAMILIES:
+            return ()
+        offerings = tuple(row for row in self.offerings if row.family == family and row.styles)
+        parts: list[str] = []
+        for item in chunks or ():
+            chunk = getattr(item, "chunk", None) or item
+            parts.append(str(getattr(chunk, "title", "") or ""))
+            parts.append(str(getattr(chunk, "text", "") or ""))
+        blob = fold(" ".join(parts))
+        if not blob:
+            return offerings
+        matched = []
+        for row in offerings:
+            for style in row.styles:
+                forms = [form for form in value_forms(style) if len(form) >= 4]
+                if any(form in blob for form in forms):
+                    matched.append(row)
+                    break
+        return tuple(matched) if matched else offerings
 
     def gauge_for(self, figure: str) -> Gauge | None:
         """The registry row for a gauge figure, so the answer carries its basis and material."""
