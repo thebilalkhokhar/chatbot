@@ -264,8 +264,11 @@ class Orchestrator:
 
         state.repair_fields()
         state.add("visitor", visitor)
+        confirmed = state.confirm_suggested(visitor)
         extracted = extract_fields(visitor, state.last_question, state)
         accepted, rejected = apply_field_updates(state, extracted, visitor)
+        for key in confirmed:
+            accepted[key] = state.fields[key].value
         # The unit follow-up gets exactly one turn. If it is not answered with a
         # unit, keep the size as unconfirmed and move on instead of asking again.
         state.finalize_stalled()
@@ -423,7 +426,7 @@ class Orchestrator:
                     or key == state.last_question
                 )
             }
-            llm_accepted, llm_rejected = apply_field_updates(state, llm_fields, visitor)
+            llm_accepted, llm_rejected = apply_field_updates(state, llm_fields, visitor, source="model")
             accepted.update(llm_accepted)
             rejected.update(llm_rejected)
 

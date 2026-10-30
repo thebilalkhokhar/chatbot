@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from chatbot.bot import canon, guards, pii
 from chatbot.bot.personas import PERSONAS, validate_personas
-from chatbot.bot.state import ConversationState
+from chatbot.bot.state import ConversationState, STATUS_VISITOR, STATUS_WAIVED
 
 
 def make_state(*visitor_texts: str) -> ConversationState:
@@ -21,10 +21,26 @@ def test_kb_has_verified_chunks(kb_index):
     stats = kb_index.stats()
     assert stats["documents"] >= 30
     assert stats["chunks"] > 30
-    assert stats["draft_chunks"] == 0
+    assert stats["verified_chunks"] >= 60
     hits = kb_index.search("minimum order quantity", top_k=4)
     assert hits
     assert any("moq" in hit.chunk.doc_id.lower() for hit in hits)
+
+
+def test_draft_content_never_reaches_an_answer(kb_index):
+    # the v2 capability files are deliberately draft; v1 must still read verified facts only
+    drafts = [chunk for chunk in kb_index.chunks if chunk.status != "verified"]
+    assert drafts, "the capability registry should still be indexed as draft"
+    # SIGNOFF_PACKET is paperwork for sales and production, not corpus — like the
+    # two files it describes, it must never be retrievable into a reply.
+    assert {chunk.doc_id for chunk in drafts} <= {
+        "capability-registry",
+        "compliance-allowlist",
+        "SIGNOFF_PACKET",
+    }
+    assert all(chunk.category == "capabilities" for chunk in drafts)
+    for query in ("minimum order quantity", "mylar bag sizes", "child resistant zipper"):
+        assert all(hit.chunk.status == "verified" for hit in kb_index.search(query, top_k=10))
 
 
 def test_multiple_questions_blocked():
@@ -122,11 +138,22 @@ def test_untraceable_number_blocked():
 
 def test_repeated_question_after_answer_blocked():
     state = make_state("4 x 6 inches")
-    state.set_field("sizes", "4 x 6 inches")
-    state.fields["sizes"].status = "answered"
+    state.set_field("sizes", "4 x 6 inches", raw="4 x 6 inches", status=STATUS_VISITOR)
     state.add("ai", "What size are you looking for?")
     result = guards.check_reply("What size are you looking for?", state)
     assert "repeated_message" in result.codes() or "question_already_answered" in result.codes()
+
+
+def test_a_size_without_its_unit_is_still_open():
+    # Section 4.4: the unit question is a live ask, not a re-ask of an answer.
+    state = make_state("100 x 150")
+    state.set_field("sizes", "100x150", raw="100 x 150", status=STATUS_VISITOR)
+    assert state.fields["sizes"].done
+    assert not guards.settled_for_asking(state, "sizes")
+    state.flags["unit_asked"] = True
+    assert state.finalize_stalled() == ["sizes"]
+    assert state.fields["sizes"].status == STATUS_WAIVED
+    assert state.size_needs_unit() is False
 
 
 def test_bot_self_claim_and_disclosure():

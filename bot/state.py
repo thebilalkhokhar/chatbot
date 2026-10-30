@@ -18,6 +18,7 @@ FAMILY_PRODUCT = {
 
 FIELD_LABELS = {
     "product": "Product",
+    "use_case": "What it is for",
     "style": "Style",
     "sizes": "Size",
     "finishes": "Finish",
@@ -32,6 +33,43 @@ FIELD_LABELS = {
 
 BLOCKING_FIELDS = ("product", "sizes", "quantity")
 CONTACT_FIELDS = ("email", "phone", "name")
+# Facts the customer alone can supply: the model may repeat them, never propose them.
+CUSTOMER_ONLY_FIELDS = ("sizes", "email", "phone", "name", "quantity", "skus")
+# A contact detail typed into one of these is a misplaced answer, not a
+# description of the job, and must not settle the field.
+PROSE_FIELDS = ("product", "style", "material", "finishes", "extras", "use_case", "name")
+
+# PLAN_V2 Section 3.1: status says how far a value travelled, basis (Section 4.8)
+# says where it came from. v1's single "answered" flag could not tell a customer's
+# own number from one the bot proposed, which is what the re-ask guard needs.
+STATUS_UNKNOWN = "unknown"
+STATUS_VISITOR = "visitor"
+STATUS_SUGGESTED = "suggested"
+STATUS_CONFIRMED = "confirmed"
+STATUS_WAIVED = "waived"
+GOAL_STATUSES = (STATUS_UNKNOWN, STATUS_VISITOR, STATUS_SUGGESTED, STATUS_CONFIRMED, STATUS_WAIVED)
+
+BASIS_CANON = "canon"
+BASIS_CATALOGUE = "catalogue"
+BASIS_MODEL = "model_knowledge"
+BASIS_VISITOR = "visitor"
+GOAL_BASES = (BASIS_CANON, BASIS_CATALOGUE, BASIS_MODEL, BASIS_VISITOR)
+
+# A value in one of these statuses satisfies the field: nobody asks it again.
+SETTLED_STATUSES = frozenset({STATUS_VISITOR, STATUS_CONFIRMED, STATUS_WAIVED})
+# Only these count as "the customer told us", which is what a re-ask is judged against.
+STATED_STATUSES = frozenset({STATUS_VISITOR, STATUS_CONFIRMED})
+
+# v1 status names, so old SQLite records and replay artifacts still load.
+LEGACY_STATUSES = {
+    "missing": STATUS_UNKNOWN,
+    "answered": STATUS_VISITOR,
+    "needs_confirmation": STATUS_WAIVED,
+}
+# A v1 record only ever held customer-supplied values; a model echo was stored the same way.
+LEGACY_SOURCES = {"visitor": BASIS_VISITOR, "model": BASIS_MODEL, "llm": BASIS_MODEL}
+
+USE_CASE_QUESTION = "What will be inside it, or who is it going to?"
 
 SCRIPTS: dict[str, list[tuple[str, str]]] = {
     "bags": [
@@ -186,6 +224,30 @@ MATERIAL_HINTS = re.compile(
     r"vinyl|bopp|pp|pe|plastic|clear|holographic|silver|gold|white)\b",
     re.I,
 )
+# Section 3.1: `use_case` is the field v1 has no place for, which is the structural
+# reason the bot never asks what is being packed. Two shapes of answer: a sales
+# channel, or the thing that goes inside.
+USE_CASE_NOUN_RE = re.compile(
+    r"\b(?:for my|for our|to pack|packing|packed with|holds|holding|filled with|going inside|goes inside|"
+    r"use case|intended for|for shipping|for storing|for sending|for mailing|for selling|for wrapping|for gifting)\s+"
+    r"([a-z][a-z0-9 &'\-]{2,48}?)(?=\s*(?:[,.!?]|\band\b|\bbut\b|\bso\b|\bbecause\b|\bin\b|\bwith\b|\bthat\b|\bplease\b|\bthanks\b|$))",
+    re.I,
+)
+USE_CASE_CHANNEL_RE = re.compile(
+    r"\b(e[- ]?commerce|retail|wholesale|in[- ]store|brick[- ]and[- ]mortar|subscription|"
+    r"mail[- ]order|shipping|trade show|product launch|moving|storage|gifting|gift)\b",
+    re.I,
+)
+USE_CASE_STOP_WORDS = {"the", "a", "an", "my", "our", "their", "some", "any", "new", "old", "own"}
+AFFIRMATION_UNIT = (
+    r"yes|yeah|yep|yup|sure|ok(?:ay)?|that works|that'?s (?:right|fine|good|it)|"
+    r"sounds? (?:good|right)|looks good|correct|exactly|perfect|fine by me|"
+    r"(?:i'?|we'|w-)ll go with (?:that|it|this)"
+)
+AFFIRMATION_RE = re.compile(
+    rf"\s*(?:{AFFIRMATION_UNIT})(?:[,\s]+(?:{AFFIRMATION_UNIT}))*[.!?]*\s*",
+    re.I,
+)
 WANTS_HUMAN = re.compile(
     r"\b(human|person|agent|representative|rep\b|real (?:person|human)|someone else|speak to (?:a|an|someone|sales|support|rep)|talk to (?:a|an|someone|sales|support|rep)|operator|manager|customer service|live support|live chat|live agent)\b"
     r"|\b(?:don'?t|do not|not|no|stop|hate)\s+(?:want\s+to\s+)?(?:talk(?:ing)?\s*(?:to)?\s+|speak(?:ing)?\s*(?:to)?\s+|chat(?:ting)?\s*(?:with)?\s+)?(?:an?\s+)?(?:ai|bot|robo[a-z]*t|automated|machine)\b"
@@ -265,8 +327,66 @@ def refuses_contact(text: str) -> bool:
     return bool(CONTACT_REFUSAL_RE.search(str(text or "")))
 
 
-def tidy_size(text: str) -> str:
-    return re.sub(r"\s+", " ", str(text)).strip(" .,;")[:60]
+# Section 3.4 rule 1: "inches" and "in" are the same answer and "4 x 6" is "4x6",
+# so stored values are folded to one shape. Dimension *order* is the customer's:
+# "6x4 in" and "4x6x2" are different things (Section 3.1), and the gusset in
+# "8x12+4" sits where it means something. Their exact wording stays in
+# `raw_visitor_text`.
+UNIT_FORMS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("in", ("inch", "inches", "in")),
+    ("cm", ("centimeter", "centimeters", "centimetre", "centimetres", "cm")),
+    ("mm", ("millimeter", "millimeters", "millimetre", "millimetres", "mm")),
+    ("oz", ("ounce", "ounces", "oz")),
+    ("ml", ("milliliter", "milliliters", "millilitre", "millilitres", "ml")),
+    ("g", ("gram", "grams", "g")),
+    ("lb", ("lb", "lbs", "pound", "pounds")),
+    ("ft", ("ft", "foot", "feet")),
+)
+DIM_SET_RE = re.compile(
+    r"^(\d+(?:\.\d+)?)"
+    r"(?:\s*(?:x|×|\*|by)\s*(\d+(?:\.\d+)?))?"
+    r"(?:\s*(?:x|×|\*|by)\s*(\d+(?:\.\d+)?))?"
+    r"(?:\s*(.+))?$",
+    re.I,
+)
+
+
+def _canonical_unit(token: str) -> str:
+    value = token.strip().strip('."').lower()
+    for canonical, forms in UNIT_FORMS:
+        if value in forms:
+            return canonical
+    return ""
+
+
+def _spell_units(text: str) -> str:
+    for canonical, forms in UNIT_FORMS:
+        pattern = re.compile(r"\b(?:%s)\b" % "|".join(re.escape(item) for item in forms), re.I)
+        text = pattern.sub(canonical, text)
+    return text
+
+
+def _trim_number(value: str) -> str:
+    return f"{float(value):.2f}".rstrip("0").rstrip(".")
+
+
+def normalise_size(text: str) -> str:
+    value = re.sub(r"\s+", " ", str(text or "")).strip(" .,;")
+    if not value:
+        return ""
+    # An inch mark is a unit, but it belongs to the whole set: 24" x 36" is
+    # "24x36 in", not "24 in x 36 in".
+    quoted = '"' in value
+    value = re.sub(r'(?<=\d)\s*"', " ", value)
+    match = DIM_SET_RE.match(value)
+    numbers = [item for item in (match.group(1), match.group(2), match.group(3)) if item] if match else []
+    tail = (match.group(4) or "").strip() if match else ""
+    if numbers and (not tail or _canonical_unit(tail)):
+        # A plain LxW or LxWxH set: one shape, in the order they wrote it.
+        unit = _canonical_unit(tail) or ("in" if quoted else "")
+        size = "x".join(_trim_number(item) for item in numbers)
+        return f"{size} {unit}".strip()[:60]
+    return _spell_units(value)[:60]
 
 
 def parse_quantity(text: str) -> int | None:
@@ -293,6 +413,21 @@ def normalize_finish(text: str) -> str | None:
     return None
 
 
+def use_case_from(text: str) -> str:
+    """What it is for: the thing going inside, or the channel it sells through."""
+    value = str(text or "")
+    match = USE_CASE_NOUN_RE.search(value)
+    if match:
+        phrase = re.sub(r"\s+", " ", match.group(1)).strip(" .,;:")
+        words = [word for word in phrase.lower().split() if word not in USE_CASE_STOP_WORDS]
+        if words and family_of(phrase) == "unknown":
+            return phrase.lower()[:60]
+    channel = USE_CASE_CHANNEL_RE.search(value)
+    if channel:
+        return re.sub(r"\s+", " ", channel.group(0).lower())[:60]
+    return ""
+
+
 def normalize_style(text: str) -> str | None:
     lowered = str(text or "").lower()
     for label, words in STYLE_VALUES:
@@ -308,6 +443,15 @@ def valid_email(text: str) -> bool:
 def valid_phone(text: str) -> bool:
     digits = re.sub(r"\D", "", str(text or ""))
     return 10 <= len(digits) <= 15
+
+
+def looks_like_contact(text: str) -> bool:
+    """An address or a number is contact detail, never a material, style or name."""
+    value = str(text or "").strip()
+    if EMAIL_RE.search(value):
+        return True
+    digits = re.sub(r"\D", "", value)
+    return bool(value) and 10 <= len(digits) <= 15 and bool(re.fullmatch(r"[+\d][\d\s().-]{8,}", value))
 
 
 def is_question(text: str) -> bool:
@@ -367,31 +511,49 @@ def below_moq(quantity: int | None, family: str, skus: int = 1) -> bool:
 
 @dataclass
 class FieldValue:
+    """One `GoalState` entry: value, the words it came in, where it came from, how far it travelled."""
+
     value: str = ""
-    status: str = "missing"
+    status: str = STATUS_UNKNOWN
     attempts: int = 0
-    source: str = ""
+    raw_visitor_text: str = ""
+    basis: str = ""
 
     @property
     def done(self) -> bool:
-        return self.status in {"answered", "needs_confirmation"} and bool(self.value)
+        """Settled: the field needs no further ask, even if the team still has to confirm it."""
+        return bool(self.value) and self.status in SETTLED_STATUSES
+
+    @property
+    def stated(self) -> bool:
+        """The customer said it (or agreed to it) — asking again is the `redundant_ask` failure."""
+        return bool(self.value) and self.status in STATED_STATUSES
 
     def to_dict(self) -> dict:
         return {
             "value": self.value,
             "status": self.status,
             "attempts": self.attempts,
-            "source": self.source,
+            "raw_visitor_text": self.raw_visitor_text,
+            "basis": self.basis,
         }
 
     @classmethod
     def from_dict(cls, data: dict | None) -> "FieldValue":
         data = data or {}
+        status = str(data.get("status", STATUS_UNKNOWN))
+        status = LEGACY_STATUSES.get(status, status)
+        basis = str(data.get("basis", ""))
+        if not basis:
+            # v1 records carried `source` instead; every v1 write came from the visitor.
+            legacy = str(data.get("source", ""))
+            basis = LEGACY_SOURCES.get(legacy, BASIS_VISITOR if status != STATUS_UNKNOWN else "")
         return cls(
             value=str(data.get("value", "")),
-            status=str(data.get("status", "missing")),
+            status=status,
             attempts=int(data.get("attempts", 0)),
-            source=str(data.get("source", "")),
+            raw_visitor_text=str(data.get("raw_visitor_text", "")),
+            basis=basis,
         )
 
 
@@ -446,11 +608,37 @@ class ConversationState:
                 return message.text
         return ""
 
-    def set_field(self, key: str, value: str, source: str = "visitor") -> None:
+    def set_field(
+        self,
+        key: str,
+        value: str,
+        basis: str = BASIS_VISITOR,
+        *,
+        raw: str = "",
+        status: str | None = None,
+    ) -> None:
         if key not in self.fields:
             self.fields[key] = FieldValue()
-        self.fields[key].value = str(value).strip()
-        self.fields[key].source = source
+        field_value = self.fields[key]
+        field_value.value = str(value).strip()
+        field_value.basis = basis
+        # `raw_visitor_text` holds the customer's own words. A value the model
+        # proposed has none, and must not borrow the proposal text to fill it in.
+        field_value.raw_visitor_text = str(
+            raw if raw or basis != BASIS_VISITOR else value
+        ).strip()[:200]
+        if status is not None:
+            field_value.status = status
+
+    def size_needs_unit(self) -> bool:
+        """A number the visitor gave without a unit — still the visitor's size, not yet usable."""
+        sizes = self.fields["sizes"]
+        return (
+            bool(sizes.value)
+            and sizes.status == STATUS_VISITOR
+            and not size_has_unit(sizes.value)
+            and not size_is_unknown(sizes.value)
+        )
 
     def family(self) -> str:
         product = self.fields["product"].value
@@ -485,7 +673,7 @@ class ConversationState:
             value = self.fields[key]
             if not value.done:
                 return False
-        return True
+        return not self.size_needs_unit()
 
     def complete(self) -> bool:
         return self.specs_done() and self.reachable()
@@ -495,15 +683,10 @@ class ConversationState:
         return SCRIPTS.get(family, [])
 
     def question_for(self, key: str) -> str:
-        if key == "sizes":
-            sizes = self.fields["sizes"]
-            if (
-                sizes.value
-                and not sizes.done
-                and not size_is_unknown(sizes.value)
-                and not size_has_unit(sizes.value)
-            ):
-                return "Is that in inches, cm or mm?"
+        if key == "use_case":
+            return USE_CASE_QUESTION
+        if key == "sizes" and self.size_needs_unit():
+            return "Is that in inches, cm or mm?"
         for field_key, question in self.script():
             if field_key == key:
                 return question
@@ -517,10 +700,23 @@ class ConversationState:
             field_value = self.fields[key]
             if field_value.value and is_question(field_value.value):
                 field_value.value = ""
-                field_value.status = "missing"
+                field_value.raw_visitor_text = ""
+                field_value.status = STATUS_UNKNOWN
                 field_value.attempts = min(field_value.attempts, 1)
                 repaired.append(key)
         return repaired
+
+    def confirm_suggested(self, visitor_text: str) -> list[str]:
+        """Propose-and-confirm (Section 8): a bare yes makes the bot's proposal the customer's answer."""
+        pending = self.fields.get(self.last_question)
+        if pending is None or pending.status != STATUS_SUGGESTED or not pending.value:
+            return []
+        if not AFFIRMATION_RE.fullmatch(str(visitor_text or "")):
+            return []
+        pending.status = STATUS_CONFIRMED
+        pending.basis = BASIS_VISITOR
+        pending.raw_visitor_text = str(visitor_text).strip()[:200]
+        return [self.last_question]
 
     def next_question(self) -> tuple[str, str] | None:
         if self.handoff:
@@ -532,14 +728,7 @@ class ConversationState:
                 return None
             return "product", PRODUCT_QUESTION
 
-        sizes = self.fields["sizes"]
-        if (
-            sizes.value
-            and not sizes.done
-            and not size_is_unknown(sizes.value)
-            and not size_has_unit(sizes.value)
-            and not self.flags.get("unit_asked")
-        ):
+        if self.size_needs_unit() and not self.flags.get("unit_asked"):
             return "sizes", "Is that in inches, cm or mm?"
 
         for key, question in self.script():
@@ -558,15 +747,10 @@ class ConversationState:
         return contact
 
     def finalize_stalled(self) -> list[str]:
+        """The unit follow-up gets exactly one turn; after it, the size is the team's to confirm."""
         noted: list[str] = []
-        sizes = self.fields["sizes"]
-        if (
-            sizes.value
-            and not size_has_unit(sizes.value)
-            and self.flags.get("unit_asked")
-            and not sizes.done
-        ):
-            sizes.status = "needs_confirmation"
+        if self.size_needs_unit() and self.flags.get("unit_asked"):
+            self.fields["sizes"].status = STATUS_WAIVED
             noted.append("sizes")
         return noted
 
@@ -582,13 +766,13 @@ class ConversationState:
         return None
 
     def missing_for_prompt(self) -> list[str]:
-        relevant = {key for key, _ in self.script()} | set(BLOCKING_FIELDS)
+        relevant = {key for key, _ in self.script()} | set(BLOCKING_FIELDS) | {"use_case"}
         missing = []
         for key in FIELD_LABELS:
             value = self.fields[key]
-            if value.done:
+            if value.done and not (key == "sizes" and self.size_needs_unit()):
                 continue
-            if key in BLOCKING_FIELDS:
+            if key in BLOCKING_FIELDS or key == "use_case":
                 missing.append(f"{FIELD_LABELS[key]} (blocking)")
             elif key in CONTACT_FIELDS:
                 if not self.reachable() and key != "name":
@@ -598,11 +782,19 @@ class ConversationState:
         return missing
 
     def known_for_prompt(self) -> str:
+        """Every value carries how far it travelled and where it came from — Section 3.1's two axes."""
         parts = []
         for key in FIELD_LABELS:
-            value = self.fields[key]
-            if value.value:
-                parts.append(f"{FIELD_LABELS[key]}: {value.value}")
+            field_value = self.fields[key]
+            if not field_value.value:
+                continue
+            markers: list[str] = []
+            if field_value.status != STATUS_VISITOR:
+                markers.append(field_value.status)
+            if field_value.basis and field_value.basis != BASIS_VISITOR:
+                markers.append(field_value.basis)
+            suffix = f" [{'/'.join(markers)}]" if markers else ""
+            parts.append(f"{FIELD_LABELS[key]}: {field_value.value}{suffix}")
         return "; ".join(parts) if parts else "nothing yet"
 
     def summary(self) -> str:
@@ -688,7 +880,7 @@ def traceable(key: str, value: str, visitor_text: str, state: ConversationState)
     if key == "product":
         family = family_of(candidate)
         return family != "unknown" or any(token in visitor for token in candidate.lower().split())
-    if key in {"style", "material", "extras", "name"}:
+    if key in {"style", "material", "extras", "name", "use_case"}:
         if key == "extras" and candidate.lower() in {"yes", "no", "none", "both", "neither"}:
             return True
         tokens = [token for token in re.findall(r"[a-z0-9]+", candidate.lower()) if len(token) > 2]
@@ -697,15 +889,38 @@ def traceable(key: str, value: str, visitor_text: str, state: ConversationState)
 
 
 def apply_field_updates(
-    state: ConversationState, updates: dict[str, Any], visitor_text: str
+    state: ConversationState,
+    updates: dict[str, Any],
+    visitor_text: str,
+    *,
+    source: str = "visitor",
 ) -> tuple[dict[str, str], dict[str, str]]:
+    """Write accepted values with their provenance: whose words, which epistemic class, how far travelled.
+
+    `source="model"` marks the bot's own proposal, which becomes `suggested` (Section 3.1) so a
+    re-ask guard can tell it from something the customer said. Sizes, contact details and numbers
+    never take that status — they are only ever the customer's facts or a catalogue row.
+    """
     accepted: dict[str, str] = {}
     rejected: dict[str, str] = {}
+    visitor_lower = str(visitor_text or "").lower()
+    suggested_basis = BASIS_MODEL if source == "model" else BASIS_VISITOR
     for key, raw in (updates or {}).items():
         if key not in state.fields or raw is None:
             continue
-        value = str(raw).strip()
+        incoming = str(raw).strip()
+        value = incoming
+        echoed = bool(incoming) and incoming.lower() in visitor_lower
+        # A number, a size or a contact detail is the customer's fact or nothing;
+        # anything the model repeats back that they already said stays theirs.
+        basis = BASIS_VISITOR if echoed or key in CUSTOMER_ONLY_FIELDS else suggested_basis
+        # `raw_visitor_text` is the customer's own wording. A model proposal they
+        # have not agreed to has no wording of theirs to carry yet.
+        raw_text = incoming if echoed else ("" if basis == BASIS_MODEL else str(visitor_text or "").strip())
         if not value:
+            continue
+        if key in PROSE_FIELDS and looks_like_contact(value):
+            rejected[key] = value
             continue
         if key == "product" and state.fields["product"].done and is_question(visitor_text):
             # "what style of boxes do you have" mentions boxes, but it is a
@@ -714,30 +929,30 @@ def apply_field_updates(
             continue
         if key == "style":
             normalized_style = normalize_style(value)
-            if is_question(visitor_text) and not normalized_style:
+            if is_question(visitor_text) and not normalized_style and basis == BASIS_VISITOR:
                 rejected[key] = value
                 continue
             if normalized_style:
                 value = normalized_style
-        if key == "material" and is_question(visitor_text):
+        if key == "material" and is_question(visitor_text) and basis == BASIS_VISITOR:
             material_match = MATERIAL_HINTS.search(value)
             if not material_match:
                 rejected[key] = value
                 continue
             value = material_match.group(0)
-        if key == "extras" and is_question(visitor_text):
+        if key == "extras" and is_question(visitor_text) and basis == BASIS_VISITOR:
             if value.lower() not in {"yes", "no", "none", "both", "neither"}:
                 rejected[key] = value
                 continue
         if key == "sizes":
-            value = tidy_size(value)
+            value = normalise_size(value)
             if not size_has_unit(value) and size_has_unit(visitor_text):
-                value = tidy_size(visitor_text)
+                value = normalise_size(visitor_text)
             if not size_has_unit(value) and not size_is_unknown(value) and value:
                 state.flags["size_pending_unit"] = value
             if size_is_unknown(visitor_text) and size_is_unknown(value):
-                state.set_field("sizes", "to be confirmed", "visitor")
-                state.fields["sizes"].status = "needs_confirmation"
+                # "No idea" is a waiver, not an answer: the team sizes it, the bot stops asking.
+                state.set_field(key, "to be confirmed", BASIS_VISITOR, raw=visitor_text, status=STATUS_WAIVED)
                 accepted[key] = "to be confirmed"
                 continue
         if key == "quantity":
@@ -761,29 +976,33 @@ def apply_field_updates(
             if number is not None:
                 value = str(number)
         if key in {"style", "material"} and UNSPECIFIED_RE.search(visitor_text):
-            state.set_field(key, "no preference", "visitor")
-            state.fields[key].status = "answered"
+            state.set_field(key, "no preference", BASIS_VISITOR, raw=visitor_text, status=STATUS_WAIVED)
             accepted[key] = "no preference"
             continue
-        if not traceable(key, value, visitor_text, state):
+        if basis == BASIS_VISITOR and not traceable(key, value, visitor_text, state):
+            # A customer answer must be the customer's own words. A model proposal
+            # is allowed to invent a value, because it is recorded as `suggested`
+            # and never reaches the quote sheet until the customer confirms it.
             rejected[key] = value
             continue
-        state.set_field(key, value, "visitor")
+        state.set_field(key, value, basis, raw=raw_text)
         field_value = state.fields[key]
-        if key in {"sizes"} and not size_has_unit(value) and not size_is_unknown(value):
-            field_value.status = "missing"
-            # A new unitless size needs its own unit question, even if one was
-            # already asked for an earlier value.
-            state.flags.pop("unit_asked", None)
-        elif key == "sizes" and size_has_unit(value):
-            state.flags.pop("size_pending_unit", None)
-            field_value.status = "answered"
+        if key == "sizes":
+            # Section 4.4: a size is only ever the customer's number or a printed
+            # catalogue row, so it never carries the model's `suggested` status.
+            field_value.status = STATUS_VISITOR
+            if size_has_unit(value):
+                state.flags.pop("size_pending_unit", None)
+            elif not size_is_unknown(value):
+                state.flags.pop("unit_asked", None)
+        elif basis == BASIS_MODEL:
+            field_value.status = STATUS_SUGGESTED
         elif key == "email" and not valid_email(value):
-            field_value.status = "missing"
+            field_value.status = STATUS_UNKNOWN
         elif key == "phone" and not valid_phone(value):
-            field_value.status = "missing"
+            field_value.status = STATUS_UNKNOWN
         else:
-            field_value.status = "answered"
+            field_value.status = STATUS_VISITOR
         accepted[key] = value
     return accepted, rejected
 
@@ -807,6 +1026,10 @@ def extract_fields(text: str, last_question: str, state: ConversationState) -> d
     family = family_of(value)
     if family != "unknown" and (not is_question(value) or not state.fields["product"].done):
         updates["product"] = FAMILY_PRODUCT.get(family, value.strip()[:60])
+
+    use_case = use_case_from(value)
+    if use_case and not is_question(value):
+        updates["use_case"] = use_case
 
     style = normalize_style(value)
     if style and not is_question(value):
@@ -864,8 +1087,10 @@ def extract_fields(text: str, last_question: str, state: ConversationState) -> d
             pass
         elif STYLE_HINTS.search(value) or (not finish and not MATERIAL_HINTS.search(value)):
             updates.setdefault("style", normalize_style(value) or value.strip()[:80])
-    elif last_question in {"material", "extras"} and not is_question(value):
-        updates.setdefault(last_question, value.strip()[:80])
+    elif last_question in {"material", "extras", "use_case"} and not is_question(value):
+        # "Yes" confirms a proposal; it does not describe what they are packing.
+        if last_question != "use_case" or not AFFIRMATION_RE.fullmatch(value):
+            updates.setdefault(last_question, value.strip()[:80])
 
     if is_plain(value):
         state.flags["plain"] = True

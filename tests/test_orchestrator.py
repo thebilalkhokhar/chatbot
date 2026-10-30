@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from chatbot.bot.personas import PERSONAS
-from chatbot.bot.state import BLOCKING_FIELDS
+from chatbot.bot.state import BLOCKING_FIELDS, STATUS_UNKNOWN, STATUS_VISITOR
 
 
 def blockers(result) -> list[str]:
@@ -369,15 +369,15 @@ def test_clarifying_question_names_the_product(orchestrator):
 def test_saved_question_in_a_field_is_repaired(orchestrator):
     state = orchestrator.store.get_or_create("c-repair")
     state.fields["product"].value = "bags"
-    state.fields["product"].status = "answered"
+    state.fields["product"].status = STATUS_VISITOR
     state.fields["style"].value = "what style of boxes do you have"
-    state.fields["style"].status = "answered"
+    state.fields["style"].status = STATUS_VISITOR
     state.last_question = "finishes"
     orchestrator.store.save(state)
     orchestrator.handle("c-repair", "gloss")
     state = orchestrator.store.get_or_create("c-repair")
     assert state.fields["style"].value == ""
-    assert state.fields["style"].status != "answered"
+    assert state.fields["style"].status == STATUS_UNKNOWN
 
 
 def test_no_style_preference_gets_style_options(orchestrator):
@@ -457,8 +457,8 @@ def test_size_unit_follow_up_completes_the_size(orchestrator):
     assert "inches, cm or mm" in first.reply.lower()
     result = orchestrator.handle("c-unit", "mm")
     state = orchestrator.store.get_or_create("c-unit")
-    assert state.fields["sizes"].value == "100 x 150 mm"
-    assert state.fields["sizes"].status == "answered"
+    assert state.fields["sizes"].value == "100x150 mm"
+    assert state.fields["sizes"].status == STATUS_VISITOR
     assert "style" in result.reply.lower()
     assert blockers(result) == []
 
@@ -481,11 +481,11 @@ def test_live_field_echo_cannot_overwrite_an_answered_field(
     try:
         state = engine.store.get_or_create("c-live-echo")
         state.fields["product"].value = "boxes"
-        state.fields["product"].status = "answered"
+        state.fields["product"].status = STATUS_VISITOR
         state.fields["sizes"].value = "4 x 6 x 2 inches"
-        state.fields["sizes"].status = "answered"
+        state.fields["sizes"].status = STATUS_VISITOR
         state.fields["style"].value = "flat"
-        state.fields["style"].status = "answered"
+        state.fields["style"].status = STATUS_VISITOR
         state.last_question = "material"
         engine.store.save(state)
 
@@ -528,9 +528,9 @@ def test_live_echo_cannot_overwrite_a_field_accepted_this_turn(
     try:
         state = engine.store.get_or_create("c-live-same")
         state.fields["product"].value = "bags"
-        state.fields["product"].status = "answered"
+        state.fields["product"].status = STATUS_VISITOR
         state.fields["sizes"].value = "12 x 51 cm"
-        state.fields["sizes"].status = "answered"
+        state.fields["sizes"].status = STATUS_VISITOR
         state.last_question = "style"
         engine.store.save(state)
 

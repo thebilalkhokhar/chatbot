@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 from . import canon
 from .personas import PERSONAS
-from .state import ConversationState, is_question, wants_recommendation
+from .state import ConversationState, STATUS_WAIVED, is_question, wants_recommendation
 
 BLOCK = "block"
 WARN = "warn"
@@ -86,6 +86,12 @@ FIELD_PROBES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("style", re.compile(r"\b(?:style|flat|stand[- ]?up|flat[- ]?bottom|reference image)\b", re.I)),
     ("material", re.compile(r"\b(?:material|special features|paper stock)\b", re.I)),
     ("extras", re.compile(r"\b(?:zipper|tear notch|extras?)\b", re.I)),
+    ("use_case", re.compile(
+        r"\b(?:what (?:will|goes|is going)\s+(?:be\s+)?inside|what are you (?:packing|putting|selling|shipping|sending)|"
+        r"use case|what is it for|what are they for|who is it going to|retail or (?:shipping|wholesale|online)|"
+        r"what (?:kind|type) of (?:product|item))\b",
+        re.I,
+    )),
     ("product", re.compile(r"\b(?:what are you looking|boxes, bags|have made|looking to (?:make|order|have))\b", re.I)),
 )
 
@@ -132,6 +138,20 @@ class GuardResult:
 
     def to_dict(self) -> dict:
         return {"ok": self.ok, "issues": [issue.to_dict() for issue in self.issues]}
+
+
+def settled_for_asking(state: ConversationState, key: str) -> bool:
+    """Whether asking about this field again is the failure v1 called `question_already_answered`.
+
+    A size still missing its unit, and one the customer refused to give, are both
+    still open — Section 4.4 keeps the unit question and then hands the size to the team.
+    """
+    field_value = state.fields.get(key)
+    if field_value is None:
+        return False
+    if key == "sizes" and (state.size_needs_unit() or field_value.status == STATUS_WAIVED):
+        return False
+    return field_value.done
 
 
 def _sentences(text: str) -> list[str]:
@@ -485,7 +505,12 @@ def _check_repeat(
     if score >= 0.95:
         field_asked = asked_field(reply) or (expected[0] if expected else None)
         field_value = state.fields.get(field_asked) if field_asked else None
-        if field_value and not field_value.done and field_value.attempts < 2:
+        if (
+            field_asked
+            and field_value
+            and not settled_for_asking(state, field_asked)
+            and field_value.attempts < 2
+        ):
             # Re-asking the same open question after an unclear answer is
             # allowed once; the QA failure is repeating a question they answered.
             return
@@ -542,8 +567,7 @@ def _check_asked_fields(
     field_asked = asked_field(reply)
     if field_asked:
         value = state.fields.get(field_asked)
-        unconfirmed_size = field_asked == "sizes" and value is not None and value.status == "needs_confirmation"
-        if value and value.done and not unconfirmed_size:
+        if value and settled_for_asking(state, field_asked):
             result.add(
                 "question_already_answered",
                 BLOCK,

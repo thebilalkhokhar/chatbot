@@ -1,0 +1,200 @@
+from __future__ import annotations
+
+from chatbot.bot.guards import settled_for_asking
+from chatbot.bot.state import (
+    BASIS_MODEL,
+    BASIS_VISITOR,
+    ConversationState,
+    FieldValue,
+    STATUS_CONFIRMED,
+    STATUS_SUGGESTED,
+    STATUS_UNKNOWN,
+    STATUS_VISITOR,
+    STATUS_WAIVED,
+    apply_field_updates,
+    extract_fields,
+    normalise_size,
+    use_case_from,
+)
+
+
+def make_state(*visitor_texts: str) -> ConversationState:
+    state = ConversationState(id="state-test", persona="Alex Kane")
+    for text in visitor_texts:
+        state.add("visitor", text)
+    return state
+
+
+def test_units_are_folded_and_dimension_order_is_theirs():
+    # Section 3.4 rule 1: one shape for the same answer; Section 3.1: "6x4" and
+    # "4x6x2" stay different, and a gusset keeps its position.
+    assert normalise_size("4 x 6 inches") == "4x6 in"
+    assert normalise_size("4x6in") == "4x6 in"
+    assert normalise_size('10" x 12"') == "10x12 in"
+    assert normalise_size("100 X 150") == "100x150"
+    assert normalise_size("6.0 x 4.0 cm") == "6x4 cm"
+    assert normalise_size("8x12+4 inches") == "8x12+4 in"
+    assert normalise_size("1/8 x 2 3/4 in") == "1/8 x 2 3/4 in"
+    assert normalise_size("A4") == "A4"
+    assert normalise_size("6 inches") == "6 in"
+
+
+def test_the_same_answer_in_two_spellings_is_one_value():
+    state = make_state("4 x 6 inches")
+    apply_field_updates(state, {"sizes": "4 x 6 inches"}, "4 x 6 inches")
+    assert state.fields["sizes"].value == "4x6 in"
+    assert state.fields["sizes"].raw_visitor_text == "4 x 6 inches"
+
+
+def test_a_refused_size_is_waived_not_answered():
+    state = make_state("I have no idea what size")
+    apply_field_updates(state, {"sizes": "no idea"}, "I have no idea what size")
+    sizes = state.fields["sizes"]
+    assert sizes.status == STATUS_WAIVED
+    assert sizes.done, "the bot stops asking; the team sizes it"
+    assert not sizes.stated, "but it was never the customer's number"
+    assert settled_for_asking(state, "sizes") is False
+
+
+def test_no_preference_is_a_waiver_too():
+    state = make_state("no preference")
+    apply_field_updates(state, {"style": "no preference"}, "no preference")
+    assert state.fields["style"].status == STATUS_WAIVED
+    assert state.fields["style"].raw_visitor_text == "no preference"
+
+
+def test_a_model_proposal_is_suggested_never_an_answer():
+    state = make_state("I need a 4x6x2 in box for a 1 lb jar candle")
+    accepted, rejected = apply_field_updates(
+        state,
+        {"style": "rigid", "sizes": "4x6x2 in"},
+        "I need a 4x6x2 in box for a 1 lb jar candle",
+        source="model",
+    )
+    assert accepted["style"] == "rigid"
+    assert state.fields["style"].status == STATUS_SUGGESTED
+    assert state.fields["style"].basis == BASIS_MODEL
+    assert state.fields["style"].raw_visitor_text == "", "the customer never said 'rigid'"
+    # Section 4.4: the type itself cannot hold an invented size, and a size the
+    # customer did state stays theirs even when written through the model path.
+    assert state.fields["sizes"].status == STATUS_VISITOR
+    assert state.fields["sizes"].basis == BASIS_VISITOR
+    assert rejected == {}
+
+
+def test_a_size_the_model_invented_is_rejected():
+    state = make_state("I need a box for my candle")
+    accepted, rejected = apply_field_updates(
+        state, {"sizes": "4x6x2 in"}, "I need a box for my candle", source="model"
+    )
+    assert accepted == {}
+    assert rejected["sizes"] == "4x6x2 in"
+
+
+def test_an_affirmation_confirms_the_proposal():
+    state = make_state("I need a box for my candle")
+    apply_field_updates(state, {"style": "rigid"}, "I need a box for my candle", source="model")
+    state.last_question = "style"
+    assert state.confirm_suggested("yes that works") == ["style"]
+    assert state.fields["style"].status == STATUS_CONFIRMED
+    assert state.fields["style"].basis == BASIS_VISITOR
+    assert state.fields["style"].stated
+
+
+def test_an_affirmation_does_not_confirm_an_answer_they_gave():
+    state = make_state("rigid boxes")
+    apply_field_updates(state, {"style": "rigid"}, "rigid boxes")
+    state.last_question = "style"
+    assert state.confirm_suggested("yes") == []
+    assert state.fields["style"].status == STATUS_VISITOR
+
+
+def test_a_qualified_yes_does_not_confirm_the_proposal():
+    state = make_state("I need a box for my candle")
+    apply_field_updates(state, {"style": "rigid"}, "I need a box for my candle", source="model")
+    state.last_question = "style"
+    assert state.confirm_suggested("yes but make it smaller") == []
+    assert state.fields["style"].status == STATUS_SUGGESTED
+
+
+def test_an_affirmation_confirms_only_the_field_that_was_asked():
+    state = make_state("I need a box for my candle")
+    for key, value in {"style": "rigid", "material": "kraft"}.items():
+        apply_field_updates(state, {key: value}, "I need a box for my candle", source="model")
+    state.last_question = "style"
+    assert state.confirm_suggested("yes") == ["style"]
+    assert state.fields["material"].status == STATUS_SUGGESTED
+
+
+def test_use_case_phrases_and_channels_are_read_from_the_message():
+    assert use_case_from("I am packing gummy bears") == "gummy bears"
+    assert use_case_from("mailer boxes for shipping candles") == "candles"
+    assert use_case_from("rigid boxes for my candle business") == "candle business"
+    assert use_case_from("labels for retail") == "retail"
+    assert use_case_from("I need boxes") == ""
+    # A product family is the product field, not a use case.
+    assert use_case_from("pouches for packing coffee bags") in {"coffee bags", ""}
+
+
+def test_an_answer_to_the_use_case_question_is_taken_wholesale():
+    state = make_state("1 lb jar candles with a wooden lid")
+    updates = extract_fields("1 lb jar candles with a wooden lid", "use_case", state)
+    assert updates["use_case"] == "1 lb jar candles with a wooden lid"
+
+    state.last_question = "use_case"
+    assert extract_fields("yes", "use_case", state).get("use_case") is None, state
+
+
+def test_use_case_is_the_field_v1_had_nowhere_to_put_it():
+    state = make_state("I need boxes for my candle business")
+    updates = extract_fields("I need boxes for my candle business", "", state)
+    assert updates["product"] == "boxes"
+    assert updates["use_case"] == "candle business"
+    accepted, _ = apply_field_updates(state, updates, "I need boxes for my candle business")
+    assert accepted["use_case"] == "candle business"
+    assert state.fields["use_case"].status == STATUS_VISITOR
+
+
+def test_a_contact_detail_does_not_settle_a_prose_field():
+    # The scripted chat reached "material" while the visitor was answering for
+    # "email", so v1 wrote "buyer@example.com" into the quote sheet as a material.
+    state = make_state("I need boxes")
+    accepted, rejected = apply_field_updates(
+        state, {"material": "buyer@example.com"}, "buyer@example.com"
+    )
+    assert accepted == {}
+    assert rejected["material"] == "buyer@example.com"
+    assert state.fields["material"].status == STATUS_UNKNOWN
+    _ , rejected = apply_field_updates(state, {"style": "+1 832-807-3429"}, "+1 832-807-3429")
+    assert rejected["style"] == "+1 832-807-3429"
+    accepted, _ = apply_field_updates(state, {"email": "buyer@example.com"}, "buyer@example.com")
+    assert accepted["email"] == "buyer@example.com"
+
+
+def test_a_v1_record_loads_with_visitor_provenance():
+    # The SQLite store and the replay artifacts hold v1 field dicts.
+    legacy = {"value": "4x6 in", "status": "answered", "attempts": 1, "source": "visitor"}
+    field_value = FieldValue.from_dict(legacy)
+    assert field_value.status == STATUS_VISITOR
+    assert field_value.basis == BASIS_VISITOR
+    assert field_value.done and field_value.stated
+    unconfirmed = FieldValue.from_dict({"value": "100x150", "status": "needs_confirmation"})
+    assert unconfirmed.status == STATUS_WAIVED
+    empty = FieldValue.from_dict(None)
+    assert empty.status == STATUS_UNKNOWN and empty.basis == ""
+
+
+def test_a_saved_conversation_round_trips_through_the_new_columns():
+    state = make_state("I need boxes for my candle business")
+    apply_field_updates(
+        state,
+        extract_fields("I need boxes for my candle business", "", state),
+        "I need boxes for my candle business",
+    )
+    apply_field_updates(state, {"sizes": "4 x 6 inches"}, "4 x 6 inches")
+    restored = ConversationState.from_dict(state.to_dict())
+    assert restored.fields["sizes"].value == "4x6 in"
+    assert restored.fields["sizes"].raw_visitor_text == "4 x 6 inches"
+    assert restored.fields["use_case"].value == "candle business"
+    assert restored.fields["use_case"].status == STATUS_VISITOR
+    assert "source" not in restored.to_dict()["fields"]["sizes"]
