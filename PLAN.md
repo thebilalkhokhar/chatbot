@@ -10,6 +10,12 @@
 > `server/docs/plan_extracted.txt`, which is not being followed. Anything in Phase 1+ is
 > undecided until reviewed.
 
+> **v2:** [PLAN_V2.md](./PLAN_V2.md) (2026-10-30) proposes replacing this document's §4
+> conversation design and §7 rollout with a goal-driven "shopkeeper" architecture — the model owns
+> the next move, and guard rails stay only where a wrong sentence creates a commercial or legal
+> commitment. This file remains the record of what is built and measured today. Nothing in v2 is
+> executed.
+
 ---
 
 ## 1. Goal
