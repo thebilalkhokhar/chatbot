@@ -134,21 +134,69 @@ class LLMClient:
         return parsed
 
 
+_BASIS_ENUM = ["canon", "catalogue", "model_knowledge", "visitor", ""]
+_CONFIG_ITEM = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "family": {"type": "string"},
+        "style": {"type": "string"},
+        "style_card": {"type": "string"},
+        "material": {"type": "string"},
+        "gauge": {"type": "string"},
+        "finish": {"type": "array", "items": {"type": "string"}},
+        "insert": {"type": "array", "items": {"type": "string"}},
+        "extras": {"type": "array", "items": {"type": "string"}},
+        "size": {"type": "string"},
+        "size_source": {"type": "string", "enum": ["catalogue", "visitor", ""]},
+        "basis": {"type": "string", "enum": _BASIS_ENUM},
+    },
+    "required": [
+        "family", "style", "style_card", "material", "gauge", "finish", "insert",
+        "extras", "size", "size_source", "basis",
+    ],
+}
+_FIELD_PROPOSED = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "key": {"type": "string"},
+        "value": {"type": "string"},
+        "basis": {"type": "string", "enum": _BASIS_ENUM},
+    },
+    "required": ["key", "value", "basis"],
+}
+
 REPLY_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
         "reply": {
             "type": "string",
-            "description": "Plain-text chat message. One short answer and at most one question.",
+            "description": "Plain-text chat message. One short answer and at most one new question.",
+        },
+        "move": {
+            "type": "string",
+            "enum": ["answer", "ask", "propose", "offer_contact", "handoff", ""],
+            "description": "The conversation move this message takes.",
         },
         "asked": {
             "type": "string",
             "enum": [
                 "product", "style", "sizes", "finishes", "quantity", "skus",
-                "material", "extras", "name", "email", "phone", "",
+                "material", "extras", "use_case", "name", "email", "phone", "",
             ],
             "description": "The one detail this message asks for, or empty string.",
+        },
+        "proposed_configs": {
+            "type": "array",
+            "description": "One object per option the reply names, so the combination can be checked.",
+            "items": _CONFIG_ITEM,
+        },
+        "fields_proposed": {
+            "type": "array",
+            "description": "Goal fields this turn proposes, each with where the value came from.",
+            "items": _FIELD_PROPOSED,
         },
         "fields": {
             "type": "object",
@@ -162,15 +210,16 @@ REPLY_SCHEMA = {
                 "skus": {"type": "string"},
                 "material": {"type": "string"},
                 "extras": {"type": "string"},
+                "use_case": {"type": "string"},
                 "name": {"type": "string"},
                 "email": {"type": "string"},
                 "phone": {"type": "string"},
             },
             "required": [
                 "product", "style", "sizes", "finishes", "quantity", "skus",
-                "material", "extras", "name", "email", "phone",
+                "material", "extras", "use_case", "name", "email", "phone",
             ],
         },
     },
-    "required": ["reply", "asked", "fields"],
+    "required": ["reply", "move", "asked", "proposed_configs", "fields_proposed", "fields"],
 }

@@ -5,17 +5,22 @@ from dataclasses import replace
 import pytest
 
 from chatbot.bot import guards
-from chatbot.bot.composer import build_system, select_examples
+from chatbot.bot.capability import Registry, estimate_tokens, PRIMER_TOKEN_BUDGET
+from chatbot.bot.composer import build_system, build_user, select_examples
 from chatbot.bot.config import ConfigError
 from chatbot.bot.replay import offline_config
 from chatbot.bot.state import ConversationState, wants_recommendation
 
 
-def test_context_defaults_to_full(config):
-    assert config.context == "full"
+def test_context_defaults_to_catalogue(config):
+    assert config.context == "catalogue"
+    assert config.arch == "v2"
+    assert replace(config, context="full").context == "full"
     assert replace(config, context="retrieval").context == "retrieval"
     with pytest.raises(ConfigError):
         replace(config, context="everything")
+    with pytest.raises(ConfigError):
+        replace(config, arch="v3")
 
 
 def test_replay_forces_fake_mode(config):
@@ -35,12 +40,24 @@ def test_verified_excludes_the_draft_registry(kb_index):
     assert not any(chunk.category == "capabilities" for chunk in verified)
 
 
-def test_full_kb_prompt_contains_product_use_cases(kb_index):
+def test_full_kb_prompt_contains_product_use_cases(config, kb_index):
     state = ConversationState(id="c-full", persona="alex")
-    prompt = build_system(state, kb_index.verified()).lower()
-    assert "ground coffee" in prompt
-    assert "jerky" in prompt
-    assert "cosmetic boxes" in prompt
+    registry = Registry.load(config.kb_dir)
+    system = build_system(state, registry)
+    other = ConversationState(id="c-other", persona="alex")
+    other.set_field("product", "boxes")
+    assert build_system(other, registry) == system
+    lowered = system.lower()
+    assert "catalogue primer" in lowered
+    assert "nowhere else" in lowered
+    assert "identity" in lowered
+    assert estimate_tokens(registry.render_primer()) <= PRIMER_TOKEN_BUDGET
+    user = build_user(state, "jerky boxes", None, chunks=kb_index.verified()).lower()
+    assert "ground coffee" in user
+    assert "jerky" in user
+    assert "cosmetic boxes" in user
+    assert "offerable: true" in user
+    assert "offerable: false" in user
 
 
 def test_select_examples_prefers_family_and_drops_stale_fact():

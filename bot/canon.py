@@ -409,12 +409,32 @@ def fact(key: str) -> CanonFact | None:
     return CANON.get(key)
 
 
+# Section 4.10. True means the bot may volunteer it. False means only when the visitor asked.
+# The operator email, and Houston or Sylmar as a facility, are never-rows: not in this map.
+OFFERABLE_FACTS = {
+    "contact": True,
+    "location": False,
+    "hours": False,
+}
+OPERATOR_EMAIL = "johnhenry.it@print247.us"
+
+
 def facts_for_prompt() -> str:
     lines = ["WRITTEN ANSWERS — use these words, do not invent alternatives:"]
     for key in TOPIC_PRIORITY:
         item = CANON[key]
         flag = "" if item.status == CONFIRMED else " [needs sign-off: answer exactly as written]"
-        lines.append(f"- {item.label} ({key}){flag}: {item.answer}")
+        offerable = OFFERABLE_FACTS.get(key)
+        offer = ""
+        if offerable is True:
+            offer = " [offerable: true]"
+        elif offerable is False:
+            offer = " [offerable: false]"
+        lines.append(f"- {item.label} ({key}){flag}{offer}: {item.answer}")
+    lines.append(
+        "NEVER state, even if asked: the operator email "
+        f"{OPERATOR_EMAIL}; a Houston facility; a Sylmar facility."
+    )
     return "\n".join(lines)
 
 

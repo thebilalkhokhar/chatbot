@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import canon, guards
+from .capability import Registry, estimate_tokens
 from .composer import (
     Composed,
     HANDOFF_LINES,
@@ -30,6 +31,7 @@ from .state import (
     extract_fields,
     family_of,
     is_context_question,
+    is_meta_question,
     is_goodbye,
     is_job_pitch,
     refuses_contact,
@@ -131,6 +133,8 @@ class Orchestrator:
         self.overrides = canon.load_overrides(config.data_dir)
         self.examples = examples if examples is not None else load_golden(config.data_dir / "golden.jsonl")
         self.llm = LLMClient(config)
+        self.registry = Registry.load(config.kb_dir)
+        self.primer_tokens = estimate_tokens(self.registry.render_primer())
 
     def close(self) -> None:
         self.store.close()
@@ -175,9 +179,14 @@ class Orchestrator:
             chunks = self.index.search(text, top_k=min(3, self.config.top_k))
         return chunks
 
-    def _prompt_chunks(self, retrieved):
+    def _prompt_chunks(self, retrieved, state: ConversationState):
         if self.config.context == "full":
             return self.index.verified()
+        if self.config.context == "catalogue":
+            family = state.family()
+            if family and family != "unknown":
+                return [item for item in retrieved if family in item.chunk.families]
+            return retrieved
         return retrieved
 
     def _handoff_reason(self, state: ConversationState, visitor: str) -> str:
@@ -224,6 +233,11 @@ class Orchestrator:
             if urgent:
                 parts.append(urgent)
             return " ".join(parts)
+        if is_meta_question(visitor):
+            parts = ["Fair question — I'll stick to what the quote actually needs."]
+            if urgent:
+                parts.append(urgent)
+            return " ".join(parts)
         parts: list[str] = []
         topics = canon.detect_topics(visitor)
         if topics:
@@ -242,6 +256,7 @@ class Orchestrator:
         chunks,
         expected: tuple[str, str] | None,
         handoff: bool,
+        proposed_configs=None,
     ) -> guards.GuardResult:
         return guards.check_reply(
             reply,
@@ -252,6 +267,8 @@ class Orchestrator:
             handoff=handoff,
             asked_if_bot=asks_if_bot(visitor),
             overrides=self.overrides,
+            registry=self.registry,
+            proposed_configs=proposed_configs,
         )
 
     def handle(self, conversation_id: str, text: str, *, channel: str = "website") -> TurnResult:
@@ -327,7 +344,7 @@ class Orchestrator:
             expected = None
 
         chunks = self._retrieve(visitor, state, topics)
-        prompt_chunks = self._prompt_chunks(chunks)
+        prompt_chunks = self._prompt_chunks(chunks, state)
         examples = select_examples(self.examples, state.family())
 
         clarification = clarify_reply(state) if is_context_question(visitor) else ""
@@ -355,6 +372,7 @@ class Orchestrator:
                     overrides=self.overrides,
                     examples=examples,
                     asked_if_bot=asks_if_bot(visitor),
+                    registry=self.registry,
                 )
                 source = "live"
                 state.flags.pop("llm_error", None)
@@ -376,7 +394,13 @@ class Orchestrator:
             source = "heuristic"
 
         result = self._guard(
-            composed.reply, state, visitor, prompt_chunks, expected, bool(handoff_reason)
+            composed.reply,
+            state,
+            visitor,
+            prompt_chunks,
+            expected,
+            bool(handoff_reason),
+            composed.proposed_configs,
         )
         blocked: list[dict] = []
         if not result.ok:
@@ -401,9 +425,18 @@ class Orchestrator:
                     examples=examples,
                     asked_if_bot=asks_if_bot(visitor),
                     correction=correction,
+                    registry=self.registry,
                 )
+                # A rewrite is reconciled again. Fixing a price and quietly adding
+                # an option the new configs do not name still blocks.
                 rewritten_result = self._guard(
-                    rewritten.reply, state, visitor, prompt_chunks, expected, bool(handoff_reason)
+                    rewritten.reply,
+                    state,
+                    visitor,
+                    prompt_chunks,
+                    expected,
+                    bool(handoff_reason),
+                    rewritten.proposed_configs,
                 )
                 rewritten_gap = any(
                     issue.code == "recommendation_unanswered"
@@ -447,7 +480,9 @@ class Orchestrator:
                     or key == state.last_question
                 )
             }
-            llm_accepted, llm_rejected = apply_field_updates(state, llm_fields, visitor, source="model")
+            llm_accepted, llm_rejected = apply_field_updates(
+                state, llm_fields, visitor, source="model", bases=composed.bases
+            )
             accepted.update(llm_accepted)
             rejected.update(llm_rejected)
 
@@ -492,6 +527,10 @@ class Orchestrator:
                 "issues": [issue.to_dict() for issue in result.issues],
                 "retrieved": [item.chunk.id for item in chunks],
                 "context": self.config.context,
+                "arch": self.config.arch,
+                "move": composed.move,
+                "proposed_configs": composed.proposed_configs or [],
+                "primer_tokens": self.primer_tokens,
                 "prompt_chunks": len(prompt_chunks),
                 "accepted": accepted,
                 "rejected": rejected,

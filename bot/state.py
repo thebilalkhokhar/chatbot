@@ -530,6 +530,21 @@ def asks_if_bot(text: str) -> bool:
     return bool(ASKS_IF_BOT.search(str(text or "")))
 
 
+META_QUESTION_RE = re.compile(
+    r"\bwhy are you asking\b"
+    r"|\bwhy do you (?:need|want|ask)\b"
+    r"|\b(?:this is|you(?:'re| are)) (?:useless|not helping|annoying)\b"
+    r"|\bstop asking\b"
+    r"|\bi (?:have|got) a complaint\b",
+    re.I,
+)
+
+
+def is_meta_question(text: str) -> bool:
+    """Identity, a complaint, or 'why are you asking' — answer it before any ask."""
+    return asks_if_bot(text) or bool(META_QUESTION_RE.search(str(text or "")))
+
+
 def is_goodbye(text: str) -> bool:
     value = str(text or "").strip()
     return len(value.split()) <= 6 and bool(GOODBYE_RE.search(value))
@@ -1024,6 +1039,7 @@ def apply_field_updates(
     visitor_text: str,
     *,
     source: str = "visitor",
+    bases: dict[str, str] | None = None,
 ) -> tuple[dict[str, str], dict[str, str]]:
     """Write accepted values with their provenance: whose words, which epistemic class, how far travelled.
 
@@ -1045,7 +1061,13 @@ def apply_field_updates(
         echoed = bool(incoming) and incoming.lower() in visitor_lower
         # A number, a size or a contact detail is the customer's fact or nothing;
         # anything the model repeats back that they already said stays theirs.
+        # A size the model quotes from a printed row is `catalogue`, never `suggested`.
+        stated_basis = str((bases or {}).get(key) or "")
         basis = BASIS_VISITOR if echoed or key in CUSTOMER_ONLY_FIELDS else suggested_basis
+        if stated_basis in GOAL_BASES and not echoed and key not in CUSTOMER_ONLY_FIELDS:
+            basis = stated_basis
+        if key == "sizes" and stated_basis == BASIS_CATALOGUE and not echoed:
+            basis = BASIS_CATALOGUE
         # `raw_visitor_text` is the customer's own wording. A model proposal they
         # have not agreed to has no wording of theirs to carry yet.
         raw_text = incoming if echoed else ("" if basis == BASIS_MODEL else str(visitor_text or "").strip())

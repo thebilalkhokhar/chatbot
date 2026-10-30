@@ -12,6 +12,7 @@ from .state import (
     family_of,
     is_goodbye,
     is_job_pitch,
+    is_meta_question,
     is_price_objection,
     is_question,
     normalize_finish,
@@ -43,26 +44,46 @@ REPHRASES = {
     "phone": "What number is best if the team needs to reach you?",
 }
 
-RULE_TEXT = """RULES FOR EVERY REPLY
-1. Answer what they asked first, in the written words you were given, before asking anything.
-2. One question per message. Never join two asks with "and".
-3. Ask at most one new question, and only about a field in the ASK SET in the chat state. Never ask about anything in the DO NOT ASK SET, not even to confirm it.
-4. Never give a price, a fee, a discount, a delivery date or a production date.
-5. Never say you will check, confirm, verify, find out or get back to them. The quote covers it.
-6. No markdown, bullets, headings or emoji. Plain chat text.
-7. Keep it under about 45 words unless a written answer needs the room.
-8. Use only the written answers and KB excerpts. Do not invent facts, sizes, materials or claims.
-9. Do not call a product waterproof, food safe, durable or eco-friendly unless the excerpt says it.
-10. Do not introduce yourself or greet again after the first message.
-11. If they ask whether you are an AI, say you are an AI assistant helping the Print247 team.
-12. For banners there is no minimum order. For everything else the standard minimum is 1,000 per size, or 500 each with multiple designs, and smaller runs are possible.
-13. If the quantity they just gave is below the standard minimum, say smaller runs are possible and still ask the next question.
-14. If they already gave a detail, do not ask for it again.
-15. If they ask for a recommendation, or name what they are packing and ask what to use, name one specific option from the KB excerpts, give one short reason it fits, and say the team confirms the exact fit with the quote.
-16. If they are unsure about size, explain there is no standard size — everything is custom made and sized around their product — then ask what they are packing.
-17. If they ask which styles or options you offer, answer with those options from the written answers or KB, then ask one field from the ASK SET.
-18. If they ask which product a question is about, name their product first (for example "For your stand-up bags"), then repeat the open question.
-19. Return only the JSON object the schema asks for."""
+RULE_TEXT = """You decide what to do next. You may: answer what they asked; ask the one thing that most blocks
+their quote; propose a specific option and ask them to confirm it; or offer the contact details the
+FACTS block marks as offerable so the conversation can move forward.
+
+You know packaging. Use that knowledge. When a customer tells you what they are packing, work out
+what that product needs — protection, presentation, how it will be shipped and handled — and say what
+you would make for it and why, in plain words.
+
+Your judgement decides which of our options fits. It never decides what we offer. The option
+list comes from the CATALOGUE PRIMER and the catalogue chunks in this message and nowhere else: not
+from the wider internet, not from packaging generally, not from what other companies do. Choose among
+the styles, materials, gauges, finishes and inserts listed there, and honour its combination rules. If
+an idea is not listed, do not present it as something we make: describe the need, offer the closest
+listed option, and say the team will confirm the build.
+
+NEVER state, estimate or imply: a price, a fee, a discount, a minimum order number, a production
+or delivery date, a shipping time, payment terms, a refund promise, or any safety, food-contact or
+environmental claim. Those come only from the FACTS block, word for word. Contact details: offer only
+what the FACTS block marks offerable (phone, support email); state the address or hours only if asked.
+Everything else about packaging is yours to discuss.
+
+Sizes: you do not work out sizes. If asked for one, say the right size depends on the product's own
+dimensions, its shape and how it has to be packed; ask them for those measurements so you can point
+them at the right style; say the packaging team confirms the final size. You may name a size only when
+it is printed in our CATALOGUE or when the customer gave it to you — and a catalogue size is never
+presented as a guaranteed fit for their product. Do not do dimension arithmetic, do not offer a
+"typical" size, do not say "usually" or "most people take", and do not say internal or external unless
+the catalogue row itself says which.
+
+When you answer, mark where it came from: FACTS, CATALOGUE, YOUR_JUDGEMENT, or THEM.
+
+Never ask about something they already told you. You may only ask about fields in the ASK SET;
+anything in the DO NOT ASK SET is off limits even as a confirmation.
+
+For banners there is no minimum order. For everything else the standard minimum is 1,000 per size,
+or 500 each with multiple designs, and smaller runs are possible. If they already gave a quantity
+below that, say smaller runs are possible and still ask one field from the ASK SET.
+
+Style: plain chat text, no markdown, no emoji, roughly 25-60 words, at most one new question per
+message. Return only the JSON object the schema asks for. The ASK SET is the only list of questions."""
 
 
 @dataclass
@@ -71,6 +92,12 @@ class Composed:
     asked: str = ""
     fields: dict[str, str] = field(default_factory=dict)
     source: str = "heuristic"
+    move: str = ""
+    # None means this reply was not a model emit. An empty list means the model
+    # named no configuration, which the registry guards are allowed to reject.
+    proposed_configs: list | None = None
+    fields_proposed: list = field(default_factory=list)
+    bases: dict[str, str] = field(default_factory=dict)
 
 
 def _topic_answer(key: str, family: str, overrides: dict[str, str] | None) -> str:
@@ -306,23 +333,54 @@ def golden_block(examples: list[dict]) -> str:
     return "\n\n".join(lines)
 
 
-def build_system(
-    state: ConversationState,
-    chunks,
-    *,
-    overrides: dict[str, str] | None = None,
-    examples: list[dict] | None = None,
-) -> str:
+def _allowlist_block(registry) -> str:
+    if registry is None:
+        return "COMPLIANCE ALLOW-LIST\n(not loaded)"
+    lines = ["COMPLIANCE ALLOW-LIST — these sentences only, verbatim:"]
+    for claim in registry.claims:
+        lines.append(f"- ({claim.family}) {claim.say}")
+    if registry.bans:
+        lines.append("NEVER assert: " + "; ".join(ban.claim for ban in registry.bans))
+    return "\n".join(lines)
+
+
+def _intent(visitor: str) -> str:
+    if asks_if_bot(visitor):
+        return "identity"
+    if is_meta_question(visitor):
+        return "meta"
+    if wants_recommendation(visitor):
+        return "recommendation"
+    if is_question(visitor):
+        return "question"
+    return "order"
+
+
+def build_system(state: ConversationState, registry=None) -> str:
+    """Cacheable prefix. Identical for every turn of one persona: no transcript, no ask-set."""
     persona = persona_for(state.persona) or PERSONAS[0]
+    disclosure = disclosure_line(persona.name)
+    identity = (
+        f"Identity (approved policy, D-1 = option B): you are {persona.name} and you stay that "
+        "person for the whole chat — same name, same tone, from greeting to handoff. Never "
+        "volunteer that you are an AI, and never raise the subject yourself. If the customer asks "
+        "directly, answer honestly in one plain sentence: you are an AI assistant working under "
+        f"this name for Print247. The sentence is exactly: \"{disclosure}\" Never claim to be a "
+        "human and never deny being one. After that sentence, continue with whatever they were "
+        "actually asking about — the disclosure is one line, not a lecture."
+    )
+    primer = registry.render_primer() if registry is not None else "CATALOGUE PRIMER\n(not loaded)"
     return "\n\n".join(
         [
-            f"You are {persona.name}, a sales rep on the Print247 website chat. "
-            f"Your tone is {persona.tone}. You are one of nine people answering chats in rotation.",
+            f"You are {persona.name}. You work at Print247, a custom packaging and printing company "
+            f"in Rosenberg, Texas. You are chatting with a customer on their website. Your tone is "
+            f"{persona.tone}. Your job is to understand what they need well enough that the quoting "
+            "team can send an accurate price, and to make that conversation feel like a knowledgeable "
+            "shopkeeper helping them, not a form.",
+            identity,
             RULE_TEXT,
-            "WRITTEN ANSWERS — use these words, do not invent alternatives:\n"
-            + _strip_signoff(canon.facts_for_prompt()),
-            "VERIFIED KB EXCERPTS for this turn:\n" + kb_block(chunks),
-            "EXAMPLES OF CORRECT REPLIES from past chats:\n" + golden_block(examples or []),
+            primer,
+            _allowlist_block(registry),
         ]
     )
 
@@ -333,6 +391,8 @@ def build_user(
     _expected: tuple[str, str] | None,
     *,
     asked_if_bot: bool = False,
+    chunks=(),
+    examples: list[dict] | None = None,
 ) -> str:
     # `_expected` is the fake-mode sentence for this turn. It is not injected.
     # The ASK SET below is the constraint, and the model chooses within it.
@@ -343,26 +403,35 @@ def build_user(
     )
     topics = canon.detect_topics(visitor)
     lines = [
-        f"CHAT STATE\n{state.summary()}",
-        f"\nTRANSCRIPT (last messages)\n{transcript}",
-        f"\nTheir latest message: {visitor}",
-        f"Topics their message asks about: {', '.join(topics) if topics else 'none recognised'}",
-        (
-            "They are asking for a recommendation: name one specific option from the KB excerpts, "
-            "say in one short clause why it fits, then ask one field from the ASK SET."
-            if wants_recommendation(visitor)
-            else ""
-        ),
+        f"GOAL\n{state.summary()}",
         "ASK SET CONSTRAINT — binding. Ask at most one new question, and only about a field "
         "listed after 'You may ask about'. Anything listed after 'Do not ask about' is off "
         "limits, even as a confirmation.\n"
         + state.ask_constraint(),
+        "FACTS — Tier B, verbatim. offerable: true may be volunteered; "
+        "offerable: false only when they asked.\n"
+        + _strip_signoff(canon.facts_for_prompt()),
+        "FAMILY DETAIL\n" + kb_block(chunks),
+        "EXAMPLES OF CORRECT REPLIES\n" + golden_block(examples or []),
+        f"TRANSCRIPT (last messages)\n{transcript}",
+        f"Their latest message: {visitor}",
+        f"Intent: {_intent(visitor)}",
+        f"Topics their message asks about: {', '.join(topics) if topics else 'none recognised'}",
         (
-            "They asked whether you are a bot: answer honestly and briefly, then continue."
+            "They are asking for a recommendation: name one specific option from the catalogue, "
+            "say in one short clause why it fits, then ask one field from the ASK SET."
+            if wants_recommendation(visitor)
+            else ""
+        ),
+        (
+            "They asked whether you are a bot: use the one disclosure sentence, then continue "
+            "with what they were asking about."
             if asked_if_bot
             else ""
         ),
-        "\nWrite the next message as JSON. In `fields`, repeat only details the visitor stated in this chat, exactly as they stated them; leave everything else empty.",
+        "Write the next message as JSON. `proposed_configs` has one object per option the reply "
+        "names. `fields_proposed` repeats only details the visitor stated, or a catalogue size, "
+        "each with its basis. Leave everything else empty.",
     ]
     return "\n".join(line for line in lines if line != "")
 
@@ -378,13 +447,47 @@ def live_turn(
     examples: list[dict] | None = None,
     asked_if_bot: bool = False,
     correction: str = "",
+    registry=None,
 ) -> Composed:
-    system = build_system(state, chunks, overrides=overrides, examples=examples)
-    user = build_user(state, visitor, expected, asked_if_bot=asked_if_bot)
+    # Canon overrides are already inside the FACTS block the orchestrator loads.
+    _ = overrides
+    system = build_system(state, registry)
+    user = build_user(
+        state,
+        visitor,
+        expected,
+        asked_if_bot=asked_if_bot,
+        chunks=chunks,
+        examples=examples,
+    )
     if correction:
         user = f"{user}\n\nCORRECTION FROM THE VERIFIER — fix these and rewrite:\n{correction}"
     parsed = client.complete_json(system, user, REPLY_SCHEMA)
     reply = str(parsed.get("reply") or "").strip()
     asked = str(parsed.get("asked") or "").strip()
+    move = str(parsed.get("move") or "").strip()
     fields = {str(key): str(value) for key, value in (parsed.get("fields") or {}).items() if value}
-    return Composed(reply=reply, asked=asked, fields=fields, source="live")
+    proposed = parsed.get("fields_proposed") if isinstance(parsed.get("fields_proposed"), list) else []
+    bases: dict[str, str] = {}
+    for item in proposed:
+        if not isinstance(item, dict):
+            continue
+        key = str(item.get("key") or "").strip()
+        value = str(item.get("value") or "").strip()
+        if key and value and key not in fields:
+            fields[key] = value
+        if key:
+            bases[key] = str(item.get("basis") or "")
+    configs = parsed.get("proposed_configs")
+    if not isinstance(configs, list):
+        configs = []
+    return Composed(
+        reply=reply,
+        asked=asked,
+        fields=fields,
+        source="live",
+        move=move,
+        proposed_configs=configs,
+        fields_proposed=[item for item in proposed if isinstance(item, dict)],
+        bases=bases,
+    )

@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass, field
 
 from . import canon
+from .capability import Candidate, Registry, fold, value_forms
 from .personas import PERSONAS
 from .state import (
     BARE_QTY_RE,
@@ -18,6 +19,7 @@ from .state import (
     STATUS_WAIVED,
     asks_if_bot,
     family_of,
+    is_meta_question,
     is_question,
     normalize_finish,
     normalize_style,
@@ -326,9 +328,9 @@ def _check_length(reply: str, result: GuardResult) -> None:
     words = len(reply.split())
     if words == 0:
         result.add("empty_reply", BLOCK, "The reply is empty.")
-    elif words > 95:
+    elif words > 110:
         result.add("too_long", BLOCK, f"The reply is {words} words; keep it under about 60.", reply[:80])
-    elif words > 65:
+    elif words > 60:
         result.add("long_reply", WARN, f"The reply is {words} words; it should read like a chat message.")
 
 
@@ -344,7 +346,7 @@ def _check_questions(reply: str, result: GuardResult) -> None:
     if count > 1:
         result.add(
             "multiple_questions",
-            BLOCK,
+            WARN,
             f"{count} questions in one message; the rule is one question per message.",
             reply[:120],
         )
@@ -432,22 +434,69 @@ def _check_bot_claim(reply: str, asked_if_bot: bool, result: GuardResult) -> Non
     if asked_if_bot and not DISCLOSURE.search(text):
         result.add(
             "bot_question_unanswered",
-            WARN,
+            BLOCK,
             "The visitor asked whether this is a bot; the reply should say it is an AI assistant.",
         )
 
 
-def _check_claims(reply: str, allowed_blob: str, result: GuardResult) -> None:
+# Safety and eco words stay BLOCK. Descriptive packaging words are WARN. Presence in a
+# KB chunk is not a licence; only an allow-list sentence quoted in full covers a word.
+SAFETY_CLAIMS = (
+    "waterproof", "weatherproof", "dishwasher safe", "freezer safe", "food safe",
+    "food-safe", "eco-friendly", "biodegradable", "compostable", "fda approved",
+    "fda-approved", "bpa-free", "bpa free", "recyclable", "certified",
+)
+DESCRIPTIVE_CLAIMS = (
+    "durable", "scratch resistant", "fade resistant", "guarantee", "warranty",
+)
+
+
+def _allowlist_covers(registry: Registry | None, reply: str, claim: str) -> bool:
+    if registry is None:
+        return False
+    lowered = reply.lower()
+    for row in registry.claims:
+        sentence = row.say.lower()
+        if claim in sentence and sentence in lowered:
+            return True
+    return False
+
+
+def _check_claims(reply: str, _allowed_blob: str, result: GuardResult, registry: Registry | None = None) -> None:
     lowered_reply = reply.lower()
-    lowered_allowed = allowed_blob.lower()
-    for claim in canon.CLAIM_WORDS:
-        if claim in lowered_reply and claim not in lowered_allowed:
+    for claim in SAFETY_CLAIMS:
+        if claim in lowered_reply and not _allowlist_covers(registry, reply, claim):
             result.add(
                 "unsupported_claim",
                 BLOCK,
-                f"'{claim}' is not in the knowledge base or the written answers.",
+                f"'{claim}' is a safety or compliance claim and it is not an allow-list sentence.",
                 claim,
             )
+    for claim in DESCRIPTIVE_CLAIMS:
+        if claim in lowered_reply and not _allowlist_covers(registry, reply, claim):
+            result.add(
+                "unsupported_claim",
+                WARN,
+                f"'{claim}' is a descriptive claim, not an allow-list sentence.",
+                claim,
+            )
+
+
+TIER_B_NUMBER_HINT = re.compile(
+    r"\$|%|\b(?:days?|weeks?|hours?|business days|minimum|moq|units?|pieces?|percent|per size)\b",
+    re.I,
+)
+
+
+def _number_is_tier_b(reply: str, number: str) -> bool:
+    for match in NUMBER.finditer(reply):
+        token = match.group(0).replace(",", "").rstrip("%")
+        if token != number:
+            continue
+        window = reply[max(0, match.start() - 48): match.end() + 48]
+        if TIER_B_NUMBER_HINT.search(window):
+            return True
+    return False
 
 
 def _check_numbers(reply: str, allowed_blob: str, result: GuardResult) -> None:
@@ -459,9 +508,10 @@ def _check_numbers(reply: str, allowed_blob: str, result: GuardResult) -> None:
     for number in _numbers(reply):
         if number in allowed:
             continue
+        tier_b = _number_is_tier_b(reply, number)
         result.add(
             "untraceable_number",
-            BLOCK,
+            BLOCK if tier_b else WARN,
             f"The number {number} appears nowhere in the chat, the facts or the KB.",
             number,
         )
@@ -503,7 +553,7 @@ def _check_minimum(reply: str, state: ConversationState, result: GuardResult) ->
         if not (skus and skus.value and skus.value.isdigit() and int(skus.value) >= 2):
             result.add(
                 "minimum_needs_condition",
-                WARN,
+                BLOCK,
                 "500 is only correct with multiple designs; say 1,000 per size for a single design.",
             )
 
@@ -536,6 +586,14 @@ def _check_answer_first(
             f"Use the written answer: {item.answer}",
             visitor_text[:120],
         )
+    if is_meta_question(visitor_text) and not asks_if_bot(visitor_text):
+        if not re.search(r"\b(?:sorry|i hear|understand|fair|of course|happy to explain)\b", reply, re.I):
+            result.add(
+                "unanswered_question",
+                BLOCK,
+                "They raised a complaint or asked why, and the reply does not address it.",
+                visitor_text[:120],
+            )
     if topics:
         return
     if is_question(visitor_text):
@@ -555,6 +613,7 @@ def _check_answer_first(
 def _check_recommendation(
     reply: str,
     visitor_text: str,
+    state: ConversationState,
     result: GuardResult,
     handoff: bool = False,
 ) -> None:
@@ -566,10 +625,11 @@ def _check_recommendation(
         r"\b(?:works?|fits?|suits?|good|best|right for|ideal for)\b", reply, re.I
     ):
         return
+    known = bool(state.fields["use_case"].value)
     result.add(
         "recommendation_unanswered",
-        WARN,
-        "They asked for a recommendation and the reply names no option. Suggest one from the KB excerpts.",
+        BLOCK if known else WARN,
+        "They asked for a recommendation and the reply names no option. Suggest one from the catalogue.",
         visitor_text[:120],
     )
 
@@ -668,32 +728,22 @@ def _check_asked_fields(
         if value and settled_for_asking(state, field_asked):
             result.add(
                 "question_already_answered",
-                BLOCK,
+                WARN,
                 f"They already gave the {field_asked}; asking for it again is one of the QA failures.",
                 reply[:120],
             )
         elif field_asked in {"email", "phone"} and state.reachable():
             result.add(
                 "question_already_answered",
-                BLOCK,
+                WARN,
                 "A contact method is already on file; do not ask for another.",
                 reply[:120],
             )
     if handoff:
         return
-    # Section 3.4: the model may pick any field in the ask-set. `off_script` stays
-    # (Phase 2 keeps every v1 guard) but it no longer enforces script position —
-    # it fires only when the reply asks about a field the ask-set does not allow.
+    # `off_script` is the script. v2 has no script to be off, so the code is gone.
+    # `redundant_ask` is what still blocks a re-ask.
     allowed = state.ask_set()
-    allowed_set = set(allowed)
-    if field_asked and field_asked not in allowed_set:
-        listed = ", ".join(allowed) if allowed else "nothing may be asked"
-        result.add(
-            "off_script",
-            WARN,
-            f"The reply asks about {field_asked}, which is outside the ask-set ({listed}).",
-            reply[:120],
-        )
     if allowed and not field_asked:
         result.add(
             "no_question_asked",
@@ -706,9 +756,318 @@ def _check_sizes(reply: str, state: ConversationState, result: GuardResult) -> N
     if re.search(r"\b(?:our|the) standard sizes?\b|\bone of these sizes\b", reply, re.I):
         result.add(
             "invented_standard_size",
-            WARN,
+            BLOCK,
             "There is no standard size; everything is made to fit what goes inside.",
         )
+
+
+CAPABILITY_VERB = re.compile(
+    r"\b(?:we|i)\s+(?:make|offer|produce|print|supply|do)\b"
+    r"|\b(?:we|i)\s+can\s+(?:make|do|offer)\b",
+    re.I,
+)
+HEDGE = re.compile(
+    r"\b(?:the\s+)?team\s+(?:would\s+|will\s+|can\s+)?confirm\b",
+    re.I,
+)
+REFUSAL = re.compile(
+    r"\b(?:do not|don't|cannot|can't|not offered|isn't offered|is not offered|"
+    r"we (?:don't|do not|won't|cannot|can't))\b",
+    re.I,
+)
+DIMENSION = re.compile(
+    r"\b\d+(?:\.\d+)?(?:\s*(?:\"|in(?:ch(?:es)?)?|cm|mm))?"
+    r"\s*[x×]\s*"
+    r"\d+(?:\.\d+)?(?:\s*(?:\"|in(?:ch(?:es)?)?|cm|mm))?"
+    r"(?:\s*[x×]\s*\d+(?:\.\d+)?(?:\s*(?:\"|in(?:ch(?:es)?)?|cm|mm))?)?"
+    r"(?:\s*\+\s*\d+(?:\.\d+)?)?",
+    re.I,
+)
+TYPICAL_SIZE = re.compile(r"\b(?:typical|usually|most people take)\b", re.I)
+FIT_CLAIM = re.compile(
+    r"\b(?:will fit|fits your|guaranteed fit|that(?:'ll| will) fit|that one will fit|perfect fit)\b",
+    re.I,
+)
+PAYPAL_ONLY = re.compile(r"\bpaypal\b[^.?!]{0,24}\bonly\b|\bonly\b[^.?!]{0,24}\bpaypal\b", re.I)
+ALIEN_PAY = re.compile(r"\b(?:bitcoin|venmo|cash\s*app|apple pay|google pay|crypto)\b", re.I)
+OPERATOR_EMAIL_RE = re.compile(re.escape(canon.OPERATOR_EMAIL), re.I)
+NEVER_PLACE = re.compile(r"\b(?:houston|sylmar)\b", re.I)
+STREET = re.compile(r"\b1631\b|\bcottonwood\b|\bsan fernando\b", re.I)
+HOURS_STATED = re.compile(r"\b(?:monday to friday|office is open|9\s*am to 5\s*pm)\b", re.I)
+
+
+def _dim_tuple(fragment: str) -> tuple[str, ...]:
+    return tuple(part.lstrip("0") or "0" for part in re.findall(r"\d+(?:\.\d+)?", fragment))
+
+
+def _visitor_dimensions(state: ConversationState, visitor: str) -> set[tuple[str, ...]]:
+    sizes = state.fields["sizes"]
+    blob = " ".join([visitor or "", sizes.value or "", sizes.raw_visitor_text or ""])
+    blob += " " + " ".join(state.visitor_texts())
+    found: set[tuple[str, ...]] = set()
+    for match in DIMENSION.finditer(blob):
+        numbers = _dim_tuple(match.group(0))
+        if len(numbers) >= 2:
+            found.add(numbers)
+    return found
+
+
+def _sentence_at(reply: str, start: int) -> str:
+    left = reply.rfind(".", 0, start)
+    right = reply.find(".", start)
+    return reply[(left + 1 if left >= 0 else 0):(right if right >= 0 else len(reply))]
+
+
+def _check_dimensions(
+    reply: str,
+    state: ConversationState,
+    visitor: str,
+    registry: Registry | None,
+    result: GuardResult,
+) -> None:
+    catalogue = registry.catalogue_dimensions() if registry is not None else set()
+    visitor_dims = _visitor_dimensions(state, visitor)
+    fit = bool(FIT_CLAIM.search(reply))
+    for match in DIMENSION.finditer(reply):
+        numbers = _dim_tuple(match.group(0))
+        if len(numbers) < 2:
+            continue
+        sentence = _sentence_at(reply, match.start())
+        if TYPICAL_SIZE.search(sentence) or fit:
+            result.add(
+                "unsanctioned_dimension",
+                BLOCK,
+                "A size was presented as typical or as a guaranteed fit. "
+                "A listed size is never a fit, and a typical size is never ours.",
+                match.group(0),
+            )
+            continue
+        if numbers in catalogue or numbers in visitor_dims:
+            continue
+        result.add(
+            "unsanctioned_dimension",
+            BLOCK,
+            "That dimension is not a verified catalogue size and not the visitor's own number.",
+            match.group(0),
+        )
+
+
+def _check_tier_b_words(reply: str, result: GuardResult) -> None:
+    if PAYPAL_ONLY.search(reply) or ALIEN_PAY.search(reply):
+        result.add(
+            "canon_conflict",
+            BLOCK,
+            "A payment claim contradicts the FACTS list, or names a method the facts do not.",
+            (PAYPAL_ONLY.search(reply) or ALIEN_PAY.search(reply)).group(0),
+        )
+        result.add(
+            "tier_b_hallucination",
+            BLOCK,
+            "A Tier B payment claim has no canon wording behind it.",
+        )
+
+
+def _check_contact_offer(reply: str, visitor: str, result: GuardResult) -> None:
+    topics = set(canon.detect_topics(visitor))
+    if OPERATOR_EMAIL_RE.search(reply):
+        result.add(
+            "contact_offered_unasked",
+            BLOCK,
+            "The operator email is never given to a visitor.",
+            canon.OPERATOR_EMAIL,
+        )
+    if NEVER_PLACE.search(reply):
+        result.add(
+            "contact_offered_unasked",
+            BLOCK,
+            "Houston and Sylmar are not confirmed facilities.",
+            NEVER_PLACE.search(reply).group(0),
+        )
+    if STREET.search(reply) and "location" not in topics:
+        result.add(
+            "contact_offered_unasked",
+            WARN,
+            "The street address is offerable: false. State it only when they ask.",
+        )
+    if HOURS_STATED.search(reply) and "hours" not in topics:
+        result.add(
+            "contact_offered_unasked",
+            WARN,
+            "Office hours are offerable: false. State them only when they ask.",
+        )
+
+
+def _slot_list(item: dict, *keys: str) -> list[str]:
+    for key in keys:
+        if key not in item or item[key] in (None, ""):
+            continue
+        raw = item[key]
+        if isinstance(raw, str):
+            return [raw] if raw.strip() else []
+        return [str(value) for value in raw if str(value).strip()]
+    return []
+
+
+def _canonical_slots(registry: Registry, family: str, slot: str, values: list[str]) -> list[str]:
+    canonical: list[str] = []
+    for value in values:
+        normalised = registry.normalise(family, slot, value)
+        if normalised.value:
+            canonical.append(normalised.value)
+    return canonical
+
+
+def _value_in_text(value: str, text: str) -> bool:
+    folded = fold(text)
+    if "rigid cardboard" in value_forms(value) and re.search(r"(?<![a-z0-9])rigid(?![a-z0-9])", folded):
+        return True
+    for form in value_forms(value):
+        if form and re.search(rf"(?<![a-z0-9]){re.escape(form)}(?![a-z0-9])", folded):
+            return True
+    return False
+
+
+def _config_has(values: tuple[str, ...], wanted: str) -> bool:
+    wanted_forms = value_forms(wanted)
+    return any(value_forms(value) & wanted_forms for value in values)
+
+
+def _check_configs(
+    reply: str,
+    registry: Registry | None,
+    proposed_configs,
+    result: GuardResult,
+) -> None:
+    # None: this reply was not a model emit, so there is no structure to reconcile.
+    if proposed_configs is None or registry is None:
+        return
+    configs = [item for item in proposed_configs if isinstance(item, dict)]
+    families = tuple(
+        dict.fromkeys(
+            str(item.get("family") or "").strip()
+            for item in configs
+            if str(item.get("family") or "").strip()
+        )
+    )
+    mentions = registry.prose_mentions(reply, families or None)
+    parsed: list[tuple[dict, Candidate, tuple[str, ...]]] = []
+    for item in configs:
+        family = str(item.get("family") or "").strip() or "unknown"
+        slots = {
+            "style": _canonical_slots(registry, family, "style", _slot_list(item, "style")),
+            "material": _canonical_slots(registry, family, "material", _slot_list(item, "material")),
+            "insert": _canonical_slots(registry, family, "insert", _slot_list(item, "insert", "inserts")),
+            "finish": _canonical_slots(registry, family, "finish", _slot_list(item, "finish", "finishes")),
+            "extras": _canonical_slots(registry, family, "extras", _slot_list(item, "extras", "extra")),
+        }
+        named = tuple(value for group in slots.values() for value in group)
+        for slot, values in slots.items():
+            allowed: set[str] = set()
+            for known in registry.values(family, slot):
+                allowed |= value_forms(known)
+            for value in values:
+                if allowed and value_forms(value) & allowed:
+                    continue
+                if not allowed and not registry.values(family, slot):
+                    result.add(
+                        "unknown_option",
+                        BLOCK,
+                        f"{value} is not in the {family} {slot} vocabulary.",
+                        value,
+                    )
+                    continue
+                if not (value_forms(value) & allowed):
+                    result.add(
+                        "unknown_option",
+                        BLOCK,
+                        f"{value} is not in the {family} {slot} vocabulary.",
+                        value,
+                    )
+        candidate = Candidate.of(family, **slots)
+        parsed.append((item, candidate, named))
+
+    if not parsed:
+        if mentions:
+            result.add(
+                "unstructured_recommendation",
+                BLOCK,
+                "The reply names a catalogue option but emits no configuration containing it.",
+                mentions[0][2],
+            )
+        return
+
+    for _item, _candidate, named in parsed:
+        for value in named:
+            if not _value_in_text(value, reply):
+                result.add(
+                    "reply_config_mismatch",
+                    BLOCK,
+                    f"The configuration names {value}, and the reply never does.",
+                    value,
+                )
+    for family, _slot, value in mentions:
+        if not any(_config_has(named, value) for _item, _candidate, named in parsed if _candidate.family == family or not family):
+            result.add(
+                "reply_config_mismatch",
+                BLOCK,
+                f"The reply names {value}, and no emitted configuration contains it.",
+                value,
+            )
+
+    for _item, candidate, named in parsed:
+        if not named:
+            continue
+        match = registry.classify(candidate)
+        naming = reply
+        if match.state == "excluded":
+            if CAPABILITY_VERB.search(naming) or not REFUSAL.search(naming):
+                result.add(
+                    "excluded_combination",
+                    BLOCK,
+                    match.reason or "That combination is excluded.",
+                    " ".join(named)[:80],
+                )
+            else:
+                exclusion = match.exclusion
+                excluded_forms: set[str] = set()
+                if exclusion is not None:
+                    for group in (
+                        exclusion.styles,
+                        exclusion.materials,
+                        exclusion.inserts,
+                        exclusion.finishes,
+                        exclusion.extras,
+                    ):
+                        for value in group:
+                            excluded_forms |= value_forms(value)
+                offered = False
+                for _fam, _slot, value in mentions:
+                    if not (value_forms(value) & excluded_forms):
+                        alt = Candidate.of(candidate.family, **{ _slot: (value,) })
+                        if registry.classify(alt).state == "attested":
+                            offered = True
+                if not offered:
+                    result.add(
+                        "nearest_alternative_missing",
+                        WARN,
+                        "The refusal names no attested alternative.",
+                    )
+            continue
+        if match.state == "unknown_capability":
+            if CAPABILITY_VERB.search(naming):
+                result.add(
+                    "unsupported_configuration",
+                    BLOCK,
+                    "That combination is not an attested offering, and the reply says we make it.",
+                    " ".join(named)[:80],
+                )
+            if not HEDGE.search(naming):
+                result.add(
+                    "unknown_capability_unhedged",
+                    BLOCK,
+                    "An unattested combination needs the team to confirm the build.",
+                    " ".join(named)[:80],
+                )
 
 
 def check_reply(
@@ -721,6 +1080,8 @@ def check_reply(
     handoff: bool = False,
     asked_if_bot: bool = False,
     overrides: dict[str, str] | None = None,
+    registry: Registry | None = None,
+    proposed_configs=None,
 ) -> GuardResult:
     text = str(reply or "").strip()
     result = GuardResult()
@@ -736,15 +1097,19 @@ def check_reply(
     _check_price(text, result)
     _check_time(text, overrides, result)
     _check_bot_claim(text, asked_if_bot, result)
-    _check_claims(text, allowed_blob, result)
+    _check_claims(text, allowed_blob, result, registry)
     _check_numbers(text, allowed_blob, result)
     _check_minimum(text, state, result)
     _check_answer_first(text, visitor, state, result, handoff)
-    _check_recommendation(text, visitor, result, handoff)
+    _check_recommendation(text, visitor, state, result, handoff)
     _check_repeat(text, state, expected, result)
     _check_greeting(text, state, result)
     _check_asked_fields(text, state, expected, handoff, result)
     _check_sizes(text, state, result)
+    _check_dimensions(text, state, visitor, registry, result)
+    _check_tier_b_words(text, result)
+    _check_contact_offer(text, visitor, result)
+    _check_configs(text, registry, proposed_configs, result)
 
     if text and not text[0].isalnum():
         result.add("formatting", WARN, "The reply starts with punctuation or a symbol.")

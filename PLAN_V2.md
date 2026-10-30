@@ -1595,29 +1595,54 @@ still need their own written approval.
 replay with 0 Tier B blockers and `redundant_ask = 0` stays with Phase 6, when that replay runs.
 
 ### Phase 3 — Prompt v2, catalogue-first context, registry guards, sizing policy (4–6 days)
-- [ ] New system/user prompt: static prefix (persona, rules, **CATALOGUE PRIMER**, allow-list, sizing
+
+> **Progress, 2026-10-31 (Phase 3). The checklist is done. Fake mode only; no paid call.**
+> The system prompt is now a cacheable prefix (persona, D-1 paragraph, D-13 no-external-source
+> line, Tier A / Tier B rules, the CATALOGUE PRIMER, the compliance allow-list, the sizing
+> paragraph). The per-turn tail carries the goal, the ask-set, FACTS with `offerable` flags,
+> family detail and the transcript. `BOT_CONTEXT` defaults to `catalogue` and `BOT_ARCH` to `v2`;
+> `full` and `retrieval` remain. Registry guards run when a reply emits `proposed_configs`
+> (including an empty list). Heuristic turns emit none, so the fake conversation path is unchanged.
+> A rewrite is guarded again with the rewritten configs. There is still no `sizing.py`.
+> The owner's foil pair is the regression: asserting the build blocks, hedging it passes.
+>
+> **Not in this phase:** the grounding probe (Phase 4, the first paid run), the debug-panel
+> rendering, and `cost_usd` on the LLM log.
+
+- [x] New system/user prompt: static prefix (persona, rules, **CATALOGUE PRIMER**, allow-list, sizing
       policy) separated from the per-turn tail so the prefix caches; precedence order stated; default
       state (`unknown_capability`) stated; **the no-external-source line** (option list comes only from
       our catalogue, approved **D-13**); **the approved D-1 identity paragraph** verbatim (§6: persona
       held, AI never volunteered, honest one-sentence disclosure when explicitly asked, then pivot
       back); Tier A freedom granted; Tier B never-list kept; no "next script question" injection.
-- [ ] `BOT_CONTEXT=catalogue` as v2's **provisional** default (approved **D-12**, final on Phase 4's
+      **Done 2026-10-31.** Two turns with the same persona produce the same system string.
+- [x] `BOT_CONTEXT=catalogue` as v2's **provisional** default (approved **D-12**, final on Phase 4's
       A/B): primer + family-scoped retrieval (`config.py`
       gains the value, `orchestrator._prompt_chunks()` selects by detected family, `full` and
       `retrieval` stay for replay and A/B). Measure primer token count in tests.
-- [ ] `proposed_configs[]` + `basis` in the output schema; `unstructured_recommendation` and
+      **Done 2026-10-31.** Primer token estimate stays inside the 2,900 bound.
+- [x] `proposed_configs[]` + `basis` in the output schema; `unstructured_recommendation` and
       `reply_config_mismatch` guards, including re-reconciliation after a rewrite.
-- [ ] Tuple-membership guards wired onto the Phase 1 loader: `unknown_option`,
+      **Done 2026-10-31.**
+- [x] Tuple-membership guards wired onto the Phase 1 loader: `unknown_option`,
       `excluded_combination`, `unsupported_configuration`, `unknown_capability_unhedged`,
       `nearest_alternative_missing`, `canon_conflict`, `contact_offered_unasked`.
-- [ ] Sizing as one guard, nothing else: `unsanctioned_dimension` blocks any dimension in a reply that
+      **Done 2026-10-31.** Real registry rows are unsigned, so a covered tuple is
+      `unknown_capability` until sales signs it. Pair exclusions are tested with a fixture,
+      because the drafted registry has no mechanical pair yet.
+- [x] Sizing as one guard, nothing else: `unsanctioned_dimension` blocks any dimension in a reply that
       is not printed in a verified KB size row and not the visitor's own number echoed back. There is
       no estimator, no `sizing.mode`, no `chatbot/bot/sizing.py` (§4.4) — the code path does not exist,
       so there is no mode to switch off and no constant to sign off.
-- [ ] Apply the Section 7 reclassification table; compliance allow-list wired into
+      **Done 2026-10-31.**
+- [x] Apply the Section 7 reclassification table; compliance allow-list wired into
       `unsupported_claim`; FACTS block rendered with `offerable` flags (Section 4.10).
-- [ ] Meta-question detector + context-aware fallback; `move` in the event payload.
-- [ ] Boundary tests, including the owner's named case: **"we make rigid boxes with foil stamping"
+      **Done 2026-10-31.** `off_script` is no longer emitted. `multiple_questions`,
+      `no_question_asked` and `question_already_answered` are WARN. `bot_question_unanswered`
+      is BLOCK. Safety words BLOCK unless the allow-list sentence is quoted; descriptive words WARN.
+- [x] Meta-question detector + context-aware fallback; `move` in the event payload.
+      **Done 2026-10-31.**
+- [x] Boundary tests, including the owner's named case: **"we make rigid boxes with foil stamping"
       blocks while "foil on a rigid gift box is something the team would confirm" passes**, given an
       unattested tuple; "that'll be $180" **blocks**; "it's food safe" **blocks**; "a rigid box keeps
       the jar upright" **passes uncited**; a model-invented "usually 8x6x4 is typical" **blocks**, while
@@ -1626,8 +1651,10 @@ replay with 0 Tier B blockers and `redundant_ask = 0` stays with Phase 6, when t
       the size" **passes**; a reply
       recommending two boxes but emitting one config **blocks** on `reply_config_mismatch`; volunteering
       the operator email **blocks**.
+      **Done 2026-10-31** in `chatbot/tests/test_phase3.py`.
 
 **Exit:** boundary tests pass in fake mode; `BOT_ARCH=v2` runs end-to-end locally.
+**159 passing on 2026-10-31.** The grounding probe stays with Phase 4.
 
 ### Phase 4 — Grounding probe (2–3 days) · **the first paid run in this plan**
 Requires the owner's explicit approval for this run, nothing before it and nothing after it is
@@ -1835,15 +1862,15 @@ loop that writes new rules from found loopholes. v2 continues that path rather t
 | `chatbot/data/catalogue_primer.txt` | **generated, 2026-10-30** — the rendered primer (**2,856 tokens** against the 2,900 bound, from the kb_v2 registry). Written by `cli ingest`, never hand-edited: `cli capability` exits 1 if the file on disk differs from a fresh render |
 | ~~`chatbot/bot/sizing.py`~~ | **deleted by Revision D** — never written. No `estimate_size()`, no sizing module; the sizing policy is one prompt paragraph plus the `unsanctioned_dimension` guard (§4.4, §7) |
 | `chatbot/bot/cli.py` | **`capability` subcommand done 2026-10-30** (registry integrity, per-family row counts, primer-drift check; exit 1 on errors) · `probe` subcommand still owed (Section 4.7 Stage A + the S1/S2/S3 strata, Phase 4) · `ingest` now also writes the primer |
-| `chatbot/bot/state.py` | **Phase 2b done 2026-10-31** — `ask_set` / `do_not_ask` / `ask_constraint` (Section 3.4). `use_case` always qualifies and is not a blocking field. finish, skus, extras, style and material stay out while product, sizes or quantity is open. `SCRIPTS` is a wording catalogue: `question_for` reads it, `next_question` does not walk it. Phase 2a provenance (`FieldValue`, `done`/`stated`, unit folding, `use_case_from`, `confirm_suggested`, `CUSTOMER_ONLY_FIELDS`) is unchanged |
-| `chatbot/bot/composer.py` | **Phase 2c part done** — `disclosure_line` is the one D-1 sentence, and an identity question returns that plus the open ask instead of a topic lecture. Phase 2b ask-set constraint stays. Still owed (Phase 3): the cacheable static prefix (persona, primer, allow-list, sizing policy), the no-external-source line (D-13), the full identity paragraph in the system prompt, and `move` + `proposed_configs[]` + `basis` in the schema |
-| `chatbot/bot/guards.py` | **Phase 2c done 2026-10-31** — `redundant_ask` (BLOCK, keyed on `stated`, unit exception kept), `question_as_answer` (a question cannot fill a field without a value token; "your address" cannot fill style), apostrophes folded before `SELF_CLAIM` so `I’m` matches, and an AI denial blocks even when they asked. Phase 2b `off_script` / ask-set behaviour and Phase 2a `settled_for_asking()` stay. Every v1 guard still runs. Still owed (Phase 3): the Section 7 severity table, `unsanctioned_dimension`, `reply_config_mismatch`, `contact_offered_unasked` |
-| `chatbot/bot/orchestrator.py` | **Phase 2c part done** — `_safe_fallback` is the top canon answer plus the most urgent open ask; an identity question gets the D-1 sentence and that ask, never the artwork lecture. Phase 2a affirmation-before-extraction and model `suggested` writes stay. Still owed: family-filtered context, reply ↔ config reconciliation, `move` in the event payload |
-| `chatbot/bot/config.py` | `BOT_ARCH=v1\|v2`; `BOT_CONTEXT=catalogue\|full\|retrieval` with **`catalogue` the v2 default**; model tier per arch; `cost_usd` accounting. **No `sizing.mode` value exists** (Revision D) — there is nothing for the loader to gate |
-| `chatbot/bot/llm.py` | Cost logging; prompt-caching experiment flag |
+| `chatbot/bot/state.py` | **Phase 3 part done** — `is_meta_question` covers identity, a complaint, and "why are you asking". A catalogue size may be stored with basis `catalogue`. Phase 2 ask-set and provenance are unchanged |
+| `chatbot/bot/composer.py` | **Phase 3 done 2026-10-31** — cacheable prefix (persona, D-1, D-13, Tier A/B, primer, allow-list, sizing). Tail holds the goal, ask-set, FACTS, family detail, transcript and intent. `move`, `proposed_configs` and `fields_proposed` are parsed off the model object |
+| `chatbot/bot/guards.py` | **Phase 3 done 2026-10-31** — Section 7 severities applied (`off_script` removed). Registry guards, `unsanctioned_dimension`, `reply_config_mismatch`, `unstructured_recommendation`, `contact_offered_unasked`, `canon_conflict`. Allow-list sentences are the only way a safety word passes. Phase 2c `redundant_ask` and `question_as_answer` stay |
+| `chatbot/bot/orchestrator.py` | **Phase 3 done 2026-10-31** — catalogue context keeps family-scoped chunks; live turns and rewrites are reconciled against `proposed_configs`; the event records `move`, configs and primer token count. Meta fallback stays a fixed line. Identity fallback from Phase 2c stays |
+| `chatbot/bot/config.py` | **Phase 3 done 2026-10-31** — `BOT_ARCH=v1\|v2` (default `v2`); `BOT_CONTEXT=catalogue\|full\|retrieval` (default `catalogue`). **No `sizing.mode`.** `cost_usd` is still Phase 4+'s accounting |
+| `chatbot/bot/llm.py` | **Phase 3 part done** — reply schema requires `move`, `proposed_configs[]` (with `basis` and `size_source`) and `fields_proposed[]`. Cost logging is still owed |
 | `chatbot/bot/replay.py` | Side-by-side v1/v2 runs; spend lock unchanged |
 | `chatbot/web/index.html` | Debug panel shows `move`, `proposed_configs[]`, registry state per claim, the context tier actually sent and its token count, and the goal checklist |
-| `chatbot/tests/` | **Phase 2c: suite 142 passing.** Eight regressions added: Unicode `I’m`, `redundant_ask`, the unit exception, "your address" rejected as style, the Ethan transcript, and both fallback paths. Still owed: registry/tuple tests, primer token-budget tests, reply↔config tests, sizing-policy tests, Tier boundary tests, probe fixtures |
+| `chatbot/tests/` | **Phase 3: suite 159 passing.** `test_phase3.py` covers the foil pair, price, food-safe, uncited judgement, sizing policy, config mismatch, the operator email, and the catalogue family filter. Probe fixtures stay with Phase 4 |
 
 ## Appendix B — v1's 19 prompt rules in v2
 

@@ -675,6 +675,68 @@ class Registry:
                 return row
         return None
 
+    def prose_mentions(
+        self, text: str, families: tuple[str, ...] | None = None
+    ) -> list[tuple[str, str, str]]:
+        """Registry phrases in `text`, longest first, as `(family, slot, canonical value)`.
+
+        Colour and fold are not tuple slots, so they are not mentions. "rigid" is the box
+        stock "rigid cardboard". A longer phrase consumes its span, so "foil stamping" is
+        not also the material "foil".
+        """
+        folded_text = fold(text)
+        if not folded_text:
+            return []
+        chosen = tuple(name for name in (families or self.families) if name in self.vocabulary)
+        if not chosen:
+            chosen = self.families
+        candidates: list[tuple[int, str, str, str, str]] = []
+        for family in chosen:
+            for slot, values in self.vocabulary[family].items():
+                if slot in {"colour", "fold"}:
+                    continue
+                for value in values:
+                    for form in value_forms(value):
+                        if len(form) < 3:
+                            continue
+                        candidates.append((len(form), family, slot, value, form))
+            if family == "boxes":
+                candidates.append((len("rigid"), "boxes", "material", "rigid cardboard", "rigid"))
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        consumed = [False] * len(folded_text)
+        found: list[tuple[str, str, str]] = []
+        seen: set[tuple[str, str, str]] = set()
+        for _length, family, slot, value, form in candidates:
+            start = 0
+            while True:
+                index = folded_text.find(form, start)
+                if index < 0:
+                    break
+                end = index + len(form)
+                before = folded_text[index - 1] if index else " "
+                after = folded_text[end] if end < len(folded_text) else " "
+                if (before.isalnum() or after.isalnum()) or any(consumed[index:end]):
+                    start = index + 1
+                    continue
+                for cursor in range(index, end):
+                    consumed[cursor] = True
+                key = (family, slot, fold(value))
+                if key not in seen:
+                    seen.add(key)
+                    found.append((family, slot, value))
+                start = end
+        return found
+
+    def catalogue_dimensions(self) -> set[tuple[str, ...]]:
+        """Number tuples printed in a verified size row, such as `("23", "66")`."""
+        found: set[tuple[str, ...]] = set()
+        for row in self.sizes:
+            for value in row.values:
+                numbers = tuple(part.lstrip("0") or "0" for part in re.findall(r"\d+(?:\.\d+)?", value))
+                if len(numbers) >= 2:
+                    found.add(numbers)
+        return found
+
     # ---- primer ----
 
     def render_primer(self) -> str:
