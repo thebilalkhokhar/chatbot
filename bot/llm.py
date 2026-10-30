@@ -213,7 +213,7 @@ REPLY_SCHEMA = {
     "properties": {
         "reply": {
             "type": "string",
-            "description": "Plain-text chat message. One short answer and at most one new question.",
+            "description": "Plain-text chat message. One short answer and exactly one question, never two.",
         },
         "move": {
             "type": "string",
@@ -230,7 +230,7 @@ REPLY_SCHEMA = {
         },
         "proposed_configs": {
             "type": "array",
-            "description": "One object per option the reply names, so the combination can be checked.",
+            "description": "One object per option the reply names. Empty when the turn is only a greeting, an off-topic answer, or a correction of an impossible spec.",
             "items": _CONFIG_ITEM,
         },
         "fields_proposed": {

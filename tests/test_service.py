@@ -85,6 +85,11 @@ def test_local_chat_ui_flow(config, orchestrator):
     assert "inside" in turn["reply"].lower()
     assert turn["source"] == "heuristic"
     assert "product" in turn["known"]
+    assert turn["goal"]["family"] == "boxes"
+    assert turn["goal"]["fields"]
+    assert turn["context"]["tier"] == "catalogue"
+    assert "rejected_drafts" in turn
+    assert "registry" in turn
 
     empty = client.post("/api/chat", json={"conversation_id": "ui-1", "text": ""})
     assert empty.status_code == 422

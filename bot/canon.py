@@ -402,7 +402,15 @@ def dedupe_topics(topics: list[str]) -> list[str]:
 
 def detect_topics(text: str) -> list[str]:
     value = str(text or "")
-    return dedupe_topics([key for key in TOPIC_PRIORITY if CANON[key].matches(value)])
+    topics = [key for key in TOPIC_PRIORITY if CANON[key].matches(value)]
+    # "I don't have an email" names the word email. It is a refusal to give
+    # theirs, not a question about how to reach Print247.
+    if "contact" in topics:
+        from .state import refuses_contact
+
+        if refuses_contact(value):
+            topics = [key for key in topics if key != "contact"]
+    return dedupe_topics(topics)
 
 
 def fact(key: str) -> CanonFact | None:

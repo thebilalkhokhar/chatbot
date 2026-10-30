@@ -286,7 +286,7 @@ def test_a_size_missing_its_unit_stays_askable_and_off_the_do_not_ask_list():
     _fill(state, "sizes", "100x150")
     assert state.size_needs_unit()
     assert state.ask_set()[0] == "sizes"
-    assert state.next_question()[1] == "Is that in inches, cm or mm?"
+    assert state.next_question()[1] == "Is 100x150 in inches, cm, or mm?"
     assert "sizes" not in dict(state.do_not_ask())
 
 
@@ -318,3 +318,58 @@ def test_the_prompt_injects_the_ask_set_and_drops_the_script_line():
     assert "Next script question" not in user
     assert "ASK SET" in RULE_TEXT
     assert "next script question" not in RULE_TEXT.lower()
+
+
+def test_a_unit_only_reply_keeps_the_size_in_the_remembered_words():
+    state = make_state("12x15")
+    apply_field_updates(state, {"sizes": "12x15"}, "12x15")
+    state.flags["size_pending_unit"] = state.fields["sizes"].value
+    apply_field_updates(state, {"sizes": "12x15 inches"}, "inches")
+    assert state.fields["sizes"].value == "12x15 in"
+    assert state.fields["sizes"].raw_visitor_text == "12x15 in"
+
+
+def test_i_have_no_preferences_waives_the_style():
+    state = make_state("i have no preferences")
+    _fill(state, "product", "boxes")
+    state.last_question = "style"
+    apply_field_updates(
+        state,
+        extract_fields("i have no preferences", "style", state),
+        "i have no preferences",
+    )
+    assert state.fields["style"].value == "no preference"
+    assert state.fields["style"].status == STATUS_WAIVED
+    assert "style" not in state.ask_set()
+
+
+def test_refusing_contact_waives_email_and_phone():
+    phrases = ("i don't want to share", "i have not any", "I don't have an email")
+    for text in phrases:
+        state = make_state(text)
+        _fill(state, "product", "boxes")
+        _fill(state, "sizes", "4x6 in")
+        _fill(state, "quantity", "1000")
+        state.last_question = "email"
+        apply_field_updates(state, extract_fields(text, "email", state), text)
+        assert state.fields["email"].status == STATUS_WAIVED, text
+        assert state.fields["phone"].status == STATUS_WAIVED, text
+        assert state.fields["email"].done and state.fields["phone"].done
+        assert "email" not in state.ask_set()
+        assert "phone" not in state.ask_set()
+    assert "Do NOT re-assert or re-emit proposed_configs" in RULE_TEXT
+    assert "leave proposed_configs completely EMPTY" in RULE_TEXT
+    assert "ONLY ONE single question" in RULE_TEXT
+    assert "State that minimum ONLY when" in RULE_TEXT
+
+
+def test_unknown_design_count_uses_the_single_design_minimum():
+    state = make_state("boxes")
+    _fill(state, "product", "boxes")
+    _fill(state, "quantity", "500")
+    assert state.quantity_below_standard()
+    _fill(state, "quantity", "1000")
+    assert state.quantity_below_standard() is False
+    _fill(state, "quantity", "500")
+    _fill(state, "skus", "2")
+    assert state.quantity_below_standard() is False

@@ -80,7 +80,7 @@
     margin: 0 auto;
     padding: 14px 18px 18px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 370px;
+    grid-template-columns: minmax(0, 1fr) 440px;
     gap: 16px;
     height: calc(100vh - 76px);
   }
@@ -225,7 +225,27 @@
   }
   .chunk b { color: #dcebe0; font-weight: 600; }
   .chunk span { color: var(--debug-muted); }
-  .debug-note { color: var(--debug-muted); font-size: 11px; margin-top: 8px; }
+  .debug-note { color: var(--debug-muted); font-size: 11px; margin: 0 0 4px; }
+  .who { display: block; color: var(--debug-muted); font-size: 10.5px; margin-bottom: 3px; }
+  .ask-line { margin: 0 0 4px; color: #c9ddcf; overflow-wrap: anywhere; }
+  .goal-line, .config-line { margin: 0 0 4px; overflow-wrap: anywhere; }
+  .goal-line b, .config-line b { color: #e2f0e6; font-weight: 600; }
+  .goal-line span, .config-line span { display: block; color: var(--debug-muted); }
+  .state-attested { color: #8fd6a8; }
+  .state-unknown_capability, .state-excluded { color: var(--warn); }
+  .turn {
+    border: 1px solid var(--debug-line);
+    border-radius: 10px;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: #122018;
+  }
+  .turn h4 { margin: 0 0 8px; font-size: 12.5px; color: #e7f3ec; font-weight: 650; }
+  .subhead {
+    margin: 10px 0 6px;
+    font-size: 10px; letter-spacing: .6px; text-transform: uppercase;
+    color: var(--debug-muted); font-weight: 600;
+  }
   @media (max-width: 920px) {
     .layout { grid-template-columns: 1fr; height: auto; }
     .chat-card { height: calc(100vh - 130px); min-height: 420px; }
@@ -276,18 +296,7 @@
       <label class="switch"><input id="debug-toggle" type="checkbox" checked> Show</label>
     </div>
     <div id="debug-empty" class="empty">Send a message to see the pipeline output.</div>
-    <div id="debug-content" hidden>
-      <div id="debug-summary" class="summary"></div>
-      <h3>Guard issues</h3>
-      <div id="debug-issues"></div>
-      <h3>Collected fields</h3>
-      <div id="debug-known" class="kv"></div>
-      <h3>Accepted / rejected</h3>
-      <div id="debug-fields" class="kv"></div>
-      <h3>Retrieved KB chunks</h3>
-      <div id="debug-retrieved" class="chunks"></div>
-      <div id="debug-note" class="debug-note"></div>
-    </div>
+    <div id="debug-content" hidden></div>
   </aside>
 </main>
 
@@ -318,13 +327,7 @@
     modeNote: document.getElementById("mode-note"),
     debugToggle: document.getElementById("debug-toggle"),
     debugEmpty: document.getElementById("debug-empty"),
-    debugContent: document.getElementById("debug-content"),
-    debugSummary: document.getElementById("debug-summary"),
-    debugIssues: document.getElementById("debug-issues"),
-    debugKnown: document.getElementById("debug-known"),
-    debugFields: document.getElementById("debug-fields"),
-    debugRetrieved: document.getElementById("debug-retrieved"),
-    debugNote: document.getElementById("debug-note")
+    debugContent: document.getElementById("debug-content")
   };
 
   let conversationId = newId();
@@ -332,7 +335,7 @@
   let handedOff = false;
   let handoffLocked = false;
   let debugEnabled = true;
-  let lastTurn = null;
+  let debugTurns = [];
   let typingElement = null;
 
   function newId() {
@@ -431,17 +434,15 @@
   async function startChat() {
     handedOff = false;
     handoffLocked = false;
-    lastTurn = null;
+    debugTurns = [];
     els.messages.replaceChildren();
-    els.debugContent.hidden = true;
-    els.debugEmpty.hidden = false;
-    els.debugEmpty.textContent = "Send a message to see the pipeline output.";
+    renderDebug();
     setBusy(true);
     try {
       const turn = await post("/api/start", { conversation_id: conversationId });
       if (turn.reply) addBot(turn);
       if (turn.handoff) setHandedOff(turn.handoff);
-      showDebug(turn);
+      recordTurn(turn, "");
     } catch (error) {
       addSystem("Could not start the chat: " + error.message);
     } finally {
@@ -461,7 +462,7 @@
       const turn = await post("/api/chat", { conversation_id: conversationId, text });
       if (turn.reply) addBot(turn);
       if (turn.handoff) setHandedOff(turn.handoff);
-      showDebug(turn);
+      recordTurn(turn, text);
     } catch (error) {
       addSystem("Request failed: " + error.message);
     } finally {
@@ -474,110 +475,222 @@
     while (node.firstChild) node.removeChild(node.firstChild);
   }
 
-  function kv(parent, values, labels) {
-    clear(parent);
-    const keys = values ? Object.keys(values) : [];
-    if (!keys.length) {
+  function clip(text, limit) {
+    const value = String(text || "").replace(/\s+/g, " ").trim();
+    if (value.length <= limit) return value;
+    return value.slice(0, limit - 1) + "…";
+  }
+
+  function turnLabel(turn, index) {
+    if (turn.visitor) return '"' + clip(turn.visitor, 72) + '"';
+    if (index === 0) return "greeting";
+    return "turn " + (index + 1);
+  }
+
+  function draftGroups(turn) {
+    if (turn.rejected_drafts && turn.rejected_drafts.length) return turn.rejected_drafts;
+    if (turn.blocked && turn.blocked.length) return [{ stage: "draft", issues: turn.blocked }];
+    return [];
+  }
+
+  function issueRow(issue, severity) {
+    const row = node("div", "issue " + (severity || issue.severity || ""));
+    row.appendChild(node("strong", null, (issue.code || "issue") + (issue.severity ? " · " + issue.severity : "")));
+    if (issue.detail) row.appendChild(node("span", null, issue.detail));
+    if (issue.excerpt) row.appendChild(node("code", null, issue.excerpt));
+    return row;
+  }
+
+  function appendIssues(parent, issues, emptyText) {
+    if (!issues || !issues.length) {
+      if (emptyText) parent.appendChild(node("p", "empty", emptyText));
+      return;
+    }
+    issues.forEach((issue) => parent.appendChild(issueRow(issue)));
+  }
+
+  function appendConfigs(parent, rows) {
+    if (!rows || !rows.length) {
       parent.appendChild(node("p", "empty", "None."));
       return;
     }
-    const list = node("dl");
-    keys.forEach((key) => {
-      list.appendChild(node("dt", null, (labels && labels[key]) || key));
-      list.appendChild(node("dd", null, String(values[key])));
+    rows.forEach((item) => {
+      const parts = [];
+      ["style", "material", "finish", "insert", "extras"].forEach((key) => {
+        const values = item[key];
+        if (values && values.length) parts.push(key + ": " + values.join(", "));
+      });
+      const line = node("div", "config-line");
+      const state = item.state || "";
+      line.appendChild(node("b", state ? "state-" + state : "", (item.family || "config") + (state ? " · " + state : "")));
+      if (parts.length) line.appendChild(document.createTextNode(" — " + parts.join(" · ")));
+      if (item.reason) line.appendChild(node("span", null, item.reason));
+      parent.appendChild(line);
     });
-    parent.appendChild(list);
   }
 
-  function showDebug(turn) {
-    lastTurn = turn;
-    if (!debugEnabled) return;
-    els.debugEmpty.hidden = true;
-    els.debugContent.hidden = false;
+  function recordTurn(turn, visitorText) {
+    debugTurns.push(Object.assign({}, turn, {
+      visitor: (turn && turn.visitor) || visitorText || ""
+    }));
+    renderDebug();
+  }
 
-    clear(els.debugSummary);
-    const summaryLabels = [
-      "source: " + turn.source,
-      "persona: " + turn.persona,
+  function renderTurn(turn, index) {
+    const card = node("section", "turn");
+    card.appendChild(node("h4", null, "Turn " + (index + 1) + " · " + turnLabel(turn, index)));
+
+    const chips = node("div", "summary");
+    const labels = [
+      "source: " + (turn.source || "none"),
+      "persona: " + (turn.persona || ""),
       "handoff: " + (turn.handoff || "none"),
-      "elapsed: " + turn.elapsed_ms + " ms"
+      "elapsed: " + (turn.elapsed_ms || 0) + " ms",
+      "move: " + (turn.move || "none")
     ];
-    if (turn.flags && turn.flags.llm_error) {
-      summaryLabels.push("llm error: " + turn.flags.llm_error);
-    }
-    summaryLabels.forEach((label) => els.debugSummary.appendChild(node("span", "chip", label)));
+    const context = turn.context || {};
+    if (context.tier) labels.push("context: " + context.tier);
+    if (context.primer_tokens) labels.push("primer: " + context.primer_tokens + " tokens");
+    if (context.prompt_chunks) labels.push("chunks in prompt: " + context.prompt_chunks);
+    if (context.prompt_tokens) labels.push("prompt tokens: " + context.prompt_tokens);
+    if (context.completion_tokens) labels.push("completion tokens: " + context.completion_tokens);
+    if (context.cost_usd) labels.push("cost: $" + context.cost_usd);
+    if (context.latency_ms) labels.push("llm: " + context.latency_ms + " ms");
+    if (turn.flags && turn.flags.llm_error) labels.push("llm error: " + turn.flags.llm_error);
+    labels.forEach((label) => chips.appendChild(node("span", "chip", label)));
+    card.appendChild(chips);
 
-    clear(els.debugIssues);
-    const issues = turn.issues || [];
-    if (!issues.length) {
-      els.debugIssues.appendChild(node("p", "empty", "No guard issues."));
+    if (turn.reply) {
+      card.appendChild(node("p", "ask-line", clip(turn.reply, 220)));
+    }
+
+    card.appendChild(node("div", "subhead", "Sent reply issues"));
+    appendIssues(card, turn.issues, "No guard issues on the reply that was sent.");
+
+    const drafts = draftGroups(turn);
+    card.appendChild(node("div", "subhead", "Rejected drafts"));
+    if (!drafts.length) {
+      card.appendChild(node("p", "empty", "None."));
     } else {
-      issues.forEach((issue) => {
-        const row = node("div", "issue " + issue.severity);
-        row.appendChild(node("strong", null, issue.code + " · " + issue.severity));
-        row.appendChild(node("span", null, issue.detail));
-        if (issue.excerpt) row.appendChild(node("code", null, issue.excerpt));
-        els.debugIssues.appendChild(row);
-      });
-    }
-    if (turn.blocked && turn.blocked.length) {
-      turn.blocked.forEach((issue) => {
-        const row = node("div", "issue block");
-        row.appendChild(node("strong", null, "rejected draft · " + issue.code));
-        row.appendChild(node("span", null, issue.detail));
-        if (issue.excerpt) row.appendChild(node("code", null, issue.excerpt));
-        els.debugIssues.appendChild(row);
+      drafts.forEach((draft) => {
+        card.appendChild(node("p", "ask-line", (draft.stage || "draft") + (draft.move ? " · move: " + draft.move : "")));
+        appendIssues(card, draft.issues, "No issues recorded.");
+        if (draft.registry && draft.registry.length) appendConfigs(card, draft.registry);
+        else if (draft.configs && draft.configs.length) appendConfigs(card, draft.configs);
       });
     }
 
-    kv(els.debugKnown, turn.known, FIELD_LABELS);
+    card.appendChild(node("div", "subhead", "Proposed configs"));
+    appendConfigs(card, turn.registry && turn.registry.length ? turn.registry : turn.proposed_configs);
 
-    clear(els.debugFields);
+    card.appendChild(node("div", "subhead", "Goal changes this turn"));
     const accepted = turn.accepted || {};
     const rejected = turn.rejected || {};
-    if (!Object.keys(accepted).length && !Object.keys(rejected).length) {
-      els.debugFields.appendChild(node("p", "empty", "No field updates this turn."));
+    const acceptedKeys = Object.keys(accepted);
+    const rejectedKeys = Object.keys(rejected);
+    if (!acceptedKeys.length && !rejectedKeys.length) {
+      card.appendChild(node("p", "empty", "No field updates this turn."));
     } else {
-      Object.keys(accepted).forEach((key) => {
-        els.debugFields.appendChild(node("div", "chunk", "accepted " + (FIELD_LABELS[key] || key) + ": " + accepted[key]));
+      acceptedKeys.forEach((key) => {
+        card.appendChild(node("div", "chunk", "accepted " + (FIELD_LABELS[key] || key) + ": " + accepted[key]));
       });
-      Object.keys(rejected).forEach((key) => {
-        els.debugFields.appendChild(node("div", "chunk", "rejected " + (FIELD_LABELS[key] || key) + ": " + rejected[key]));
+      rejectedKeys.forEach((key) => {
+        card.appendChild(node("div", "chunk", "rejected " + (FIELD_LABELS[key] || key) + ": " + rejected[key]));
       });
     }
 
-    clear(els.debugRetrieved);
+    const proposed = turn.fields_proposed || [];
+    if (proposed.length) {
+      card.appendChild(node("div", "subhead", "Fields the model proposed"));
+      proposed.forEach((item) => {
+        if (!item || typeof item !== "object") return;
+        const bits = [item.key, item.value, item.basis].filter(Boolean).join(" · ");
+        if (bits) card.appendChild(node("div", "chunk", bits));
+      });
+    }
+
+    card.appendChild(node("div", "subhead", "Retrieved KB chunks"));
     const chunks = turn.retrieved || [];
     if (!chunks.length) {
-      els.debugRetrieved.appendChild(node("p", "empty", "No KB hit this turn."));
+      card.appendChild(node("p", "empty", "No KB hit this turn."));
     } else {
       chunks.forEach((chunk) => {
         const row = node("div", "chunk");
-        const title = node("b", null, chunk.title + " ");
-        row.appendChild(title);
-        row.appendChild(node("span", null, chunk.id + " · score " + chunk.score));
-        els.debugRetrieved.appendChild(row);
+        row.appendChild(node("b", null, (chunk.title || chunk.id || "chunk") + " "));
+        row.appendChild(node("span", null, (chunk.id || "") + (chunk.score != null ? " · score " + chunk.score : "")));
+        card.appendChild(row);
       });
     }
-
-    els.debugNote.textContent = "Conversation " + turn.conversation_id;
+    return card;
   }
 
-  function applyDebugVisibility() {
+  function renderDebug() {
     if (!debugEnabled) {
       els.debugContent.hidden = true;
       els.debugEmpty.hidden = false;
       els.debugEmpty.textContent = "Debug panel hidden.";
       return;
     }
-    if (lastTurn) {
-      els.debugContent.hidden = false;
-      els.debugEmpty.hidden = true;
-    } else {
+    if (!debugTurns.length) {
       els.debugContent.hidden = true;
       els.debugEmpty.hidden = false;
       els.debugEmpty.textContent = "Send a message to see the pipeline output.";
+      clear(els.debugContent);
+      return;
     }
+    els.debugEmpty.hidden = true;
+    els.debugContent.hidden = false;
+    clear(els.debugContent);
+
+    const latest = debugTurns[debugTurns.length - 1];
+    els.debugContent.appendChild(node("p", "debug-note", "Conversation " + (latest.conversation_id || "") + " · " + debugTurns.length + " turns"));
+
+    const all = [];
+    debugTurns.forEach((turn, index) => {
+      const label = "Turn " + (index + 1) + " · " + turnLabel(turn, index);
+      (turn.issues || []).forEach((issue) => all.push({ label: label + " · sent", issue, severity: issue.severity }));
+      draftGroups(turn).forEach((draft) => {
+        const stage = draft.stage || "draft";
+        (draft.issues || []).forEach((issue) => all.push({ label: label + " · " + stage, issue, severity: "block" }));
+      });
+    });
+
+    els.debugContent.appendChild(node("h3", null, "All issues · " + all.length));
+    if (!all.length) {
+      els.debugContent.appendChild(node("p", "empty", "No guard issues in this chat."));
+    } else {
+      all.forEach((item) => {
+        const row = issueRow(item.issue, item.severity);
+        row.insertBefore(node("span", "who", item.label), row.firstChild);
+        els.debugContent.appendChild(row);
+      });
+    }
+
+    els.debugContent.appendChild(node("h3", null, "Goal checklist"));
+    const goal = latest.goal || {};
+    els.debugContent.appendChild(node("p", "ask-line", "Family: " + (goal.family || "unknown")));
+    els.debugContent.appendChild(node("p", "ask-line", "Ask set: " + ((goal.ask && goal.ask.length) ? goal.ask.join(", ") : "(nothing)")));
+    els.debugContent.appendChild(node("p", "ask-line", "Missing: " + ((goal.missing && goal.missing.length) ? goal.missing.join(", ") : "none")));
+    const denied = (goal.do_not_ask || []).map((item) => item.key + ' ("' + clip(item.words, 48) + '")');
+    els.debugContent.appendChild(node("p", "ask-line", "Do not ask: " + (denied.length ? denied.join(", ") : "(nothing yet)")));
+    (goal.fields || []).forEach((field) => {
+      const line = node("div", "goal-line");
+      line.appendChild(node("b", null, (field.label || field.key) + ": " + (field.value || "—")));
+      const meta = [field.status || "unknown", field.basis, field.attempts ? field.attempts + " tries" : ""].filter(Boolean);
+      line.appendChild(node("span", null, meta.join(" · ")));
+      els.debugContent.appendChild(line);
+    });
+    if (!goal.fields) {
+      const known = latest.known || {};
+      const keys = Object.keys(known);
+      if (!keys.length) els.debugContent.appendChild(node("p", "empty", "No fields collected yet."));
+      keys.forEach((key) => {
+        els.debugContent.appendChild(node("div", "goal-line", (FIELD_LABELS[key] || key) + ": " + known[key]));
+      });
+    }
+
+    els.debugContent.appendChild(node("h3", null, "Every turn"));
+    debugTurns.forEach((turn, index) => els.debugContent.appendChild(renderTurn(turn, index)));
   }
 
   els.composer.addEventListener("submit", (event) => {
@@ -604,7 +717,7 @@
 
   els.debugToggle.addEventListener("change", () => {
     debugEnabled = els.debugToggle.checked;
-    applyDebugVisibility();
+    renderDebug();
   });
 
   loadHealth();

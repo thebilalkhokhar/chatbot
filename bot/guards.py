@@ -651,7 +651,9 @@ def _check_recommendation(
     if RECOMMENDATION_MARKER.search(reply):
         return
     if OPTION_NOUN.search(reply) and re.search(
-        r"\b(?:works?|fits?|suits?|good|best|right for|ideal for)\b", reply, re.I
+        r"\b(?:works?|fits?|suits?|good|best|right for|ideal for|include|includes|we have|we offer)\b",
+        reply,
+        re.I,
     ):
         return
     known = bool(state.fields["use_case"].value)
@@ -969,9 +971,13 @@ def _check_configs(
     result: GuardResult,
 ) -> None:
     # None: this reply was not a model emit, so there is no structure to reconcile.
-    if proposed_configs is None or registry is None:
+    # An empty list is intentional: a greeting, an off-topic answer, or a correction
+    # of a bad spec. Those turns must not be rejected for naming no configuration.
+    if proposed_configs is None or registry is None or not proposed_configs:
         return
     configs = [item for item in proposed_configs if isinstance(item, dict)]
+    if not configs:
+        return
     families = tuple(
         dict.fromkeys(
             str(item.get("family") or "").strip().lower()
@@ -1175,5 +1181,12 @@ def describe(issues: list[Issue] | GuardResult) -> str:
             ". REWRITE RULE: delete eco-friendly, biodegradable, compostable, recyclable, "
             "food safe, waterproof, FDA, BPA, and certified unless the reply contains the "
             "exact allow-list sentence that uses that word. Do not keep a paraphrase."
+        )
+    if any(item.code in {"reply_config_mismatch", "unknown_capability_unhedged", "unsupported_configuration"} for item in items):
+        text += (
+            ". REWRITE RULE: If you are asking for contact details, shipping info, or design "
+            "counts (SKUs), focus ONLY on that ask. Do NOT re-assert or re-emit proposed_configs "
+            "for styles/materials/finishes that were discussed in previous turns unless you are "
+            "actively presenting a new recommendation."
         )
     return text

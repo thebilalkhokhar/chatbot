@@ -198,18 +198,22 @@ def test_two_options_in_prose_and_one_config_is_a_mismatch():
     assert not result.ok
 
 
-def test_a_named_option_with_no_config_is_unstructured():
+def test_an_empty_config_list_is_not_rejected():
     registry = _registry()
     state = _state("hello")
     result = guards.check_reply(
-        "A mailer box would work for that.",
+        "Good morning. A size of 0x0 cannot be made — what measurements should we use?",
         state,
-        visitor_text="hello",
+        visitor_text="good morning, the size is 0x0",
         registry=registry,
         proposed_configs=[],
     )
-    assert "unstructured_recommendation" in result.codes()
-    assert not result.ok
+    assert "reply_config_mismatch" not in result.codes()
+    assert "unknown_option" not in result.codes()
+    assert "unknown_capability_unhedged" not in result.codes()
+    assert "unsupported_configuration" not in result.codes()
+    assert "unstructured_recommendation" not in result.codes()
+    assert result.ok
 
 
 def test_rewrite_is_reconciled_again():

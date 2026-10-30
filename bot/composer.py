@@ -13,6 +13,8 @@ from .state import (
     is_goodbye,
     is_job_pitch,
     is_meta_question,
+    is_option_request,
+    refuses_contact,
     is_price_objection,
     is_question,
     normalize_finish,
@@ -78,15 +80,24 @@ the catalogue row itself says which.
 
 When you answer, mark where it came from: FACTS, CATALOGUE, YOUR_JUDGEMENT, or THEM.
 
+If you are asking for contact details, shipping info, or design counts (SKUs), focus ONLY on that ask. Do NOT re-assert or re-emit proposed_configs for styles/materials/finishes that were discussed in previous turns unless you are actively presenting a new recommendation.
+
+If the user is just saying hello, asking off-topic questions, or providing impossible specs (like size 0x0), answer naturally using your own reasoning. In these cases, you MUST leave proposed_configs completely EMPTY. ALWAYS end your reply with a question to steer the conversation back to the product order.
+
 Never ask about something they already told you. You may only ask about fields in the ASK SET;
 anything in the DO NOT ASK SET is off limits even as a confirmation.
 
 For banners there is no minimum order. For everything else the standard minimum is 1,000 per size,
-or 500 each with multiple designs, and smaller runs are possible. If they already gave a quantity
-below that, say smaller runs are possible and still ask one field from the ASK SET.
+or 500 each with multiple designs, and smaller runs are possible. State that minimum ONLY when
+they ask what the minimum or MOQ is. If they just give a quantity, accept it and do not mention
+the minimum.
 
-Style: plain chat text, no markdown, no emoji, roughly 25-60 words, at most one new question per
-message. Return only the JSON object the schema asks for. The ASK SET is the only list of questions."""
+You MUST ask ONLY ONE single question per message. NEVER combine multiple asks (e.g., do not ask
+for quantity and style in the same turn). Pick the highest priority missing field and ask only
+about that.
+
+Style: plain chat text, no markdown, no emoji, roughly 25-60 words. Return only the JSON object
+the schema asks for. The ASK SET is the only list of questions."""
 
 
 @dataclass
@@ -97,7 +108,7 @@ class Composed:
     source: str = "heuristic"
     move: str = ""
     # None means this reply was not a model emit. An empty list means the model
-    # named no configuration, which the registry guards are allowed to reject.
+    # chose not to name a configuration (a greeting, an aside, a correction).
     proposed_configs: list | None = None
     fields_proposed: list = field(default_factory=list)
     bases: dict[str, str] = field(default_factory=dict)
@@ -152,8 +163,8 @@ def _question_text(state: ConversationState, expected: tuple[str, str] | None) -
     if not expected:
         return ""
     key, base = expected
-    if key == "sizes" and base.startswith("Is that in inches"):
-        return base
+    if key == "sizes" and state.size_needs_unit():
+        return state.question_for("sizes")
     attempts = state.fields[key].attempts if key in state.fields else 0
     if attempts >= 1 and key in REPHRASES:
         return REPHRASES[key]
@@ -220,17 +231,26 @@ def heuristic_turn(
         parts.append(HANDOFF_LINES.get(handoff_reason, HANDOFF_LINES["stalled"]))
         return Composed(reply=" ".join(parts).strip(), asked="", source="heuristic")
 
+    if is_option_request(visitor):
+        # "For example?" / "which one do you have?" names the catalogue, then one ask.
+        asked_key = state.last_question
+        if asked_key == "quantity":
+            catalogue = ""
+        elif asked_key == "material":
+            catalogue = _topic_answer("materials", family, overrides)
+        elif asked_key == "finishes":
+            catalogue = "Finishes include matte, gloss and soft touch."
+        else:
+            catalogue = _topic_answer("styles", family if family != "unknown" else "boxes", overrides)
+        if catalogue and catalogue not in parts:
+            parts.append(catalogue)
+
     if (
         family == "boxes"
         and state.last_question == "style"
         and state.fields["style"].value == "no preference"
     ):
         parts.append("No problem — box styles include mailer, gift, kraft and display boxes.")
-
-    if state.last_question == "quantity" and state.quantity_below_standard():
-        answer = _topic_answer("moq", family, overrides)
-        if answer not in parts:
-            parts.append(answer)
 
     if size_is_unknown(visitor) and (
         state.last_question == "sizes" or re.search(r"\bsizes?\b", visitor, re.I)
@@ -256,10 +276,7 @@ def heuristic_turn(
         parts.append("Understood — the quote is built around the quantity and specs you need.")
 
     if not topics:
-        if state.last_question == "quantity" and state.quantity_below_standard():
-            ack = ""
-        else:
-            ack = _ack(state, visitor)
+        ack = _ack(state, visitor)
         if ack:
             parts.append(ack)
         elif unclear:
@@ -350,6 +367,8 @@ def _allowlist_block(registry) -> str:
 def _intent(visitor: str) -> str:
     if asks_if_bot(visitor):
         return "identity"
+    if refuses_contact(visitor):
+        return "refusal"
     if is_meta_question(visitor):
         return "meta"
     if wants_recommendation(visitor):
@@ -438,9 +457,9 @@ def build_user(
     topics = canon.detect_topics(visitor)
     lines = [
         f"GOAL\n{state.summary()}",
-        "ASK SET CONSTRAINT — binding. Ask at most one new question, and only about a field "
-        "listed after 'You may ask about'. Anything listed after 'Do not ask about' is off "
-        "limits, even as a confirmation.\n"
+        "ASK SET CONSTRAINT — binding. You MUST ask ONLY ONE single question, and only about "
+        "the highest priority field listed after 'You may ask about'. NEVER combine multiple "
+        "asks. Anything listed after 'Do not ask about' is off limits, even as a confirmation.\n"
         + state.ask_constraint(),
         "FACTS — Tier B, verbatim. offerable: true may be volunteered; "
         "offerable: false only when they asked.\n"
@@ -465,10 +484,15 @@ def build_user(
             else ""
         ),
         "Write the next message as JSON. `proposed_configs` has one object per option the reply "
-        "names. Copy style, material, finish, insert and extras character for character from the "
+        "names, and is completely empty when you are only saying hello, answering something "
+        "off-topic, or correcting an impossible spec such as a zero dimension. Copy style, "
+        "material, finish, insert and extras character for character from the "
         "CATALOGUE PRIMER; leave a field empty when the reply does not name it. Do not invent a "
-        "point size, a gauge, or a style name. `fields_proposed` repeats only details the visitor "
-        "stated, or a catalogue size, each with its basis. Leave everything else empty.",
+        "point size, a gauge, or a style name. If you are asking for contact details, shipping "
+        "info, or design counts (SKUs), focus ONLY on that ask. Do NOT re-assert or re-emit "
+        "proposed_configs for styles/materials/finishes that were discussed in previous turns "
+        "unless you are actively presenting a new recommendation. `fields_proposed` repeats only "
+        "details the visitor stated, or a catalogue size, each with its basis. Leave everything else empty.",
     ]
     return "\n".join(line for line in lines if line != "")
 

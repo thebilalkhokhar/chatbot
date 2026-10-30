@@ -158,7 +158,11 @@ def create_app(config: Config | None = None, orchestrator: Orchestrator | None =
     def api_chat(payload: LocalChat):
         if not cfg.ui_enabled:
             return JSONResponse({"error": "Not found"}, status_code=404)
-        result = engine().handle(payload.conversation_id, payload.text, channel="ui")
+        try:
+            result = engine().handle(payload.conversation_id, payload.text, channel="ui")
+        except Exception:
+            log.exception("UI chat failed")
+            return JSONResponse({"error": "The reply failed. Please send that again."}, status_code=500)
         return result.to_dict()
 
     @app.get("/signoff")

@@ -187,6 +187,10 @@ CONTACT_REFUSAL_RE = re.compile(
     r"^\s*(?:no|nope)\s*[.!]*\s*$"
     r"|\b(?:no|nope)\b[^.?!]{0,40}\b(?:want|need|give|share|provide|interested)\b"
     r"|\bdon[’'`;]?t\s+(?:want|email|call|contact)\b|\bdo\s+not\s+want\b"
+    r"|\b(?:don[’'`;]?t|do\s+not|dont)\s+want\s+to\s+share\b"
+    r"|\b(?:don[’'`;]?t|do\s+not|dont)\s+have\s+(?:an?\s+)?(?:e-?mail|phone|number|contact)\b"
+    r"|\bi\s+have\s+not\s+any\b"
+    r"|\bhave\s+not\s+(?:any|an?\s+e-?mail|a\s+phone|a\s+number)\b"
     r"|\bnot\s+interested\b|\bno\s+thanks?(?:\s+you)?\b|\bi'?ll\s+pass\b"
     r"|\bskip\s+(?:it|that|this)\b|\bno\s+(?:email|phone|number)\b"
     r"|\bstop\s+asking\b|\bleave\s+me\s+alone\b",
@@ -195,8 +199,9 @@ CONTACT_REFUSAL_RE = re.compile(
 UNSPECIFIED_RE = re.compile(
     r"^\s*(?:"
     r"(?:i\s+)?(?:don'?t|dont)\s+have(?:\s+(?:a|any|one))?"
-    r"(?:\s+(?:reference|image|design|idea|preference)){0,2}"
-    r"|(?:i\s+)?(?:don'?t|dont)\s+know|not\s+sure|unsure|no\s+(?:idea|clue|preference|reference)"
+    r"(?:\s+(?:reference|image|design|idea|preferences?)){0,2}"
+    r"|(?:i\s+)?have\s+no\s+(?:preferences?|idea|clue|reference)"
+    r"|(?:i\s+)?(?:don'?t|dont)\s+know|not\s+sure|unsure|no\s+(?:idea|clue|preferences?|reference)"
     r"|dunno|idk|no|nope|none|nothing(?:\s+specific)?|whatever|anything|any"
     r")\s*[.!]*\s*$",
     re.I,
@@ -373,6 +378,22 @@ def refuses_contact(text: str) -> bool:
     return bool(CONTACT_REFUSAL_RE.search(str(text or "")))
 
 
+def contact_fields_refused(text: str, last_question: str) -> bool:
+    """A refusal to give contact details, not a question about ours.
+
+    "I have not any" only counts while email or phone is the open question.
+    "I don't have an email" and "I don't want to share" count on their own.
+    """
+    value = str(text or "")
+    if EMAIL_RE.search(value):
+        return False
+    if not refuses_contact(value):
+        return False
+    if last_question in {"email", "phone", "name"}:
+        return True
+    return bool(re.search(r"\b(?:e-?mail|phone|number|contact|share)\b", value, re.I))
+
+
 # Section 3.4 rule 1: "inches" and "in" are the same answer and "4 x 6" is "4x6",
 # so stored values are folded to one shape. Dimension *order* is the customer's:
 # "6x4 in" and "4x6x2" are different things (Section 3.1), and the gusset in
@@ -505,14 +526,16 @@ def is_question(text: str) -> bool:
     return "?" in value or bool(QUESTION_START_RE.search(value))
 
 
+# Only a disambiguation of the question already asked. "Which one?", "for example?"
+# and "what do you have?" are option requests and go to the model or the catalogue
+# fallback, not this shortcut.
 CONTEXT_QUESTION_RE = re.compile(
     r"\bfor (?:what|which|whom)\b"
-    r"|\b(?:bags?|boxes?|labels?|pouches?)\s+(?:or|vs\.?|versus)\s+(?:bags?|boxes?|labels?|pouches?)\b"
-    r"|\bwhich (?:one|product|item)\b"
-    r"|\bwhat (?:product|item) (?:is|was) (?:that|it) for\b"
-    r"|\bwhat(?:'s| is)? (?:that|this|it) for\b"
-    r"|\bwhat do you mean\b"
-    r"|\b(?:sorry|wait),?\s+(?:what|which)\b",
+    r"|\b(?:bags?|boxes?|labels?|pouches?)\s+(?:or|vs\.?|versus)\s+(?:bags?|boxes?|labels?|pouches?)\b",
+    re.I,
+)
+OPTION_REQUEST_RE = re.compile(
+    r"\bfor example\b|\bwhat do you have\b|\bwhich ones?\b",
     re.I,
 )
 
@@ -520,6 +543,10 @@ CONTEXT_QUESTION_RE = re.compile(
 def is_context_question(text: str) -> bool:
     value = str(text or "")
     return is_question(value) and bool(CONTEXT_QUESTION_RE.search(value))
+
+
+def is_option_request(text: str) -> bool:
+    return bool(OPTION_REQUEST_RE.search(str(text or "")))
 
 
 def wants_human(text: str) -> bool:
@@ -724,7 +751,8 @@ class ConversationState:
         skus = self.fields["skus"].value
         if skus and str(skus).isdigit():
             return qty < (500 if int(skus) >= 2 else 1000)
-        return False
+        # No design count yet: the single-design minimum is 1,000.
+        return qty < 1000
 
     def reachable(self) -> bool:
         return self.fields["email"].done or self.fields["phone"].done
@@ -829,7 +857,10 @@ class ConversationState:
             deny = ", ".join(parts)
         else:
             deny = "(nothing yet)"
-        return f"You may ask about: {ask}.\nDo not ask about: {deny}."
+        lines = [f"You may ask about: {ask}.", f"Do not ask about: {deny}."]
+        if "sizes" in allowed and self.size_needs_unit():
+            lines.append(f"Size unit question, verbatim: {self.question_for('sizes')}")
+        return "\n".join(lines)
 
     def question_for(self, key: str) -> str:
         """Wording for a field the ask-set already selected. The script is one source."""
@@ -842,7 +873,8 @@ class ConversationState:
         if key == "phone":
             return PHONE_QUESTION
         if key == "sizes" and self.size_needs_unit():
-            return "Is that in inches, cm or mm?"
+            size = str(self.fields["sizes"].value or "").strip()
+            return f"Is {size} in inches, cm, or mm?"
         for field_key, question in self.script():
             if field_key == key:
                 return question
@@ -1073,6 +1105,10 @@ def apply_field_updates(
         raw_text = incoming if echoed else ("" if basis == BASIS_MODEL else str(visitor_text or "").strip())
         if not value:
             continue
+        if key in {"email", "phone"} and incoming == "declined" and refuses_contact(visitor_text):
+            state.set_field(key, "declined", BASIS_VISITOR, raw=visitor_text, status=STATUS_WAIVED)
+            accepted[key] = "declined"
+            continue
         if key in PROSE_FIELDS and looks_like_contact(value):
             rejected[key] = value
             continue
@@ -1104,6 +1140,11 @@ def apply_field_updates(
                 continue
         if key == "sizes":
             value = normalise_size(value)
+            pending_size = str(state.flags.get("size_pending_unit") or "").strip()
+            if pending_size and UNIT_ONLY_RE.match(str(visitor_text or "")):
+                value = normalise_size(f"{pending_size} {str(visitor_text).strip()}")
+                # The remembered words are the size plus the unit, never the unit alone.
+                raw_text = value
             if not size_has_unit(value) and size_has_unit(visitor_text):
                 value = normalise_size(visitor_text)
             if not size_has_unit(value) and not size_is_unknown(value) and value:
@@ -1165,7 +1206,12 @@ def apply_field_updates(
     return accepted, rejected
 
 
-def extract_fields(text: str, last_question: str, state: ConversationState) -> dict[str, str]:
+def extract_fields(
+    text: str,
+    last_question: str,
+    state: ConversationState,
+    registry=None,
+) -> dict[str, str]:
     value = str(text or "")
     lowered = value.lower()
     updates: dict[str, str] = {}
@@ -1221,8 +1267,12 @@ def extract_fields(text: str, last_question: str, state: ConversationState) -> d
             updates["quantity"] = str(number)
 
     material = MATERIAL_HINTS.search(value)
-    if material and len(value.split()) <= 6 and last_question != "style":
-        updates.setdefault("material", material.group(0))
+    # A material said while we were asking for a style is still the material.
+    if material and len(value.split()) <= 6:
+        word = material.group(0).lower()
+        if word == "metallized":
+            word = "metalized"
+        updates.setdefault("material", word)
 
     finish = normalize_finish(value)
     if finish and (last_question == "finishes" or finish != "none"):
@@ -1249,6 +1299,30 @@ def extract_fields(text: str, last_question: str, state: ConversationState) -> d
         # "Yes" confirms a proposal; it does not describe what they are packing.
         if last_question != "use_case" or not AFFIRMATION_RE.fullmatch(value):
             updates.setdefault(last_question, value.strip()[:80])
+
+    if registry is not None and not is_question(value) and len(value.split()) <= 8:
+        for field_name, canonical in registry.vocabulary_hits(value, state.family()):
+            # Naming the product ("mylar bags") is not choosing a style. A style
+            # hit counts only while that question is the one on the table.
+            if field_name == "style" and last_question != "style":
+                continue
+            updates.setdefault(field_name, canonical)
+    if last_question == "style" and not normalize_style(value) and not STYLE_HINTS.search(value):
+        if any(updates.get(key) for key in ("material", "finishes", "extras")):
+            raw_style = str(updates.get("style") or "")
+            if raw_style.lower() == value.strip().lower():
+                updates.pop("style", None)
+
+    if last_question in {"style", "material", "finishes", "extras"} and UNSPECIFIED_RE.match(value):
+        # "no preference" is a substring of "no preferences", so the finish
+        # matcher must not steal this and leave the open question unanswered.
+        updates.pop("finishes", None)
+        updates[last_question] = "no preference"
+
+    if contact_fields_refused(value, last_question):
+        for key in ("email", "phone"):
+            if not state.fields[key].done:
+                updates[key] = "declined"
 
     if is_plain(value):
         state.flags["plain"] = True

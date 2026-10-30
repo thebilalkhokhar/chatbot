@@ -603,6 +603,48 @@ class Registry:
                 found |= value_forms(value)
         return frozenset(found)
 
+    def vocabulary_hits(self, text: str, family: str = "") -> list[tuple[str, str]]:
+        """Every registry slot named in `text`, current family first.
+
+        The ask on the table does not limit the scan: a material said while the
+        bot asked for a style is still that material. One value per quote field,
+        longest form wins, and the active family's wording wins a tie.
+        """
+        folded = fold(text)
+        if not folded:
+            return []
+        padded = f" {folded} "
+        slot_field = {"style": "style", "material": "material", "finish": "finishes", "extras": "extras"}
+        families: list[str] = []
+        if family and family not in {"", "unknown"} and family in self.vocabulary:
+            families.append(family)
+        for name in self.families:
+            if name not in families:
+                families.append(name)
+        found: dict[str, tuple[int, str]] = {}
+        for fam in families:
+            for slot, values in self.vocabulary.get(fam, {}).items():
+                field_name = slot_field.get(slot)
+                if not field_name:
+                    continue
+                for value in values:
+                    if not value or value == EMPTY:
+                        continue
+                    for form in value_forms(value):
+                        if len(form) < 4 or f" {form} " not in padded:
+                            continue
+                        previous = found.get(field_name)
+                        if previous is None or len(form) > previous[0]:
+                            found[field_name] = (len(form), value)
+                        break
+        synonym = _SYNONYMS.get(folded)
+        if synonym is not None:
+            slot, canonical, _forced_family = synonym
+            field_name = slot_field.get(slot)
+            if field_name and canonical:
+                found[field_name] = (max(len(folded), found.get(field_name, (0, ""))[0]), canonical)
+        return [(field_name, canonical) for field_name, (_length, canonical) in found.items()]
+
     def unknown_values(self, candidate: Candidate) -> dict[str, tuple[str, ...]]:
         """Values the candidate names that this family's vocabulary does not contain (probe C1)."""
         known = self.known_values(candidate.family)

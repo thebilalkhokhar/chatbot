@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from chatbot.bot.personas import PERSONAS
-from chatbot.bot.state import BLOCKING_FIELDS, STATUS_UNKNOWN, STATUS_VISITOR
+from chatbot.bot.state import BLOCKING_FIELDS, STATUS_UNKNOWN, STATUS_VISITOR, STATUS_WAIVED
 
 
 def blockers(result) -> list[str]:
@@ -56,14 +56,16 @@ def test_human_request_handoff(orchestrator):
     assert blockers(result) == []
 
 
-def test_small_quantity_gets_smaller_runs_answer(orchestrator):
+def test_a_plain_quantity_is_accepted_without_the_minimum_lecture(orchestrator):
     orchestrator.start("c-small")
     orchestrator.handle("c-small", "I need custom boxes for shipping candles")
     orchestrator.handle("c-small", "4 x 6 x 2 inches")
     result = orchestrator.handle("c-small", "300")
     lowered = result.reply.lower()
-    assert "smaller runs" in lowered
-    assert "1,000" in result.reply
+    assert "smaller runs" not in lowered
+    assert "1,000" not in result.reply
+    assert "moq" not in lowered
+    assert "?" in result.reply
     assert result.handoff == ""
     assert blockers(result) == []
 
@@ -462,10 +464,11 @@ def test_size_unit_follow_up_completes_the_size(orchestrator):
     orchestrator.start("c-unit-follow")
     orchestrator.handle("c-unit-follow", "I need custom boxes for shipping candles")
     first = orchestrator.handle("c-unit-follow", "100 x 150")
-    assert "inches, cm or mm" in first.reply.lower()
+    assert "is 100x150 in inches, cm, or mm?" in first.reply.lower()
     result = orchestrator.handle("c-unit-follow", "mm")
     state = orchestrator.store.get_or_create("c-unit-follow")
     assert state.fields["sizes"].value == "100x150 mm"
+    assert state.fields["sizes"].raw_visitor_text == "100x150 mm"
     assert state.fields["sizes"].status == STATUS_VISITOR
     assert "quantity" in result.reply.lower()
     assert blockers(result) == []
@@ -624,3 +627,209 @@ def test_fallback_identity_path_does_not_lecture(orchestrator):
     assert "ethan" in reply
     assert "pdf" not in reply
     assert "eps" not in reply
+
+
+def test_a_greeting_is_not_answered_by_a_canned_line(orchestrator):
+    orchestrator.start("c-morning")
+    result = orchestrator.handle("c-morning", "good morning")
+    assert result.reply != "Good morning."
+    assert "?" in result.reply
+
+
+def test_for_example_names_the_box_styles(orchestrator):
+    _ready_for_style(orchestrator, "c-example")
+    result = orchestrator.handle("c-example", "for example?")
+    lowered = result.reply.lower()
+    assert "mailer" in lowered and "display" in lowered and "gift" in lowered
+    assert result.reply.count("?") == 1
+    assert blockers(result) == []
+
+
+def test_which_one_uses_the_catalogue_instead_of_the_clarifier(orchestrator):
+    from chatbot.bot.state import is_context_question, is_option_request
+
+    assert is_context_question("for what? bag or box?")
+    assert not is_context_question("which one you have?")
+    assert not is_context_question("for example?")
+    assert is_option_request("which one you have?")
+    _ready_for_style(orchestrator, "c-which")
+    result = orchestrator.handle("c-which", "which one you have?")
+    assert "mailer" in result.reply.lower()
+    assert "for your boxes" not in result.reply.lower()
+    assert blockers(result) == []
+
+
+def test_metalized_during_a_style_ask_is_saved_and_acknowledged(orchestrator):
+    _ready_for_style(orchestrator, "c-metal")
+    result = orchestrator.handle("c-metal", "metalized")
+    state = orchestrator.store.get_or_create("c-metal")
+    assert state.fields["material"].value == "metalized"
+    assert not state.fields["style"].done
+    lowered = result.reply.lower()
+    assert "metalized is noted" in lowered
+    assert "style" in lowered
+    assert blockers(result) == []
+
+
+def test_a_quantity_does_not_trigger_the_minimum_sentence(orchestrator):
+    orchestrator.start("c-moq-once")
+    orchestrator.handle("c-moq-once", "I need boxes for pizza")
+    orchestrator.handle("c-moq-once", "12x15 inches")
+    stated = orchestrator.handle("c-moq-once", "500")
+    assert "1,000" not in stated.reply
+    assert "minimum" not in stated.reply.lower()
+    asked = orchestrator.handle("c-moq-once", "What is your minimum?")
+    assert "1,000" in asked.reply
+
+
+def test_turn_cap_skips_the_greeting_and_a_turn_that_fills_a_field(orchestrator):
+    orchestrator.start("c-cap-stall")
+    state = orchestrator.store.get_or_create("c-cap-stall")
+    state.turn_count = state.turn_count + 12
+    orchestrator.store.save(state)
+    stalled = orchestrator.handle("c-cap-stall", "hmm")
+    assert stalled.handoff == "max_turns"
+
+    orchestrator.start("c-cap-move")
+    state = orchestrator.store.get_or_create("c-cap-move")
+    state.turn_count = state.turn_count + 12
+    orchestrator.store.save(state)
+    moving = orchestrator.handle("c-cap-move", "I need boxes for pizza")
+    assert moving.handoff == ""
+    assert moving.accepted.get("product") == "boxes"
+
+
+def test_an_unattested_build_is_noted_for_the_team(orchestrator):
+    from chatbot.bot.guards import BLOCK, GuardResult, Issue
+
+    state = orchestrator.store.get_or_create("c-note")
+    state.add("visitor", "gloss")
+    guard = GuardResult(
+        issues=[
+            Issue(
+                "unknown_capability_unhedged",
+                BLOCK,
+                "An unattested combination needs the team to confirm the build.",
+                "kraft gloss",
+            ),
+            Issue(
+                "unsupported_configuration",
+                BLOCK,
+                "That combination is not an attested offering, and the reply says we make it.",
+                "kraft gloss",
+            ),
+        ]
+    )
+    reply = orchestrator._safe_fallback(
+        state,
+        ("style", "What style of box do you need, or can you share a reference image?"),
+        "",
+        guard=guard,
+        configs=[{"family": "boxes", "material": "kraft", "finish": "gloss"}],
+    )
+    assert reply == (
+        "Kraft and Gloss are noted. That build needs the team to confirm. "
+        "What style of box do you need, or can you share a reference image?"
+    )
+
+
+def test_a_catalogue_dump_is_not_read_back_as_the_order(orchestrator):
+    from chatbot.bot.guards import BLOCK, GuardResult, Issue
+
+    state = orchestrator.store.get_or_create("c-dump")
+    state.set_field("product", "boxes", status=STATUS_VISITOR)
+    state.add("visitor", "i want boxes")
+    guard = GuardResult(
+        issues=[
+            Issue(
+                "unknown_capability_unhedged",
+                BLOCK,
+                "An unattested combination needs the team to confirm the build.",
+                "cbd",
+            )
+        ]
+    )
+    reply = orchestrator._safe_fallback(
+        state,
+        ("use_case", "What will be inside it, or who is it going to?"),
+        "",
+        guard=guard,
+        configs=[
+            {
+                "style": "CBD Boxes",
+                "material": "White cardboard",
+                "finish": [
+                    "Gloss lamination",
+                    "Matte lamination",
+                    "Soft touch",
+                    "Spot UV",
+                    "Foil printing",
+                ],
+            }
+        ],
+    )
+    assert "noted" not in reply.lower()
+    assert "cbd" not in reply.lower()
+    assert "inside" in reply.lower()
+
+
+def test_a_sentence_stuffed_into_a_config_is_not_noted(orchestrator):
+    from chatbot.bot.guards import BLOCK, GuardResult, Issue
+
+    state = orchestrator.store.get_or_create("c-sentence")
+    state.set_field("product", "boxes", status=STATUS_VISITOR)
+    state.set_field("use_case", "pizza", status=STATUS_VISITOR)
+    state.set_field("sizes", "11x15x2 in", status=STATUS_VISITOR)
+    state.set_field("quantity", "300", status=STATUS_VISITOR)
+    state.set_field("style", "no preference", status=STATUS_WAIVED)
+    state.set_field("material", "kraft", status=STATUS_VISITOR)
+    state.set_field("finishes", "matte", status=STATUS_VISITOR)
+    state.last_question = "finishes"
+    state.add("visitor", "matte")
+    guard = GuardResult(
+        issues=[
+            Issue("unknown_option", BLOCK, "not in the boxes style vocabulary.", "Mailing/Display"),
+            Issue(
+                "unknown_capability_unhedged",
+                BLOCK,
+                "An unattested combination needs the team to confirm the build.",
+                "kraft",
+            ),
+        ]
+    )
+    reply = orchestrator._safe_fallback(
+        state,
+        ("skus", "How many total designs or SKUs do you have?"),
+        "",
+        guard=guard,
+        configs=[
+            {
+                "style": "Mailing/Display style not specified in your goal; using kraft and matte lamination",
+                "finish": ["Matte lamination", "Drip off", "Spot gloss", "Window", "Handle"],
+            }
+        ],
+    )
+    assert "not specified" not in reply.lower()
+    assert "noted" not in reply.lower()
+    assert "designs" in reply.lower()
+
+
+def test_handoff_does_not_call_the_model(config, kb_index, tmp_path, monkeypatch):
+    from dataclasses import replace
+
+    from chatbot.bot.orchestrator import Orchestrator as Engine
+
+    live_config = replace(config, mode="live", allow_live=True, api_key="test-key", max_turns=12)
+    engine = Engine(live_config, store_path=tmp_path / "handoff-live.sqlite3", index=kb_index, examples=[])
+    try:
+        def boom(*_args, **_kwargs):
+            raise AssertionError("the model was called after handoff")
+
+        monkeypatch.setattr("chatbot.bot.orchestrator.live_turn", boom)
+        engine.start("c-no-model")
+        result = engine.handle("c-no-model", "I want to talk to a human")
+        assert result.handoff == "human"
+        assert result.source != "live"
+        assert "specialist" in result.reply.lower()
+    finally:
+        engine.close()

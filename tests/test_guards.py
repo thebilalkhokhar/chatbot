@@ -95,6 +95,19 @@ def test_answer_first_blocks_script_question_only():
     assert good.ok
 
 
+def test_a_contact_refusal_is_not_a_question_about_ours():
+    assert "contact" not in canon.detect_topics("I don't have an email")
+    assert "contact" not in canon.detect_topics("i don't want to share")
+    assert "contact" in canon.detect_topics("what is your email?")
+    state = make_state("I don't have an email")
+    result = guards.check_reply("What size do you need?", state, visitor_text="I don't have an email")
+    assert "unanswered_question" not in result.codes()
+    note = guards.describe(
+        [guards.Issue("reply_config_mismatch", guards.BLOCK, "The configuration names kraft, and the reply never does.", "kraft")]
+    )
+    assert "Do NOT re-assert or re-emit proposed_configs" in note
+
+
 def test_international_shipping_question_is_detected_and_answered():
     text = "can you ship orders to china?"
     assert "intl_shipping" in canon.detect_topics(text)
