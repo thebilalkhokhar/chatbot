@@ -1539,7 +1539,7 @@ still need their own written approval.
 >    decision impact, not script position. "I need boxes" now asks what will be inside, not the box size.
 > 4. **`off_script` no longer enforces a position.** It stays (every v1 guard is still active) and
 >    warns only when the reply asks about a field the ask-set does not allow. `redundant_ask` is
->    still Phase 2c — `question_already_answered` remains the block for a field the customer stated.
+>    Phase 2c — `question_already_answered` remains the block for a field the customer stated.
 >
 > **Suite: 134 passing** — 10 new tests in `chatbot/tests/test_state.py` (ask-set membership,
 > deferred finish/skus/extras, the do-not-ask wording, use_case not stalling the quote, script
@@ -1554,18 +1554,45 @@ still need their own written approval.
 - [x] Ask-set computation (Section 3.4): missing **and** materially-affecting fields only, with a
       do-not-ask list generated from state and injected into the prompt as a constraint.
       **Done 2026-10-31.** `SCRIPTS` is now a wording catalogue only.
-- [ ] Guards `redundant_ask` and `question_as_answer`; regression test for the exact logged failure
-      ("your address" must never satisfy `style`).
-- [ ] Fix `_safe_fallback` concatenating every detected topic (top match only + meta-question path).
-- [ ] Fix `SELF_CLAIM`/`DISCLOSURE` Unicode-apostrophe hole (regression test with `I’m`) and implement
+> **Progress, 2026-10-31 (Phase 2c — ask guards, fallback, disclosure). The Phase 2 checklist is
+> closed. Fake mode only; no paid call was made. The 300-chat replay in the exit line is still
+> Phase 6's job — this close-out is the unit and regression suite.**
+> 1. **`redundant_ask` blocks (and `question_already_answered` stays).** A reply that maps to a
+>    field the customer already stated (`visitor` or `confirmed`) is blocked, and the correction
+>    names the field and their words. A size that still has no unit is not a re-ask.
+> 2. **`question_as_answer` blocks the write.** A question cannot satisfy a field unless it also
+>    carries a value token for that field. "your address" matches the location fact and has no
+>    style token, so it is answered from canon and never stored as style. An identity challenge
+>    is treated the same way, so "you called ai" cannot become the use case.
+> 3. **`_safe_fallback` uses one canon answer.** The top topic only, plus the most urgent open
+>    ask (product, use case, size, quantity). An identity question gets the disclosure sentence
+>    and that ask, and no topic answer at all.
+> 4. **D-1 route.** Apostrophes are folded before `SELF_CLAIM`, so `I’m` is the same claim as
+>    `I'm`. Volunteering still blocks; the approved sentence does not, when they asked; "I'm not
+>    an AI" blocks even then. The sentence is "I'm an AI assistant working under the name {persona}
+>    for Print247," then the open ask. The Ethan transcript no longer continues into file formats.
+> 5. **Every v1 guard still runs.** Nothing in the Section 7 reclassification table was applied;
+>    that remains Phase 3.
+>
+> **Suite: 142 passing** — 8 new regressions (Unicode `I’m`, redundant ask, the unit exception,
+> "your address" rejected as style both in extraction and in a chat, the Ethan transcript, fallback
+> top-match only, and the identity fallback).
+
+- [x] Guards `redundant_ask` and `question_as_answer`; regression test for the exact logged failure
+      ("your address" must never satisfy `style`). **Done 2026-10-31.**
+- [x] Fix `_safe_fallback` concatenating every detected topic (top match only + meta-question path).
+      **Done 2026-10-31.**
+- [x] Fix `SELF_CLAIM`/`DISCLOSURE` Unicode-apostrophe hole (regression test with `I’m`) and implement
       the **approved D-1 route**: identity question → one honest sentence naming the AI assistant under
       this persona → immediate return to the visitor's ask. Regression test replays the Ethan
       transcript: the old reply disclosed and then lectured about file formats; v2 must disclose and
-      continue the conversation.
-- [ ] Keep every v1 guard active so nothing slips during the refactor.
+      continue the conversation. **Done 2026-10-31.**
+- [x] Keep every v1 guard active so nothing slips during the refactor. **Done 2026-10-31.**
+      `question_already_answered`, `off_script`, and `bot_question_unanswered` all still fire.
+      Section 7's severity changes are Phase 3.
 
-**Exit:** all tests green plus new goal/ask tests; 300-chat fake replay with 0 Tier B blockers and
-`redundant_ask = 0`.
+**Exit:** all tests green plus new goal/ask tests. **142 passing on 2026-10-31.** The 300-chat fake
+replay with 0 Tier B blockers and `redundant_ask = 0` stays with Phase 6, when that replay runs.
 
 ### Phase 3 — Prompt v2, catalogue-first context, registry guards, sizing policy (4–6 days)
 - [ ] New system/user prompt: static prefix (persona, rules, **CATALOGUE PRIMER**, allow-list, sizing
@@ -1809,14 +1836,14 @@ loop that writes new rules from found loopholes. v2 continues that path rather t
 | ~~`chatbot/bot/sizing.py`~~ | **deleted by Revision D** — never written. No `estimate_size()`, no sizing module; the sizing policy is one prompt paragraph plus the `unsanctioned_dimension` guard (§4.4, §7) |
 | `chatbot/bot/cli.py` | **`capability` subcommand done 2026-10-30** (registry integrity, per-family row counts, primer-drift check; exit 1 on errors) · `probe` subcommand still owed (Section 4.7 Stage A + the S1/S2/S3 strata, Phase 4) · `ingest` now also writes the primer |
 | `chatbot/bot/state.py` | **Phase 2b done 2026-10-31** — `ask_set` / `do_not_ask` / `ask_constraint` (Section 3.4). `use_case` always qualifies and is not a blocking field. finish, skus, extras, style and material stay out while product, sizes or quantity is open. `SCRIPTS` is a wording catalogue: `question_for` reads it, `next_question` does not walk it. Phase 2a provenance (`FieldValue`, `done`/`stated`, unit folding, `use_case_from`, `confirm_suggested`, `CUSTOMER_ONLY_FIELDS`) is unchanged |
-| `chatbot/bot/composer.py` | **Phase 2b part done** — rule 3 and the per-turn tail bind the model to the ask-set; the "next script question" line is gone. Still owed (Phase 3): the cacheable static prefix (persona, primer, allow-list, sizing policy), the no-external-source line (D-13), the approved D-1 identity paragraph, and `move` + `proposed_configs[]` + `basis` in the schema |
-| `chatbot/bot/guards.py` | **Phase 2b part done** — `off_script` warns when the reply asks a field outside the ask-set, not when it skips a script position. `no_question_asked` uses the same list. Phase 2a `settled_for_asking()` and the `use_case` probe stay. Still owed: tier reclassification (Section 7), `redundant_ask`, `unsanctioned_dimension`, `reply_config_mismatch`, `contact_offered_unasked`, the apostrophe fix |
-| `chatbot/bot/orchestrator.py` | **Phase 2a part done** — a bare affirmation is resolved before extraction, and the model's own fields go through `apply_field_updates(..., source="model")` so they land `suggested`. Goal-driven flow; family-filtered context assembly; **reply ↔ config reconciliation, re-run after any rewrite**; context-aware `_safe_fallback`; meta-question path; basis recorded per event |
+| `chatbot/bot/composer.py` | **Phase 2c part done** — `disclosure_line` is the one D-1 sentence, and an identity question returns that plus the open ask instead of a topic lecture. Phase 2b ask-set constraint stays. Still owed (Phase 3): the cacheable static prefix (persona, primer, allow-list, sizing policy), the no-external-source line (D-13), the full identity paragraph in the system prompt, and `move` + `proposed_configs[]` + `basis` in the schema |
+| `chatbot/bot/guards.py` | **Phase 2c done 2026-10-31** — `redundant_ask` (BLOCK, keyed on `stated`, unit exception kept), `question_as_answer` (a question cannot fill a field without a value token; "your address" cannot fill style), apostrophes folded before `SELF_CLAIM` so `I’m` matches, and an AI denial blocks even when they asked. Phase 2b `off_script` / ask-set behaviour and Phase 2a `settled_for_asking()` stay. Every v1 guard still runs. Still owed (Phase 3): the Section 7 severity table, `unsanctioned_dimension`, `reply_config_mismatch`, `contact_offered_unasked` |
+| `chatbot/bot/orchestrator.py` | **Phase 2c part done** — `_safe_fallback` is the top canon answer plus the most urgent open ask; an identity question gets the D-1 sentence and that ask, never the artwork lecture. Phase 2a affirmation-before-extraction and model `suggested` writes stay. Still owed: family-filtered context, reply ↔ config reconciliation, `move` in the event payload |
 | `chatbot/bot/config.py` | `BOT_ARCH=v1\|v2`; `BOT_CONTEXT=catalogue\|full\|retrieval` with **`catalogue` the v2 default**; model tier per arch; `cost_usd` accounting. **No `sizing.mode` value exists** (Revision D) — there is nothing for the loader to gate |
 | `chatbot/bot/llm.py` | Cost logging; prompt-caching experiment flag |
 | `chatbot/bot/replay.py` | Side-by-side v1/v2 runs; spend lock unchanged |
 | `chatbot/web/index.html` | Debug panel shows `move`, `proposed_configs[]`, registry state per claim, the context tier actually sent and its token count, and the goal checklist |
-| `chatbot/tests/` | **Phase 2b: suite 134 passing.** `test_state.py` gained 10 ask-set tests on top of the 16 goal-state tests from Phase 2a. Orchestrator and service tests that asserted the old script's first question ("what box size") now assert the use-case ask. Still owed: `redundant_ask` / `question_as_answer` regressions (Phase 2c), registry/tuple tests, primer token-budget tests, reply↔config tests, sizing-policy tests, **D-1 disclosure tests**, Tier boundary tests, probe fixtures |
+| `chatbot/tests/` | **Phase 2c: suite 142 passing.** Eight regressions added: Unicode `I’m`, `redundant_ask`, the unit exception, "your address" rejected as style, the Ethan transcript, and both fallback paths. Still owed: registry/tuple tests, primer token-budget tests, reply↔config tests, sizing-policy tests, Tier boundary tests, probe fixtures |
 
 ## Appendix B — v1's 19 prompt rules in v2
 

@@ -13,6 +13,7 @@ from .composer import (
     HANDOFF_LINES,
     REPHRASES,
     clarify_reply,
+    disclosure_line,
     heuristic_turn,
     live_turn,
     select_examples,
@@ -196,6 +197,17 @@ class Orchestrator:
             return "max_turns"
         return ""
 
+    def _urgent_ask(self, state: ConversationState) -> str:
+        """The most urgent missing field: product, what they are packing, size, quantity."""
+        allowed = set(state.ask_set())
+        for key in ("product", "use_case", "sizes", "quantity"):
+            if key not in allowed:
+                continue
+            if state.fields[key].attempts >= 1 and key in REPHRASES:
+                return REPHRASES[key]
+            return state.question_for(key)
+        return ""
+
     def _safe_fallback(
         self,
         state: ConversationState,
@@ -204,12 +216,21 @@ class Orchestrator:
     ) -> str:
         if handoff_reason:
             return HANDOFF_LINES.get(handoff_reason, HANDOFF_LINES["stalled"])
+        visitor = state.last_visitor()
+        urgent = self._urgent_ask(state)
+        # A meta-question gets one honest line and the open ask. No topic lecture.
+        if asks_if_bot(visitor):
+            parts = [disclosure_line(state.persona)]
+            if urgent:
+                parts.append(urgent)
+            return " ".join(parts)
         parts: list[str] = []
-        for key in canon.detect_topics(state.last_visitor()):
-            answer = canon.effective_answer(key, self.overrides)
-            if answer not in parts:
-                parts.append(answer)
-        if expected:
+        topics = canon.detect_topics(visitor)
+        if topics:
+            parts.append(canon.effective_answer(topics[0], self.overrides))
+        if urgent:
+            parts.append(urgent)
+        elif expected:
             parts.append(REPHRASES.get(expected[0]) or expected[1])
         return " ".join(parts).strip() or "What are you looking to have made — boxes, bags, labels, or something else?"
 

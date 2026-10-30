@@ -298,7 +298,10 @@ WANTS_HUMAN = re.compile(
     re.I,
 )
 ASKS_IF_BOT = re.compile(
-    r"\b(?:are you|r u|is this|am i (?:talking|speaking|chatting) (?:to|with))\s+(?:an?\s+|the\s+)?(?:real\s+)?(?:ai|bot|robo[a-z]*t|chat ?bot|automated|machine|human|person)\b",
+    r"\b(?:are you|r u|is this|am i (?:talking|speaking|chatting) (?:to|with))\s+(?:an?\s+|the\s+)?(?:real\s+)?(?:ai|bot|robo[a-z]*t|chat ?bot|automated|machine|human|person)\b"
+    # The Ethan incident had no "are you": "you said you are ethan now you called ai".
+    r"|\byou called (?:me\s+)?(?:an?\s+)?ai\b"
+    r"|\bcalled (?:you|yourself) (?:an?\s+)?(?:ai|a bot|a chatbot)\b",
     re.I,
 )
 GOODBYE_RE = re.compile(r"\b(bye|goodbye|thanks?|thank you|that'?s all|nothing else|thats it|that is it)\b", re.I)
@@ -1028,6 +1031,8 @@ def apply_field_updates(
     re-ask guard can tell it from something the customer said. Sizes, contact details and numbers
     never take that status — they are only ever the customer's facts or a catalogue row.
     """
+    from .guards import question_as_answer
+
     accepted: dict[str, str] = {}
     rejected: dict[str, str] = {}
     visitor_lower = str(visitor_text or "").lower()
@@ -1047,6 +1052,10 @@ def apply_field_updates(
         if not value:
             continue
         if key in PROSE_FIELDS and looks_like_contact(value):
+            rejected[key] = value
+            continue
+        # A question is not an answer. "your address" must not fill style.
+        if basis == BASIS_VISITOR and question_as_answer(str(visitor_text or ""), key):
             rejected[key] = value
             continue
         if key == "product" and state.fields["product"].done and is_question(visitor_text):

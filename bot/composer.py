@@ -91,6 +91,12 @@ def _topic_answer(key: str, family: str, overrides: dict[str, str] | None) -> st
     return canon.effective_answer(key, overrides)
 
 
+def disclosure_line(persona_name: str) -> str:
+    """D-1, one sentence: an AI assistant under this persona, then back to the order."""
+    persona = persona_for(persona_name) or PERSONAS[0]
+    return f"I'm an AI assistant working under the name {persona.first} for Print247."
+
+
 def _ack(state: ConversationState, visitor: str) -> str:
     last = state.last_question
     if last == "name" and state.fields["name"].value:
@@ -160,8 +166,15 @@ def heuristic_turn(
     if state.turn_count == 0:
         parts.append(f"Hi, I'm {persona.first}.")
 
+    # Identity is a fixed route. The word "ai" must not pull the artwork answer
+    # ("AI, PDF, EPS..."), which is what the Ethan transcript lectured about.
     if asks_if_bot(visitor):
-        parts.append("I'm an AI assistant helping the Print247 team.")
+        parts.append(disclosure_line(state.persona))
+        question = _question_text(state, expected)
+        if question:
+            parts.append(question)
+            asked = expected[0] if expected else ""
+        return Composed(reply=" ".join(parts).strip(), asked=asked, source="heuristic")
 
     topics = canon.detect_topics(visitor)
     if handoff_reason:

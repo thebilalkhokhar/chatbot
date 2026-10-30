@@ -169,6 +169,63 @@ def test_bot_self_claim_and_disclosure():
     assert "bot_self_claim" not in asked.codes()
 
 
+def test_unicode_apostrophe_still_counts_as_an_ai_claim():
+    # The live draft got through because I’m uses U+2019 and the pattern wanted i'm.
+    state = make_state("hello")
+    volunteered = guards.check_reply("I\u2019m an AI assistant.", state, visitor_text="hello")
+    assert "bot_self_claim" in volunteered.codes()
+    assert not volunteered.ok
+    honest = guards.check_reply(
+        "I\u2019m an AI assistant working under the name Ethan for Print247.",
+        state,
+        visitor_text="you said you are ethan now you called ai",
+        asked_if_bot=True,
+    )
+    assert "bot_self_claim" not in honest.codes()
+    denial = guards.check_reply(
+        "I\u2019m not an AI.",
+        state,
+        visitor_text="are you a bot?",
+        asked_if_bot=True,
+    )
+    assert "bot_self_claim" in denial.codes()
+    assert not denial.ok
+
+
+def test_redundant_ask_blocks_a_field_they_already_stated():
+    state = make_state("kraft")
+    state.set_field("style", "kraft", raw="kraft", status=STATUS_VISITOR)
+    result = guards.check_reply("What style of box do you need?", state)
+    assert "redundant_ask" in result.codes()
+    assert not result.ok
+    detail = next(issue.detail for issue in result.issues if issue.code == "redundant_ask")
+    assert "style" in detail and "kraft" in detail
+    # The v1 guard stays active alongside the new one.
+    assert "question_already_answered" in result.codes()
+
+
+def test_a_size_missing_its_unit_is_not_a_redundant_ask():
+    state = make_state("100 x 150")
+    state.set_field("sizes", "100x150", raw="100 x 150", status=STATUS_VISITOR)
+    result = guards.check_reply("What size are you looking for?", state)
+    assert "redundant_ask" not in result.codes()
+
+
+def test_your_address_is_a_question_and_not_a_style():
+    assert guards.question_as_answer("your address", "style")
+    assert guards.question_as_answer("what style should I pick?", "style")
+    assert not guards.question_as_answer("a mailer box", "style")
+    state = make_state("your address")
+    state.last_question = "style"
+    from chatbot.bot.state import apply_field_updates, extract_fields
+
+    updates = extract_fields("your address", "style", state)
+    accepted, rejected = apply_field_updates(state, updates, "your address")
+    assert accepted.get("style") is None
+    assert state.fields["style"].value == ""
+    assert rejected.get("style") == "your address"
+
+
 def test_wrong_minimum_figures_use_canon():
     state = make_state("I need 500 bags with 3 designs")
     state.add("visitor", "bags")

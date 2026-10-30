@@ -555,3 +555,72 @@ def test_live_echo_cannot_overwrite_a_field_accepted_this_turn(
         assert result.source == "live"
     finally:
         engine.close()
+
+
+def _ready_for_style(orchestrator, conversation_id: str) -> None:
+    orchestrator.start(conversation_id)
+    state = orchestrator.store.get_or_create(conversation_id)
+    state.persona = "Ethan Wilson"
+    for key, value in (
+        ("product", "boxes"),
+        ("use_case", "candles"),
+        ("sizes", "4x6 in"),
+        ("quantity", "1000"),
+    ):
+        state.set_field(key, value, raw=value, status=STATUS_VISITOR)
+    state.last_question = "style"
+    orchestrator.store.save(state)
+
+
+def test_your_address_never_satisfies_style(orchestrator):
+    _ready_for_style(orchestrator, "c-address")
+    result = orchestrator.handle("c-address", "your address")
+    state = orchestrator.store.get_or_create("c-address")
+    assert state.fields["style"].value == ""
+    assert not state.fields["style"].done
+    assert "rosenberg" in result.reply.lower()
+    assert blockers(result) == []
+
+
+def test_ethan_identity_challenge_discloses_and_returns_to_the_order(orchestrator):
+    # Turn 4 of the logged chat: the fallback treated "ai" as Adobe Illustrator
+    # and lectured about file formats. v2 discloses once and returns to the order.
+    orchestrator.start("c-ethan")
+    state = orchestrator.store.get_or_create("c-ethan")
+    state.persona = "Ethan Wilson"
+    orchestrator.store.save(state)
+    orchestrator.handle("c-ethan", "i am looking for boxes")
+    result = orchestrator.handle("c-ethan", "you said you are ethan now you called ai")
+    lowered = result.reply.lower()
+    assert "ai assistant" in lowered
+    assert "ethan" in lowered
+    assert "print247" in lowered
+    assert "pdf" not in lowered
+    assert "eps" not in lowered
+    assert "zip" not in lowered
+    # The order was already asked what goes inside; the re-ask keeps that thread.
+    assert "packing" in lowered
+    assert blockers(result) == []
+
+
+def test_fallback_answers_only_the_top_topic(orchestrator):
+    orchestrator.start("c-fallback")
+    state = orchestrator.store.get_or_create("c-fallback")
+    state.add("visitor", "What is your MOQ, lead time and address?")
+    reply = orchestrator._safe_fallback(state, state.next_question(), "")
+    assert "1,000" in reply
+    assert "12-15" not in reply
+    assert "rosenberg" not in reply.lower()
+    assert "which product" in reply.lower()
+
+
+def test_fallback_identity_path_does_not_lecture(orchestrator):
+    orchestrator.start("c-fallback-id")
+    state = orchestrator.store.get_or_create("c-fallback-id")
+    state.persona = "Ethan Wilson"
+    state.add("visitor", "you said you are ethan now you called ai")
+    reply = orchestrator._safe_fallback(state, ("use_case", "What will be inside it?"), "").lower()
+    assert "ai assistant" in reply
+    assert "ethan" in reply
+    assert "pdf" not in reply
+    assert "eps" not in reply

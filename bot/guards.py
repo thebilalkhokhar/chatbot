@@ -5,7 +5,25 @@ from dataclasses import dataclass, field
 
 from . import canon
 from .personas import PERSONAS
-from .state import ConversationState, STATUS_WAIVED, is_question, wants_recommendation
+from .state import (
+    BARE_QTY_RE,
+    EMAIL_RE,
+    MATERIAL_HINTS,
+    PHONE_RE,
+    QTY_UNIT_RE,
+    SINGLE_SIZE_RE,
+    SIZE_DIM_RE,
+    STYLE_HINTS,
+    ConversationState,
+    STATUS_WAIVED,
+    asks_if_bot,
+    family_of,
+    is_question,
+    normalize_finish,
+    normalize_style,
+    use_case_from,
+    wants_recommendation,
+)
 
 BLOCK = "block"
 WARN = "warn"
@@ -21,9 +39,15 @@ HOLDING_PHRASE = re.compile(
     r"\bone of our team will be with you shortly\b|\bsomeone will be with you shortly\b",
     re.I,
 )
+# Apostrophes are folded to ASCII before matching, so I’m and I'm are the same claim.
+_APOSTROPHE = str.maketrans({"\u2019": "'", "\u2018": "'", "\u02bc": "'", "`": "'"})
 SELF_CLAIM = re.compile(
     r"\b(?:i am|i'm|this is)\s+(?:an?\s+)?(?:ai|a\.i\.|bot|chatbot|robot|virtual assistant|automated assistant|automated system|machine)\b"
     r"|\bas an ai\b",
+    re.I,
+)
+AI_DENIAL = re.compile(
+    r"\b(?:i am|i'm|this is)\s+not\s+(?:an?\s+)?(?:ai|a\.i\.|bot|chatbot|robot|virtual assistant)\b",
     re.I,
 )
 HUMAN_CLAIM = re.compile(
@@ -138,6 +162,59 @@ class GuardResult:
 
     def to_dict(self) -> dict:
         return {"ok": self.ok, "issues": [issue.to_dict() for issue in self.issues]}
+
+
+def _straighten(text: str) -> str:
+    return str(text or "").translate(_APOSTROPHE)
+
+
+def _has_value_token(key: str, text: str) -> bool:
+    """Whether `text` actually carries a value for `key`, not just a question about it."""
+    value = str(text or "")
+    if key == "email":
+        return bool(EMAIL_RE.search(value))
+    if key == "phone":
+        return bool(PHONE_RE.search(value))
+    if key == "name":
+        return bool(re.search(r"\bmy name is\s+[A-Za-z]", value, re.I))
+    if key == "sizes":
+        return bool(SIZE_DIM_RE.search(value) or SINGLE_SIZE_RE.search(value))
+    if key == "quantity":
+        return bool(QTY_UNIT_RE.search(value) or BARE_QTY_RE.match(value.strip()))
+    if key == "finishes":
+        finish = normalize_finish(value)
+        return bool(finish)
+    if key == "style":
+        return bool(normalize_style(value) or STYLE_HINTS.search(value))
+    if key == "material":
+        return bool(MATERIAL_HINTS.search(value))
+    if key == "product":
+        return family_of(value) != "unknown"
+    if key == "use_case":
+        return bool(use_case_from(value))
+    if key == "skus":
+        return bool(re.search(r"\d+\s*(?:designs?|skus?)", value, re.I))
+    if key == "extras":
+        return bool(re.search(r"\b(?:zipper|tear notch|window|hang hole)\b", value, re.I))
+    return False
+
+
+def question_as_answer(visitor_text: str, key: str) -> bool:
+    """True when this message must not be stored as `key`.
+
+    Section 3.4: a question cannot satisfy a field unless it also carries a value
+    token for that field. "your address" has no question mark and no style token;
+    it is the logged failure that used to fill style and skip the question.
+    """
+    text = str(visitor_text or "").strip()
+    if not text or _has_value_token(key, text):
+        return False
+    if is_question(text) or asks_if_bot(text):
+        return True
+    # A short fact request ("your address") is a question even with the mark left off.
+    # Longer messages that merely mention a topic are still answers ("dry meat" is a use).
+    topics = canon.detect_topics(text)
+    return bool(topics) and len(text.split()) <= 4
 
 
 def settled_for_asking(state: ConversationState, key: str) -> bool:
@@ -336,19 +413,23 @@ def _check_time(reply: str, overrides: dict[str, str] | None, result: GuardResul
 
 
 def _check_bot_claim(reply: str, asked_if_bot: bool, result: GuardResult) -> None:
-    if SELF_CLAIM.search(reply) and not asked_if_bot:
+    text = _straighten(reply)
+    # D-1: volunteering an AI claim blocks. Being asked and answering honestly does not.
+    # A denial blocks either way — "I'm not an AI" is not the approved sentence.
+    if AI_DENIAL.search(text) or (SELF_CLAIM.search(text) and not asked_if_bot):
         result.add(
             "bot_self_claim",
             BLOCK,
-            "The agent volunteered that it is an AI; the persona answers as the Print247 team.",
+            "The agent volunteered that it is an AI, or denied it. "
+            "Disclose only when asked, in one honest sentence.",
         )
-    if HUMAN_CLAIM.search(reply):
+    if HUMAN_CLAIM.search(text):
         result.add(
             "human_claim",
             BLOCK,
             "The agent claimed to be a human; do not assert that.",
         )
-    if asked_if_bot and not DISCLOSURE.search(reply):
+    if asked_if_bot and not DISCLOSURE.search(text):
         result.add(
             "bot_question_unanswered",
             WARN,
@@ -569,6 +650,21 @@ def _check_asked_fields(
     field_asked = asked_field(reply)
     if field_asked:
         value = state.fields.get(field_asked)
+        # `stated` is visitor or confirmed. A missing unit is still an open ask.
+        if (
+            value
+            and value.stated
+            and not (field_asked == "sizes" and state.size_needs_unit())
+        ):
+            words = " ".join((value.raw_visitor_text or value.value).split()).replace('"', "'")
+            if len(words) > 80:
+                words = words[:77] + "..."
+            result.add(
+                "redundant_ask",
+                BLOCK,
+                f'They already said the {field_asked} ("{words}"); do not ask for it again.',
+                reply[:120],
+            )
         if value and settled_for_asking(state, field_asked):
             result.add(
                 "question_already_answered",
