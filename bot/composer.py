@@ -97,6 +97,12 @@ Do not open a later message with Good Morning or Hello on your own. If they just
 
 When a user asks for examples or options, you MUST strictly list ONLY the exact styles/materials found in the CATALOGUE PRIMER vocabulary. NEVER invent or hallucinate options like Square Boxes if they are not explicitly in the primer.
 
+You MUST exhaust ALL missing mandatory product fields (especially Designs/SKUs, Material, and Finish) before you are allowed to ask for contact information (Email/Phone) or initiate a handoff.
+
+Once a style or finish is accepted, it is locked. Do not ask for it again, and do not put it in fields_proposed or proposed_configs.
+
+When they ask how to reach you, the first sentence must be exactly: "You can reach the team at Support@print247.us or +1 (832) 807-3429." Then ask the next missing checklist field in the same message. Do not ask for their email until Designs/SKUs, Material, and Finish are filled.
+
 Never ask about something they already told you. You may only ask about fields in the ASK SET;
 anything in the DO NOT ASK SET is off limits even as a confirmation.
 
@@ -237,6 +243,15 @@ def heuristic_turn(
         )
 
     topics = canon.topics_to_answer(visitor)
+    if handoff_reason == "quote":
+        # Closing the quote is not a request for the facility or the public phone line.
+        topics = [
+            key
+            for key in topics
+            if key not in {"contact", "location"}
+            or (key == "contact" and canon.asks_for_our_contact(visitor))
+            or (key == "location" and canon.asks_for_location(visitor))
+        ]
     if handoff_reason:
         topics = topics[:2]
     asked_family = family_of(visitor)
@@ -502,6 +517,14 @@ def build_user(
             "They asked for examples or options. List ONLY the exact styles and materials "
             "in the CATALOGUE PRIMER vocabulary. Do not invent a name such as Square Boxes."
             if is_option_request(visitor)
+            else ""
+        ),
+        (
+            "They asked how to reach you. The first sentence must be exactly: "
+            '"You can reach the team at Support@print247.us or +1 (832) 807-3429." '
+            "Then ask the single highest-priority field still in the ASK SET. "
+            "Do not ask for their email or phone while Designs/SKUs, Material, or Finish are still open."
+            if canon.asks_for_our_contact(visitor)
             else ""
         ),
         (

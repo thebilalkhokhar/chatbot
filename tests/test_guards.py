@@ -87,6 +87,38 @@ def test_an_explicit_minimum_question_keeps_the_moq_sentence():
     assert "style" not in cleaned.lower()
 
 
+def test_a_contact_question_keeps_the_canon_line_and_the_next_field():
+    exact = "You can reach the team at Support@print247.us or +1 (832) 807-3429."
+    sku = "How many total designs or SKUs do you have?"
+    cleaned = guards.prepare_reply(
+        "Sure, just email us whenever. What is the best email to send the quote to?",
+        "what is your phone number?",
+        priority_key="skus",
+        priority_text=sku,
+    )
+    assert exact in cleaned
+    assert sku in cleaned
+    assert cleaned.count("?") == 1
+    assert "best email" not in cleaned.lower()
+    assert canon.asks_for_our_contact("what is your phone number?")
+    assert canon.asks_for_our_contact("how can I contact you?")
+    assert not canon.asks_for_our_contact("my email is buyer@example.com")
+    assert not canon.asks_for_our_contact("I don't have an email")
+
+
+def test_an_early_email_ask_is_replaced_with_the_open_field():
+    material = "Do you have any specific material or special features in mind?"
+    cleaned = guards.prepare_reply(
+        "Got it. What is the best email to send the quote to?",
+        "kraft is fine",
+        priority_key="material",
+        priority_text=material,
+    )
+    assert material in cleaned
+    assert "best email" not in cleaned.lower()
+    assert cleaned.count("?") == 1
+
+
 def test_three_questions_collapse_to_the_priority_field():
     reply = "Is that in inches, cm, or mm? How many units do you need? Which style do you want?"
     cleaned = guards.prepare_reply(reply, "8x8", priority_key="sizes", priority_text="Is 8x8 in inches, cm, or mm?")
@@ -318,8 +350,39 @@ def test_wrong_minimum_figures_use_canon():
 
 
 def test_pii_masking():
-    text = "email me at buyer@example.com or +1 832-807-3429"
+    text = "email me at buyer@example.com or 415-555-0199"
     masked = pii.mask(text)
     assert "buyer@example.com" not in masked
-    assert "832-807-3429" not in masked
+    assert "415-555-0199" not in masked
     assert "[EMAIL]" in masked and "[PHONE]" in masked
+    public = pii.mask(
+        "You can reach the team at Support@print247.us or +1 (832) 807-3429. "
+        "Visitor note: buyer@example.com"
+    )
+    assert "Support@print247.us" in public
+    assert "+1 (832) 807-3429" in public
+    assert "buyer@example.com" not in public
+
+
+def test_placeholder_contact_is_replaced_with_the_canon_line():
+    cleaned = guards.prepare_reply(
+        "You can reach the team at [EMAIL] or [PHONE]. "
+        "Could you please share your email address so we can send the quote?",
+        "i have 2 SKUs",
+        priority_key="email",
+        priority_text="What is the best email to send the quote to?",
+    )
+    assert "Support@print247.us" in cleaned
+    assert "+1 (832) 807-3429" in cleaned
+    assert "[EMAIL]" not in cleaned
+    assert "[PHONE]" not in cleaned
+    assert cleaned.count("?") == 1
+
+
+def test_to_finish_is_not_a_second_finish_question():
+    state = make_state("spot gloss")
+    state.set_field("finishes", "gloss", raw="spot gloss", status=STATUS_VISITOR)
+    reply = "To finish the box build, can you provide the SKUs or design references you want us to quote against?"
+    result = guards.check_reply(reply, state, visitor_text="spot gloss")
+    assert "redundant_ask" not in result.codes()
+    assert guards.asked_field(reply) == "skus"

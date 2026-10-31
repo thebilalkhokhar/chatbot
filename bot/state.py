@@ -827,6 +827,22 @@ class ConversationState:
         family = self.family()
         return SCRIPTS.get(family, [])
 
+    def product_details_open(self) -> bool:
+        """Style, material, finish, designs, and extras are still missing for this family."""
+        if self.family() == "unknown":
+            return True
+        family_fields = {key for key, _question in self.script()}
+        for key in ("style", "material", "finishes", "skus", "extras"):
+            if key not in family_fields:
+                continue
+            if key == "skus" and self.is_plain():
+                continue
+            value = self.fields[key]
+            if value.status == STATUS_SUGGESTED or value.done or value.attempts >= 2:
+                continue
+            return True
+        return False
+
     def blocking_open(self) -> bool:
         """A quote-blocking field is still empty. `use_case` is not one of them."""
         for key in BLOCKING_FIELDS:
@@ -850,6 +866,9 @@ class ConversationState:
         if blocking_open or key not in AFTER_BLOCKING_FIELDS:
             return False
         if key in {"email", "phone"}:
+            # Designs, material and finish come before anyone is asked for an email.
+            if self.product_details_open():
+                return False
             if self.reachable():
                 return False
             # Email twice, then phone — the same contact order as before, just no longer
@@ -913,6 +932,13 @@ class ConversationState:
         else:
             deny = "(nothing yet)"
         lines = [f"You may ask about: {ask}.", f"Do not ask about: {deny}."]
+        locked = [key for key, _words in denied if key in {"style", "finishes"}]
+        if locked:
+            lines.append(
+                "Locked, already accepted: "
+                + ", ".join(locked)
+                + ". Do not ask about them again, and do not put them in fields_proposed or proposed_configs."
+            )
         if "sizes" in allowed and self.size_needs_unit():
             lines.append(f"Size unit question, verbatim: {self.question_for('sizes')}")
         return "\n".join(lines)
@@ -986,6 +1012,8 @@ class ConversationState:
         return noted
 
     def next_contact_question(self) -> tuple[str, str] | None:
+        if self.product_details_open():
+            return None
         email = self.fields["email"]
         phone = self.fields["phone"]
         if self.reachable():
@@ -1008,6 +1036,8 @@ class ConversationState:
             elif key == "use_case":
                 missing.append(f"{FIELD_LABELS[key]} (needed for a recommendation)")
             elif key in CONTACT_FIELDS:
+                if self.product_details_open():
+                    continue
                 if not self.reachable() and key != "name":
                     missing.append(FIELD_LABELS[key])
             elif key in relevant:
@@ -1254,6 +1284,16 @@ def apply_field_updates(
             number = parse_quantity(value)
             if number is not None:
                 value = str(number)
+        if key in {"style", "finishes"} and state.fields[key].stated and state.last_question != key:
+            rejected[key] = value
+            continue
+        if (
+            key in {"style", "finishes"}
+            and basis == BASIS_CATALOGUE
+            and not traceable(key, value, visitor_text, state)
+        ):
+            rejected[key] = value
+            continue
         if key in {"style", "material"} and UNSPECIFIED_RE.search(visitor_text):
             state.set_field(key, "no preference", BASIS_VISITOR, raw=visitor_text, status=STATUS_WAIVED)
             accepted[key] = "no preference"

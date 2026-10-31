@@ -435,6 +435,52 @@ def test_webhook_channel_stays_handed_off(orchestrator):
     assert second.flags.get("already_handed_off") is True
 
 
+def test_quote_close_does_not_dump_the_facility_or_phone(orchestrator):
+    orchestrator.start("c-quote-close")
+    for text in (
+        "I need custom boxes for shipping candles",
+        "4 x 6 x 2 inches",
+        "1000",
+        "mailer box",
+        "kraft",
+        "matte",
+        "1 design",
+    ):
+        step = orchestrator.handle("c-quote-close", text)
+        assert blockers(step) == [], step.reply
+    result = orchestrator.handle("c-quote-close", "sure. testing@mail.com is my email address")
+    assert result.handoff == "quote"
+    lowered = result.reply.lower()
+    assert "email your quote" in lowered
+    assert "rosenberg" not in lowered
+    assert "832" not in result.reply
+    assert "support@print247.us" not in lowered
+    assert blockers(result) == []
+
+
+def test_contact_inquiry_answers_then_returns_to_the_checklist(orchestrator):
+    exact = "You can reach the team at Support@print247.us or +1 (832) 807-3429."
+    orchestrator.start("c-contact-ask")
+    for text in (
+        "I need custom boxes for shipping candles",
+        "4 x 6 x 2 inches",
+        "1000",
+    ):
+        step = orchestrator.handle("c-contact-ask", text)
+        assert blockers(step) == []
+        assert "best email" not in step.reply.lower()
+    result = orchestrator.handle("c-contact-ask", "how can I contact you?")
+    assert result.handoff == ""
+    assert blockers(result) == []
+    assert exact in result.reply
+    assert result.reply.count("?") == 1
+    assert "best email" not in result.reply.lower()
+    assert "best phone" not in result.reply.lower()
+    state = orchestrator.store.get_or_create("c-contact-ask")
+    assert "email" not in state.ask_set()
+    assert state.fields["email"].value == ""
+
+
 def test_contact_refusal_stops_the_email_loop(orchestrator):
     orchestrator.start("c-declined")
     for text in [

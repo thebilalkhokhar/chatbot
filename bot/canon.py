@@ -94,7 +94,7 @@ CANON: dict[str, CanonFact] = {
             r"\blocated\b",
             r"\blocation\b",
             r"\bbased\b",
-            r"\baddress\b",
+            r"(?<!email )(?<!e-mail )\baddress\b",
         ),
         answer_tokens=(r"rosenberg",),
         note="Signed off 2026-10-30: use Rosenberg (footer facility); Houston and Sylmar are mentions, not confirmed facilities.",
@@ -450,6 +450,42 @@ def asks_for_minimum(text: str) -> bool:
     return bool(_EXPLICIT_MINIMUM_ASK.search(value))
 
 
+_OUR_CONTACT_ASK = re.compile(
+    r"\b(?:what(?:'s|s| is)|whats|where(?:'s| is)?)\b[^?.!]{0,48}\b(?:e-?mail|phone(?:\s+number)?|contact(?:\s+(?:info|information|details|number))?|whatsapp)\b"
+    r"|\bwhat(?:'s| is) (?:your|the) number\b"
+    r"|\b(?:your|the)\s+(?:e-?mail|phone(?:\s+number)?|contact(?:\s+(?:info|information|details|number))?|whatsapp|number)\b"
+    r"|\b(?:contact|phone|e-?mail)\s+(?:info|information|details|number)\b"
+    r"|\bhow (?:can|do|should) (?:i|we) (?:contact|reach|call|get in touch|email)\b"
+    r"|\b(?:can|could|may) (?:i|we) (?:get|have|call)\b[^?.!]{0,36}\b(?:e-?mail|phone|contact|number)\b"
+    r"|\bdo you have\b[^?.!]{0,36}\b(?:an?\s+)?(?:e-?mail|phone|whatsapp|contact)\b"
+    r"|\b(?:can|could|may) (?:i|we) call you\b"
+    r"|\b(?:reach|contact) (?:you|the team|support|someone)\b",
+    re.I,
+)
+
+
+def asks_for_location(text: str) -> bool:
+    """A facility question. "email address" is their inbox, not our building."""
+    value = str(text or "")
+    if re.search(r"\b(?:e-?mail|mailing)\s+address\b", value, re.I) and not re.search(
+        r"\b(?:where|located|location|facility|office|based)\b", value, re.I
+    ):
+        return False
+    return "location" in detect_topics(value)
+
+
+def asks_for_our_contact(text: str) -> bool:
+    """They asked how to reach Print247, not for a place to send their own details."""
+    value = str(text or "").strip()
+    if not value or not CANON["contact"].matches(value):
+        return False
+    from .state import refuses_contact
+
+    if refuses_contact(value):
+        return False
+    return bool(_OUR_CONTACT_ASK.search(value))
+
+
 def topics_to_answer(text: str) -> list[str]:
     """Facts this message actually asked for.
 
@@ -458,7 +494,15 @@ def topics_to_answer(text: str) -> list[str]:
     """
     topics = detect_topics(text)
     if "moq" in topics and not asks_for_minimum(text):
-        return [key for key in topics if key != "moq"]
+        topics = [key for key in topics if key != "moq"]
+    # Giving their own email is not a question about how to reach the team.
+    if "contact" in topics and not asks_for_our_contact(text):
+        from .state import EMAIL_RE
+
+        if EMAIL_RE.search(text):
+            topics = [key for key in topics if key != "contact"]
+    if "location" in topics and not asks_for_location(text):
+        topics = [key for key in topics if key != "location"]
     return topics
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from chatbot.bot import canon
 from chatbot.bot.guards import settled_for_asking
 from chatbot.bot.composer import RULE_TEXT, build_user
 from chatbot.bot.state import (
@@ -332,6 +333,44 @@ def test_a_size_missing_its_unit_stays_askable_and_off_the_do_not_ask_list():
     assert "sizes" not in dict(state.do_not_ask())
 
 
+def test_email_waits_until_designs_material_and_finish_are_known():
+    state = make_state("boxes")
+    _fill(state, "product", "boxes")
+    _fill(state, "use_case", "candles")
+    _fill(state, "sizes", "4x6 in")
+    _fill(state, "quantity", "1000")
+    allowed = state.ask_set()
+    assert "email" not in allowed
+    assert "phone" not in allowed
+    assert allowed[0] == "style"
+    assert "material" in allowed and "finishes" in allowed and "skus" in allowed
+    assert state.next_contact_question() is None
+    _fill(state, "style", "mailer")
+    _fill(state, "material", "kraft")
+    _fill(state, "finishes", "matte")
+    _fill(state, "skus", "1")
+    assert state.ask_set()[0] == "email"
+
+
+def test_a_settled_style_is_not_overwritten_or_left_in_the_ask_set():
+    state = make_state("pizza boxes")
+    _fill(state, "product", "boxes")
+    _fill(state, "style", "mailer")
+    state.last_question = "material"
+    accepted, rejected = apply_field_updates(
+        state, {"style": "rigid", "material": "rigid board"}, "rigid board"
+    )
+    assert state.fields["style"].value == "mailer"
+    assert "style" in rejected
+    assert accepted.get("material") == "rigid board"
+    assert "style" not in state.ask_set()
+    assert "Locked, already accepted: style" in state.ask_constraint()
+    assert canon.asks_for_our_contact("sure. testing@mail.com is my email address") is False
+    assert canon.asks_for_location("sure. testing@mail.com is my email address") is False
+    assert "contact" not in canon.topics_to_answer("sure. testing@mail.com is my email address")
+    assert "location" not in canon.topics_to_answer("sure. testing@mail.com is my email address")
+
+
 def test_plain_orders_do_not_get_a_sku_question():
     state = make_state("plain boxes")
     _fill(state, "product", "boxes")
@@ -407,6 +446,9 @@ def test_refusing_contact_waives_email_and_phone():
     assert RULE_TEXT.startswith("You MUST ask ONLY ONE single question")
     assert "If they just said good morning or hello" in RULE_TEXT
     assert "NEVER invent or hallucinate options like Square Boxes" in RULE_TEXT
+    assert "You MUST exhaust ALL missing mandatory product fields" in RULE_TEXT
+    assert "Once a style or finish is accepted, it is locked" in RULE_TEXT
+    assert "You can reach the team at Support@print247.us or +1 (832) 807-3429." in RULE_TEXT
 
 
 def test_unknown_design_count_uses_the_single_design_minimum():

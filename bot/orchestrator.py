@@ -387,17 +387,26 @@ class Orchestrator:
         expected: tuple[str, str] | None,
         *,
         already_greeted: bool = False,
+        state: ConversationState | None = None,
     ) -> str:
         """Drop an unsolicited MOQ lecture, a repeated greeting, and any extra question."""
         priority_key = expected[0] if expected else ""
         priority_text = expected[1] if expected else ""
         visitor_greeted = is_visitor_greeting(visitor)
+        locked = ()
+        if state is not None:
+            locked = tuple(
+                key
+                for key in ("style", "finishes")
+                if state.fields[key].stated
+            )
         polished = guards.prepare_reply(
             reply,
             visitor,
             priority_key=priority_key,
             priority_text=priority_text,
             already_greeted=already_greeted and not visitor_greeted,
+            locked_fields=locked,
         )
         if not polished and expected:
             polished = expected[1]
@@ -580,7 +589,7 @@ class Orchestrator:
 
         already_greeted = bool(state.bot_texts())
         composed.reply = self._finish_reply(
-            composed.reply, visitor, expected, already_greeted=already_greeted
+            composed.reply, visitor, expected, already_greeted=already_greeted, state=state
         )
         result = self._guard(
             composed.reply,
@@ -621,7 +630,7 @@ class Orchestrator:
                 )
                 rewritten.reply = guards.strip_unsanctioned_claims(rewritten.reply, self.registry)
                 rewritten.reply = self._finish_reply(
-                    rewritten.reply, visitor, expected, already_greeted=already_greeted
+                    rewritten.reply, visitor, expected, already_greeted=already_greeted, state=state
                 )
                 # A rewrite is reconciled again. Fixing a price and quietly adding
                 # an option the new configs do not name still blocks.
@@ -660,6 +669,7 @@ class Orchestrator:
                 visitor,
                 expected,
                 already_greeted=already_greeted,
+                state=state,
             )
             fallback_result = self._guard(
                 fallback, state, visitor, prompt_chunks, expected, bool(handoff_reason)
@@ -670,6 +680,7 @@ class Orchestrator:
                     visitor,
                     expected,
                     already_greeted=already_greeted,
+                    state=state,
                 )
                 fallback_result = self._guard(
                     fallback, state, visitor, prompt_chunks, expected, bool(handoff_reason)

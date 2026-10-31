@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass, field
 
 from . import canon
+from .pii import restore_public_contact
 from .capability import Candidate, Registry, fold, value_forms
 from .personas import PERSONAS
 from .state import (
@@ -117,9 +118,19 @@ FIELD_PROBES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("name", re.compile(r"\b(?:your name|who am i (?:speaking|chatting)|may i have your name|first name)\b", re.I)),
     ("sizes", re.compile(r"\b(?:size|sizes|dimensions?|measurements?)\b", re.I)),
     ("quantity", re.compile(r"\b(?:quantity|quantities|how many (?:units|pieces|bags|boxes|labels|stickers|pouches|banners|cards))\b", re.I)),
-    ("finishes", re.compile(r"\b(?:finish|finishes|matte|gloss|soft touch)\b", re.I)),
+    ("finishes", re.compile(
+        r"\b(?:finishes|matte|gloss|soft touch)\b"
+        r"|\b(?:what|which)\s+finish\b"
+        r"|\bfinish\s+(?:would|do|should|you|preference|options)\b",
+        re.I,
+    )),
     ("skus", re.compile(r"\b(?:designs?|skus?)\b", re.I)),
-    ("style", re.compile(r"\b(?:style|flat|stand[- ]?up|flat[- ]?bottom|reference image)\b", re.I)),
+    ("style", re.compile(
+        r"\b(?:what|which)\s+style\b"
+        r"|\bstyle\s+(?:of|do|would|should|are)\b"
+        r"|\b(?:flat|stand[- ]?up|flat[- ]?bottom|reference image)\b",
+        re.I,
+    )),
     ("material", re.compile(r"\b(?:material|special features|paper stock)\b", re.I)),
     ("extras", re.compile(r"\b(?:zipper|tear notch|extras?)\b", re.I)),
     ("use_case", re.compile(
@@ -762,6 +773,71 @@ def enforce_single_question(reply: str, priority_key: str = "", priority_text: s
     return _as_question(clauses[keep])
 
 
+def _asks_for_our_contact(visitor: str) -> bool:
+    return canon.asks_for_our_contact(visitor)
+
+
+def shape_contact_flow(reply: str, visitor: str, priority_key: str = "", priority_text: str = "") -> str:
+    """Answer a contact question with the canon line, then the next checklist field.
+
+    An email or phone ask is also removed while designs, material, or finish are still
+    the field that should be asked.
+    """
+    text = str(reply or "").strip()
+    exact = canon.effective_answer("contact")
+    if _asks_for_our_contact(visitor):
+        kept: list[str] = []
+        for sentence in _sentences(text):
+            if exact in sentence:
+                kept.append(sentence)
+            elif re.search(r"support@print247|\(832\)\s*807", sentence, re.I):
+                continue
+            else:
+                kept.append(sentence)
+        text = " ".join(kept).strip()
+        if exact not in text:
+            text = f"{exact} {text}".strip()
+    redirect = bool(priority_text) and priority_key not in {"", "email", "phone"}
+    if not redirect:
+        return re.sub(r"\s+", " ", text).strip()
+    kept = []
+    removed = False
+    for sentence in _sentences(text):
+        if "?" in sentence and asked_field(sentence) in {"email", "phone"}:
+            removed = True
+            continue
+        kept.append(sentence)
+    text = " ".join(kept).strip()
+    needs_next = removed or (_asks_for_our_contact(visitor) and count_questions(text) == 0)
+    if needs_next and priority_text.lower() not in text.lower():
+        text = f"{text} {priority_text}".strip()
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def redirect_settled_ask(
+    reply: str,
+    locked: tuple[str, ...] | list[str] = (),
+    priority_key: str = "",
+    priority_text: str = "",
+) -> str:
+    """A settled style or finish is not asked again. The open checklist field is."""
+    locked_fields = set(locked or ())
+    if not locked_fields or not priority_text:
+        return reply
+    asked = asked_field(reply)
+    if not asked or asked not in locked_fields or asked == priority_key:
+        return reply
+    kept: list[str] = []
+    for sentence in _sentences(reply):
+        if "?" in sentence and asked_field(sentence) in locked_fields:
+            continue
+        kept.append(sentence)
+    text = " ".join(kept).strip()
+    if priority_text.lower() not in text.lower():
+        text = f"{text} {priority_text}".strip()
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def prepare_reply(
     reply: str,
     visitor: str,
@@ -769,11 +845,14 @@ def prepare_reply(
     priority_key: str = "",
     priority_text: str = "",
     already_greeted: bool = False,
+    locked_fields: tuple[str, ...] | list[str] = (),
 ) -> str:
     """Outgoing reply rules: no unsolicited MOQ, no second greeting, one question."""
-    text = strip_unsolicited_moq(reply, visitor)
+    text = restore_public_contact(strip_unsolicited_moq(reply, visitor))
     if already_greeted:
         text = strip_repeated_greeting(text)
+    text = shape_contact_flow(text, visitor, priority_key, priority_text)
+    text = redirect_settled_ask(text, locked_fields, priority_key, priority_text)
     return enforce_single_question(text, priority_key, priority_text).strip()
 
 
