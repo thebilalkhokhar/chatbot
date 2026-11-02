@@ -4,14 +4,30 @@ import json
 import sqlite3
 import threading
 from pathlib import Path
+from typing import Any, Protocol
 
 from .personas import PERSONAS, persona_for
 from .state import ConversationState, now_iso
 
 
-class StateStore:
+class StateStore(Protocol):
+    def next_persona(self): ...
+
+    def get_or_create(self, conversation_id: str, persona_name: str | None = None) -> ConversationState: ...
+
+    def save(self, state: ConversationState) -> None: ...
+
+    def append_event(self, conversation_id: str, event_type: str, data: dict | None = None) -> None: ...
+
+    def stats(self) -> dict: ...
+
+    def close(self) -> None: ...
+
+
+class SqliteStateStore:
     def __init__(self, path: Path) -> None:
         self.path = path
+        self.backend = "sqlite"
         path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         self._conn = sqlite3.connect(str(path), check_same_thread=False)
@@ -109,6 +125,7 @@ class StateStore:
             events = self._conn.execute("SELECT COUNT(*) AS n FROM events").fetchone()["n"]
             counter = self._conn.execute("SELECT value FROM counter WHERE name = 'persona'").fetchone()
         return {
+            "backend": self.backend,
             "conversations": total,
             "handed_off": handed,
             "events": events,
@@ -118,3 +135,143 @@ class StateStore:
     def close(self) -> None:
         with self._lock:
             self._conn.close()
+
+
+class PostgresStateStore:
+    """Conversation state backed by Postgres (Neon / any DATABASE_URL)."""
+
+    def __init__(self, database_url: str) -> None:
+        import psycopg
+        from psycopg.rows import dict_row
+
+        self.backend = "postgres"
+        self.database_url = database_url
+        self._lock = threading.RLock()
+        self._conn = psycopg.connect(database_url, row_factory=dict_row, autocommit=False)
+        self._init()
+
+    def _init(self) -> None:
+        with self._lock, self._conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS conversations (
+                    id TEXT PRIMARY KEY,
+                    persona TEXT NOT NULL,
+                    state_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'active'
+                )
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS counter (
+                    name TEXT PRIMARY KEY,
+                    value INTEGER NOT NULL
+                )
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS events (
+                    id BIGSERIAL PRIMARY KEY,
+                    conversation_id TEXT NOT NULL,
+                    at TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    data_json TEXT NOT NULL
+                )
+                """
+            )
+            self._conn.commit()
+
+    def next_persona(self):
+        with self._lock, self._conn.cursor() as cur:
+            try:
+                # Atomically allocate the previous counter value as the persona index.
+                cur.execute(
+                    """
+                    INSERT INTO counter (name, value) VALUES ('persona', 1)
+                    ON CONFLICT (name) DO UPDATE SET value = counter.value + 1
+                    RETURNING (value - 1) AS position
+                    """
+                )
+                position = int(cur.fetchone()["position"])
+                self._conn.commit()
+            except Exception:
+                self._conn.rollback()
+                raise
+        return PERSONAS[position % len(PERSONAS)]
+
+    def get_or_create(self, conversation_id: str, persona_name: str | None = None) -> ConversationState:
+        with self._lock, self._conn.cursor() as cur:
+            cur.execute("SELECT state_json FROM conversations WHERE id = %s", (conversation_id,))
+            row = cur.fetchone()
+            if row is not None:
+                return ConversationState.from_dict(json.loads(row["state_json"]))
+        persona = persona_for(persona_name) or self.next_persona()
+        state = ConversationState(id=conversation_id, persona=persona.name)
+        self.save(state)
+        self.append_event(conversation_id, "created", {"persona": persona.name})
+        return state
+
+    def save(self, state: ConversationState) -> None:
+        payload = json.dumps(state.to_dict(), ensure_ascii=False)
+        status = "handed_off" if state.handoff else "active"
+        with self._lock, self._conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO conversations (id, persona, state_json, created_at, updated_at, status)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET
+                    state_json = EXCLUDED.state_json,
+                    updated_at = EXCLUDED.updated_at,
+                    status = EXCLUDED.status
+                """,
+                (state.id, state.persona, payload, state.created_at, now_iso(), status),
+            )
+            self._conn.commit()
+
+    def append_event(self, conversation_id: str, event_type: str, data: dict | None = None) -> None:
+        with self._lock, self._conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO events (conversation_id, at, type, data_json) VALUES (%s, %s, %s, %s)",
+                (conversation_id, now_iso(), event_type, json.dumps(data or {}, ensure_ascii=False)),
+            )
+            self._conn.commit()
+
+    def stats(self) -> dict:
+        with self._lock, self._conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) AS n FROM conversations")
+            total = cur.fetchone()["n"]
+            cur.execute("SELECT COUNT(*) AS n FROM conversations WHERE status = 'handed_off'")
+            handed = cur.fetchone()["n"]
+            cur.execute("SELECT COUNT(*) AS n FROM events")
+            events = cur.fetchone()["n"]
+            cur.execute("SELECT value FROM counter WHERE name = 'persona'")
+            counter = cur.fetchone()
+        return {
+            "backend": self.backend,
+            "conversations": int(total),
+            "handed_off": int(handed),
+            "events": int(events),
+            "persona_counter": int(counter["value"]) if counter else 0,
+        }
+
+    def close(self) -> None:
+        with self._lock:
+            self._conn.close()
+
+
+def open_state_store(
+    *,
+    path: Path | None = None,
+    database_url: str | None = None,
+) -> Any:
+    """Prefer Postgres when DATABASE_URL is set; otherwise SQLite for local/tests."""
+    url = (database_url or "").strip()
+    if url:
+        return PostgresStateStore(url)
+    if path is None:
+        raise ValueError("open_state_store requires path when database_url is empty")
+    return SqliteStateStore(path)

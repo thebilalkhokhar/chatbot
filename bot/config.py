@@ -109,6 +109,7 @@ class Config:
     max_llm_calls: int = 0
     context: str = "catalogue"
     arch: str = "v2"
+    database_url: str = ""
 
     def __post_init__(self) -> None:
         if self.context not in CONTEXTS:
@@ -162,6 +163,12 @@ class Config:
             max_llm_calls=_int("BOT_MAX_LLM_CALLS", 0),
             context=context,
             arch=arch,
+            database_url=(
+                os.getenv("DATABASE_URL")
+                or os.getenv("POSTGRES_URL")
+                or os.getenv("BOT_DATABASE_URL")
+                or ""
+            ).strip(),
         )
 
     def ensure_dirs(self) -> None:

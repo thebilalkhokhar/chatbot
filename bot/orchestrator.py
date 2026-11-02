@@ -43,7 +43,7 @@ from .state import (
     refuses_contact,
     wants_human,
 )
-from .store import StateStore
+from .store import open_state_store
 
 log = logging.getLogger("chatbot.orchestrator")
 
@@ -150,7 +150,14 @@ class Orchestrator:
     ) -> None:
         config.ensure_dirs()
         self.config = config
-        self.store = StateStore(store_path or config.data_dir / "chatbot.sqlite3")
+        # Explicit store_path keeps local tests/replay on SQLite even when DATABASE_URL is set.
+        if store_path is not None:
+            self.store = open_state_store(path=store_path)
+        else:
+            self.store = open_state_store(
+                path=config.data_dir / "chatbot.sqlite3",
+                database_url=config.database_url,
+            )
         self.index = index or load_or_build(config.kb_dir, config.data_dir)
         self.overrides = canon.load_overrides(config.data_dir)
         self.examples = examples if examples is not None else load_golden(config.data_dir / "golden.jsonl")
