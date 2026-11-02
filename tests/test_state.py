@@ -651,6 +651,26 @@ def test_i_have_no_preferences_waives_the_style():
     assert "style" not in state.ask_set()
 
 
+def test_invalid_email_is_rejected_and_detected():
+    from chatbot.bot.state import looks_like_invalid_email, valid_email
+
+    assert valid_email("buyer@example.com")
+    assert not valid_email("buyer@")
+    assert not valid_email("buyer@gmail")
+    assert not valid_email("not-an-email")
+    assert looks_like_invalid_email("buyer@")
+    assert looks_like_invalid_email("buyer@gmail")
+    assert looks_like_invalid_email("gmail.com")
+    assert not looks_like_invalid_email("buyer@example.com")
+
+    state = make_state("buyer@")
+    state.last_question = "email"
+    accepted, rejected = apply_field_updates(state, {"email": "buyer@"}, "buyer@")
+    assert "email" not in accepted
+    assert rejected.get("email") == "buyer@"
+    assert state.fields["email"].value == ""
+
+
 def test_refusing_contact_waives_email_and_phone():
     phrases = (
         "i don't want to share",

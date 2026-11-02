@@ -216,6 +216,9 @@ UNSPECIFIED_RE = re.compile(
     r"|(?:i\s+)?have\s+no\s+(?:preferences?|idea|clue|reference)"
     r"|(?:i\s+)?(?:don'?t|dont)\s+know|not\s+sure|unsure|no\s+(?:idea|clue|preferences?|reference)"
     r"|dunno|idk|no|nope|none|nothing(?:\s+specific)?|whatever|anything|any"
+    r"|you\s+pick(?:\s+it)?|you\s+decide(?:\s+it)?"
+    r"|let\s+(?:the\s+)?team\s+decide(?:\s+it)?"
+    r"|(?:the\s+)?team(?:'s)?\s+(?:pick|choice|call|decide)"
     r")\s*[.!]*\s*$",
     re.I,
 )
@@ -980,7 +983,61 @@ def normalize_style(text: str) -> str | None:
 
 
 def valid_email(text: str) -> bool:
-    return bool(EMAIL_RE.fullmatch(str(text or "").strip()))
+    """Strict enough for quote delivery: local@domain.tld, real alphabetic TLD."""
+    value = str(text or "").strip()
+    if not value or not EMAIL_RE.fullmatch(value):
+        return False
+    local, _, domain = value.partition("@")
+    if (
+        not local
+        or not domain
+        or local.startswith(".")
+        or local.endswith(".")
+        or ".." in local
+        or domain.startswith(".")
+        or domain.endswith(".")
+        or ".." in domain
+    ):
+        return False
+    labels = domain.split(".")
+    if len(labels) < 2:
+        return False
+    tld = labels[-1]
+    return bool(re.fullmatch(r"[A-Za-z]{2,24}", tld))
+
+
+def looks_like_invalid_email(text: str) -> bool:
+    """Visitor tried to give an email, but it is not usable."""
+    value = str(text or "").strip()
+    if not value or valid_email(value):
+        return False
+    if refuses_contact(value):
+        return False
+    if EMAIL_RE.search(value):
+        # Matched a loose address that still fails valid_email.
+        return True
+    if "@" in value:
+        return True
+    # Domain alone (gmail.com) while answering the email ask.
+    return bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z]{2,24}", value))
+
+
+INVALID_EMAIL_REPLY = (
+    "That email doesn't look right. Could you share a valid email address "
+    "so we can send the quote?"
+)
+INVALID_EMAIL_REPLY_AGAIN = (
+    "That still doesn't look like a valid email. "
+    "What is the full email address we should use — for example name@company.com?"
+)
+
+
+def invalid_email_reply_for(state: "ConversationState") -> str:
+    """Vary the correction so a second bad address is not a repeated_message block."""
+    previous = str(state.last_bot() or "").lower()
+    if "doesn't look right" in previous or "valid email" in previous or "name@company.com" in previous:
+        return INVALID_EMAIL_REPLY_AGAIN
+    return INVALID_EMAIL_REPLY
 
 
 def valid_phone(text: str) -> bool:
@@ -1777,6 +1834,9 @@ def apply_field_updates(
             state.set_field(key, "declined", BASIS_VISITOR, raw=visitor_text, status=STATUS_WAIVED)
             accepted[key] = "declined"
             continue
+        if key == "email" and not valid_email(incoming):
+            rejected[key] = incoming
+            continue
         # Uncertainty waiver: only for the field we just asked. A live model that
         # stamps sizes="to be confirmed" while the visitor answered use case
         # ("coffee beans") must not close size early.
@@ -1934,8 +1994,6 @@ def apply_field_updates(
                 state.flags.pop("unit_asked", None)
         elif basis == BASIS_MODEL:
             field_value.status = STATUS_SUGGESTED
-        elif key == "email" and not valid_email(value):
-            field_value.status = STATUS_UNKNOWN
         elif key == "phone" and not valid_phone(value):
             field_value.status = STATUS_UNKNOWN
         else:
@@ -1959,7 +2017,7 @@ def extract_fields(
         return updates
 
     email = EMAIL_RE.search(value)
-    if email:
+    if email and valid_email(email.group(0)):
         updates["email"] = email.group(0)
     phone = PHONE_RE.search(value)
     if phone and not email:

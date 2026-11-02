@@ -23,6 +23,7 @@ from .state import (
     is_visitor_greeting,
     normalize_finish,
     size_is_unknown,
+    valid_email,
     wants_recommendation,
 )
 
@@ -136,6 +137,8 @@ product, email, phone, or name.
 When they ask how to reach you, the first sentence must be exactly: "You can reach the team at Support@print247.us or +1 (832) 807-3429." Then ask the next missing checklist field in the same message. Do not ask for their email until Designs, Material, and Finish are filled.
 
 If they say they do not have an email, refuse to share one, or otherwise decline contact details, treat that as a waiver: acknowledge it, you may share the support contact from FACTS once, do not ask for their email or phone again, and do not trap them in an email loop.
+
+If they give an email that is malformed or incomplete (missing @, missing domain, or otherwise not a real address), tell them that email does not look right and ask again for a valid email. Do not store it and do not move on to phone or handoff.
 
 Never ask about something they already told you. You may only ask about fields in the ASK SET;
 anything in the DO NOT ASK SET is off limits even as a confirmation.
@@ -264,7 +267,7 @@ def _ack(state: ConversationState, visitor: str) -> str:
     last = state.last_question
     if last == "name" and state.fields["name"].value:
         return f"Thanks, {state.fields['name'].value.split()[0]}."
-    if last == "email" and state.fields["email"].value:
+    if last == "email" and valid_email(state.fields["email"].value):
         return "Got it, email noted."
     if last == "phone" and state.fields["phone"].value:
         return "Got it."

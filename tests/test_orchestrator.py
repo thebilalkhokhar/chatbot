@@ -779,6 +779,71 @@ def test_contact_inquiry_answers_then_returns_to_the_checklist(orchestrator):
     assert state.fields["email"].value == ""
 
 
+def test_you_pick_on_finish_waives_to_be_confirmed(orchestrator):
+    from chatbot.bot.state import STATUS_VISITOR, STATUS_WAIVED, TO_BE_CONFIRMED
+
+    orchestrator.start("c-finish-pick")
+    state = orchestrator.store.get_or_create("c-finish-pick")
+    for key, value, status in (
+        ("product", "boxes", STATUS_VISITOR),
+        ("use_case", "biscuits", STATUS_VISITOR),
+        ("sizes", TO_BE_CONFIRMED, STATUS_WAIVED),
+        ("quantity", "1000", STATUS_VISITOR),
+        ("style", "no preference", STATUS_WAIVED),
+        ("skus", "1", STATUS_VISITOR),
+        ("material", "kraft", STATUS_VISITOR),
+    ):
+        state.set_field(key, value, status=status)
+    state.last_question = "finishes"
+    orchestrator.store.save(state)
+    result = orchestrator.handle("c-finish-pick", "you pick")
+    state = orchestrator.store.get_or_create("c-finish-pick")
+    assert state.fields["finishes"].value == TO_BE_CONFIRMED
+    assert state.fields["finishes"].status == STATUS_WAIVED
+    assert "finishes" not in state.ask_set()
+    assert result.handoff == ""
+
+
+def test_invalid_email_tells_visitor_and_keeps_asking(orchestrator):
+    from chatbot.bot.state import INVALID_EMAIL_REPLY, STATUS_VISITOR, STATUS_WAIVED, TO_BE_CONFIRMED
+
+    orchestrator.start("c-bad-email")
+    state = orchestrator.store.get_or_create("c-bad-email")
+    for key, value, status in (
+        ("product", "labels", STATUS_VISITOR),
+        ("use_case", "coffee beans", STATUS_VISITOR),
+        ("sizes", TO_BE_CONFIRMED, STATUS_WAIVED),
+        ("quantity", "800", STATUS_VISITOR),
+        ("finishes", "soft touch", STATUS_VISITOR),
+        ("skus", TO_BE_CONFIRMED, STATUS_WAIVED),
+        ("material", "no preference", STATUS_WAIVED),
+    ):
+        state.set_field(key, value, status=status)
+    state.last_question = "email"
+    orchestrator.store.save(state)
+
+    for bad in ("buyer@gmail", "bilal@com", "notanemail@"):
+        result = orchestrator.handle("c-bad-email", bad)
+        state = orchestrator.store.get_or_create("c-bad-email")
+        assert result.handoff == ""
+        lowered = result.reply.lower()
+        assert (
+            "doesn't look right" in lowered
+            or "valid email" in lowered
+            or "name@company.com" in lowered
+        ), result.reply
+        assert state.fields["email"].value == ""
+        assert not state.fields["email"].done
+        assert state.last_question == "email"
+        assert "email" in state.ask_set()
+
+    ok = orchestrator.handle("c-bad-email", "buyer@example.com")
+    state = orchestrator.store.get_or_create("c-bad-email")
+    assert state.fields["email"].value == "buyer@example.com"
+    assert state.fields["email"].done
+    assert "doesn't look right" not in ok.reply.lower()
+
+
 def test_contact_refusal_stops_the_email_loop(orchestrator):
     orchestrator.start("c-declined")
     for text in [

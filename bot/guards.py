@@ -964,6 +964,19 @@ def redirect_settled_ask(
     return re.sub(r"\s+", " ", text).strip()
 
 
+def scrub_visitor_sku_jargon(text: str) -> str:
+    """Visitors know 'designs', not 'SKU' — never say SKU in the outgoing reply."""
+    value = str(text or "")
+    if not value:
+        return value
+    value = re.sub(r"\bdesigns?\s+or\s+SKU'?s?\b", "designs", value, flags=re.I)
+    value = re.sub(r"\bSKU'?s?\s+or\s+design(?:s)?\b", "designs", value, flags=re.I)
+    value = re.sub(r"\bSKU'?s?\b", "designs", value, flags=re.I)
+    value = re.sub(r"\bdesigns\s+/\s+designs\b", "designs", value, flags=re.I)
+    value = re.sub(r"\bdesigns\s+designs\b", "designs", value, flags=re.I)
+    return value
+
+
 def prepare_reply(
     reply: str,
     visitor: str,
@@ -977,6 +990,7 @@ def prepare_reply(
     text = restore_public_contact(strip_unsolicited_moq(reply, visitor))
     if already_greeted:
         text = strip_repeated_greeting(text)
+    text = scrub_visitor_sku_jargon(text)
     text = shape_contact_flow(text, visitor, priority_key, priority_text)
     text = redirect_settled_ask(text, locked_fields, priority_key, priority_text)
     return enforce_single_question(text, priority_key, priority_text).strip()

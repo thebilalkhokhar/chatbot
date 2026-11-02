@@ -394,6 +394,22 @@ def test_a_size_missing_its_unit_is_not_a_redundant_ask():
     assert "redundant_ask" not in result.codes()
 
 
+def test_outgoing_replies_never_say_sku_to_the_visitor():
+    cleaned = guards.scrub_visitor_sku_jargon(
+        "I couldn't clearly make out how many designs from this image. "
+        "How many total designs or SKUs do you have?"
+    )
+    assert "sku" not in cleaned.lower()
+    assert "designs" in cleaned.lower()
+    prepared = guards.prepare_reply(
+        "How many total designs or SKUs do you have?",
+        "1",
+        priority_key="skus",
+        priority_text="How many total designs do you have?",
+    )
+    assert "sku" not in prepared.lower()
+
+
 def test_your_address_is_a_question_and_not_a_style():
     assert guards.question_as_answer("your address", "style")
     assert guards.question_as_answer("what style should I pick?", "style")

@@ -29,10 +29,13 @@ from .personas import persona_for
 from .state import (
     BASIS_MODEL,
     CATALOGUE_OPTION_FIELDS,
+    EMAIL_QUESTION,
     FAMILY_PRODUCT,
     FIELD_LABELS,
+    invalid_email_reply_for,
     PRODUCT_QUESTION,
     STATUS_SUGGESTED,
+    STATUS_UNKNOWN,
     UNIT_ONLY_RE,
     ConversationState,
     apply_field_updates,
@@ -45,7 +48,9 @@ from .state import (
     field_clarify_phrase,
     field_shaped_attempt,
     family_of,
+    looks_like_invalid_email,
     needs_catalogue_options,
+    valid_email,
     greeting_ack,
     is_context_question,
     is_meta_question,
@@ -839,6 +844,21 @@ class Orchestrator:
             state.flags["offer_options_for"] = offer_for
         else:
             state.flags.pop("offer_options_for", None)
+        # Bad email while we asked for one → tell them and keep the field open.
+        state.flags.pop("invalid_email", None)
+        if (
+            asked_before == "email"
+            and "email" not in accepted
+            and not refuses_contact(visitor)
+            and looks_like_invalid_email(visitor)
+        ):
+            state.flags["invalid_email"] = True
+            email_field = state.fields["email"]
+            if email_field.value and not valid_email(email_field.value):
+                email_field.value = ""
+                email_field.raw_visitor_text = ""
+                email_field.status = STATUS_UNKNOWN
+                email_field.basis = ""
         # The unit follow-up gets exactly one turn. If it is not answered with a
         # unit, keep the size as unconfirmed and move on instead of asking again.
         state.finalize_stalled()
@@ -923,7 +943,15 @@ class Orchestrator:
 
         composed = Composed(reply="")
         source = "heuristic"
-        if clarification:
+        if state.flags.get("invalid_email") and not handoff_reason:
+            composed = Composed(
+                reply=invalid_email_reply_for(state),
+                asked="email",
+                source="heuristic",
+            )
+            expected = ("email", EMAIL_QUESTION)
+            source = "heuristic"
+        elif clarification:
             composed = Composed(reply=clarification, source="heuristic")
             base = state.question_for(state.last_question)
             if base:
@@ -1045,6 +1073,23 @@ class Orchestrator:
             except LLMError as error:
                 log.warning("Live rewrite failed (%s); continuing with fallback", error)
 
+        if not result.ok and state.flags.get("invalid_email"):
+            # Keep correcting the address; do not fall through to phone / generic ask.
+            composed = Composed(
+                reply=invalid_email_reply_for(state),
+                asked="email",
+                source="heuristic",
+            )
+            composed.reply = self._finish_reply(
+                composed.reply, visitor, expected, already_greeted=already_greeted, state=state
+            )
+            result = self._guard(
+                composed.reply, state, visitor, prompt_chunks, expected, bool(handoff_reason)
+            )
+            source = "heuristic"
+            if result.ok:
+                blocked = []
+
         if not result.ok:
             fallback = self._finish_reply(
                 self._safe_fallback(
@@ -1117,6 +1162,8 @@ class Orchestrator:
         asking = guards.count_questions(reply) > 0
         if not asked and asking and expected:
             asked = expected[0]
+        if state.flags.get("invalid_email"):
+            asked = "email"
         if asked:
             state.last_question = asked
             field_value = state.fields.get(asked)
@@ -1136,6 +1183,9 @@ class Orchestrator:
             ):
                 # Visitor named a unit ("feet") while size is open — next ask gets
                 # the dimension prompt; do not spend an attempt on the unit alone.
+                pass
+            elif state.flags.get("invalid_email"):
+                # A bad address is a correction turn, not a failed email ask.
                 pass
             elif field_value and not field_value.done and not is_visitor_greeting(visitor):
                 field_value.attempts += 1
