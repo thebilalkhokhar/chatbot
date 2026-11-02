@@ -10,5 +10,8 @@ venv/
 
 data/
 out/
+.vercel/
 
 .DS_Store
+
+.vercel

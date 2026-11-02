@@ -1,0 +1,2187 @@
+{
+ "version": 1,
+ "built_at": "2026-10-30T18:10:59.208961+00:00",
+ "chunks": [
+  {
+   "id": "capability-registry#1",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "Capability registry",
+   "text": "Built from `kb_v2/` on 2026-10-30 by `chatbot/tools/build_registry_v2.py` (`chatbot/tools/extract_capabilities.py` does the page parsing, `chatbot/tools/accepted_vocabulary.txt` is the reviewed value queue). It replaces the draft that was extracted from the six v1 catalogue files.\nRows: 147 supported offerings (one per product page that publishes a quote form; 87 of them placed in a family by the site's own category listing), 242 vocabulary value-slot pairs, 26 exclusions, 29 gauge rows, 56 not-attested values.",
+   "families": []
+  },
+  {
+   "id": "capability-registry#2",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "How to read a row",
+   "text": "- `scope: page` means one product page names these values on one page. The page does not always state them together in one sentence, so a page row is evidence we can *discuss* the combination, not proof we ship it. `scope: family` is used only where the site states a family-level rule. - `approved: pending` on every row means Sales has not signed it. Until signed, the loader classifies the tuple as `unknown_capability`: discuss, never assert. - `source` paths are relative to the project root and point into `kb_v2/`, which is read-only here. - spelling variants seen on the site (Softouch, soft-touch, GrayBoard, greyboard, buxboard, Bux Board, SpotUV) are folded to one cell by the builder's MERGE table and re-folded at query time by `bot/capability.py::normalise`. - gauge figures live in",
+   "families": []
+  },
+  {
+   "id": "capability-registry#3",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "How to read a row",
+   "text": "to one cell by the builder's MERGE table and re-folded at query time by `bot/capability.py::normalise`. - gauge figures live in their own table because `pt`, `mil`, `micron`, `oz`, `lb`, `gsm` and `mm` measure different things per family and the corpus only states them in FAQ prose. Fill weights (\"1 oz\", \"32 oz\"), corner radii, type sizes in pt and tent-leg ballast are **not** gauges; the inventory that produced this table rejected them.",
+   "families": []
+  },
+  {
+   "id": "capability-registry#4",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "Vocabulary",
+   "text": "Slots: `material`, `colour`, `finish`, `extras`, `insert`, `fold`. Colour stays out of the capability tuple even though the site prints it under `## Materials` - \"white\", \"silver\" and \"clear\" name an appearance, not a stock, and folding them into `material` would let \"clear bag\" and \"clear film\" mean the same thing.\n```capability",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "capability-registry#5",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|slot|values",
+   "text": "boxes|style|Boxes With Lid; CBD Boxes; CBD Cream Boxes; Christmas Gift Boxes; Cigar Boxes; Comic Book Boxes; Cookie Boxes; Cupcake Boxes; Dietary Supplement packaging; Display Box With Logo; Double Tea Box with Magnetic Closure; Eyelash Boxes; Foundation Boxes; Gold Foil Boxes; Hemp Boxes; Holographic Foiling Boxes; Hoodie Packaging; Lip Balm Boxes; Luxury Clothing Packaging; Mailer Boxes; Match Boxes; Medical Box with insert; Medicine Boxes; Metalized Boxes; Muffin Boxes; PR Boxes; Perfume Boxes; Pharmaceutical Patch Box; Pie Boxes; Pop Counter Display Tray; Product Display Box; Rack display boxes; Shape Boxes; Sock Packaging Boxes; Standard Green Tea Boxes; Tea Bag Dispenser; Tea Tray and Lid Gift Boxes; Textured Boxes; Torch Boxes; Tuck Boxes; Underwear Packaging; Wallet Boxes boxes|material|PET; PVC; SBS paperboard; acetate; b c flute; b flute; bux board; c flute; cardboard; cardstock;",
+   "families": [
+    "bags",
+    "boxes"
+   ]
+  },
+  {
+   "id": "capability-registry#6",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|slot|values",
+   "text": "Underwear Packaging; Wallet Boxes boxes|material|PET; PVC; SBS paperboard; acetate; b c flute; b flute; bux board; c flute; cardboard; cardstock; corrugated board; corrugated cardboard; double coated card stock; e b flute; e-flute; foil; grayboard; holographic cardboard; kraft; kraft board; kraft paperboard; paperboard; recycled paperboard; rigid board; rigid cardboard; silver cardboard; textured paper; white cardboard boxes|colour|clear; silver; transparent; white boxes|finish|3D raised UV; UV coating; aqueous coating; debossing; deep embossing; die cut; drip off; embossing; foil printing; foil stamping; gloss; gloss UV; gloss lamination; holographic; holographic foil; holographic foil printing; hot foil stamping; inside printing; lamination; matte; matte UV; matte lamination; soft touch; soft touch lamination; spot UV; spot foiling; spot gloss; textured; varnish boxes|extras|LED light module; cut-out; handle; layered reveal mechanism; lift tab; magnetic closure; raised ink; resealable tab; ribbon pull;",
+   "families": [
+    "boxes",
+    "labels"
+   ]
+  },
+  {
+   "id": "capability-registry#7",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|slot|values",
+   "text": "textured; varnish boxes|extras|LED light module; cut-out; handle; layered reveal mechanism; lift tab; magnetic closure; raised ink; resealable tab; ribbon pull; stackable design; vent hole; window boxes|insert|foam insert; molded pulp tray; paperboard divider; sauce cup insert; velvet-lined tray bags|style|3 Side Seal Pouches; Biodegradable StandUp Pouch; CBD Mylar Bags; Child-Resistant Pouches; Chocolate Mylar Bags; Christmas Gift Bags; Coffee Bags; Eco-Friendly Pouches; Flat Bottom Pouches; Hemp Flower Mylar Bag; Inside Printed Pouches; Mylar Bags; Plastics Bags; Poly Mailers; Pouches; Pre Roll Mylar Bags; Smell proof weed bags; Stand Up Pouches; Vape Cartridge Pouches; Vape Pouches; Weed Mylar Bags bags|material|BOPP; PE; PET; PP; foil; foil pouch; kraft; metalized; mylar bags|colour|clear; plain white; white bags|finish|drip off; foil printing; gloss; holographic foil printing; inside printing; lamination; matte; soft touch; spot UV; spot foiling; spot matte; tactile",
+   "families": [
+    "bags",
+    "boxes"
+   ]
+  },
+  {
+   "id": "capability-registry#8",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|slot|values",
+   "text": "off; foil printing; gloss; holographic foil printing; inside printing; lamination; matte; soft touch; spot UV; spot foiling; spot matte; tactile feel bags|extras|child-resistant zipper; easy-open zipper; euro hole; hang hole; tear notch; window; zipper labels|style|Address Labels; Barcode Labels; Bottle Labels; Canning Labels; Clings; Cosmetic Labels; Cut-to-size Sticker Singles; Die Cut Labels; Domed 3D Labels; Domed 3D Stickers; Food Labels; Front-Adhesive Stickers; Heart Stickers; Hexagon Stickers; Holographic Labels; Holographic Stickers; Label Stickers; Metallic Labels; Name Labels; Political Bumper Stickers; Political Stickers; Product Labels; Round Labels; Shape Labels; Sheet Labels; Shipping Labels; Vinyl Labels; Vinyl Stickers; Water Bottle Stickers labels|material|ABS; BOPP; PLA; clear film; foil; kraft; metallized film; nylon; polyester; static cling; vinyl labels|colour|clear; iridescent; silver; white labels|finish|3D raised UV; UV coating; anti-scratch lamination; aqueous coating; debossing; die cut; drip off; embossing; foil",
+   "families": [
+    "bags",
+    "labels"
+   ]
+  },
+  {
+   "id": "capability-registry#9",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|slot|values",
+   "text": "labels|colour|clear; iridescent; silver; white labels|finish|3D raised UV; UV coating; anti-scratch lamination; aqueous coating; debossing; die cut; drip off; embossing; foil printing; foil stamping; gloss; gloss UV; gloss lamination; holographic; holographic foil printing; hot foil stamping; lamination; matte; matte UV; matte lamination; satin; soft touch; soft touch lamination; spot UV; spot foiling; spot gloss labels|extras|colour customization; full bleed; no border; white border; window labels|insert|tamper-evident seal business_cards|style|3D Pop-up Folding Business Cards With Character; Business Card with QR Code; Embossed Gloss Business Cards; Foil Accent Business Cards; Folded Business Cards; Glossy Business Cards; Kraft Business Cards; Linen Business Cards; Matte Business Cards; NFC Business Cards; Painted Edge Business Cards; Political Business Cards; Round Corner Business Card; Standard Business Cards; Ultra Thick Business Cards business_cards|material|PET; PVC; acrylic; cardstock; foil; grayboard; holographic cardboard; kraft; kraft",
+   "families": [
+    "labels",
+    "banners",
+    "business_cards"
+   ]
+  },
+  {
+   "id": "capability-registry#10",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|slot|values",
+   "text": "Corner Business Card; Standard Business Cards; Ultra Thick Business Cards business_cards|material|PET; PVC; acrylic; cardstock; foil; grayboard; holographic cardboard; kraft; kraft board; silver cardboard; white cardboard business_cards|finish|3D raised UV; debossing; deep embossing; drip off; embossing; gloss UV; gloss lamination; hot foil stamping; matte; matte lamination; soft touch lamination; spot UV; spot foiling; spot gloss; spot matte; tactile feel; varnish business_cards|extras|window business_cards|fold|half fold banners|style|A-Frames; Angled Flags Banners; Banners Stands; Canopy Tents; Car Door Decals; Car Window Decals; Desk Name Plates; Metal Signs; Parking Sign; Pop Up Display; Pull up Banners; Rectangle Flags; Restroom Signs; Signicades; Step and Repeat Banners; Stretch Table Covers; Table Cloths; Table Runners; Tabletop signs; Vinyl Banner; Wall decals; Way Finding Sign; Window Decals banners|material|corrugated plastic; foamcore; paperboard; polyester; static cling; vinyl banners|colour|clear; frosted; metallic chrome; silver; white; white",
+   "families": [
+    "boxes",
+    "labels",
+    "banners",
+    "business_cards"
+   ]
+  },
+  {
+   "id": "capability-registry#11",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|slot|values",
+   "text": "Way Finding Sign; Window Decals banners|material|corrugated plastic; foamcore; paperboard; polyester; static cling; vinyl banners|colour|clear; frosted; metallic chrome; silver; white; white opaque banners|finish|die cut; gloss; gloss lamination; grommets; holographic; hot foil stamping; kiss cut; matte; pole pockets; reinforced corners; reverse printing; varnish banners|extras|perforation print|style|Booklets; Bookmarks; Brochure Printing; Door hangers; Envelopes; Flyers; Greeting Cards; Invitations; Magnets; Numbered Tickets; Political Brochures; Political Postcards; Posters; Tear Cards; Variable Printing; Wall Calendars print|material|cardstock; gloss paper; holographic cardboard; rigid cardboard; silver cardboard; white cardboard print|colour|silver; white print|finish|3D raised UV; aqueous coating; die cut; drip off; gloss; gloss lamination; holographic; lamination; matte; matte lamination; satin; soft touch; soft touch lamination; spot UV; spot foiling; spot gloss; textured; varnish print|extras|perforation print|fold|bi fold; envelope; insert and folder; tri fold ```",
+   "families": [
+    "boxes",
+    "labels",
+    "banners",
+    "print"
+   ]
+  },
+  {
+   "id": "capability-registry#12",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|slot|values",
+   "text": "varnish print|extras|perforation print|fold|bi fold; envelope; insert and folder; tri fold ```",
+   "families": [
+    "print"
+   ]
+  },
+  {
+   "id": "capability-registry#13",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "Supported offerings",
+   "text": "One row per product page that publishes a quote form (a deal page and a category page are not offerings, so they contribute vocabulary but no row). The style cell is the page's own title.\n```capability",
+   "families": []
+  },
+  {
+   "id": "capability-registry#14",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "boxes|Boxes With Lid|white cardboard|-|-|-|-|page|kb_v2/catalog/catalog-custom-boxes-with-lid.md|pending|family inferred from the page title, not from a category listing boxes|CBD Boxes|white cardboard|-|gloss lamination; matte lamination; soft touch; lamination; spot UV; foil printing; holographic foil printing; UV coating|-|-|page|kb_v2/catalog/catalog-cbd-boxes.md|pending|family taken from the site's own category listing boxes|CBD Cream Boxes|paperboard; corrugated cardboard; grayboard; rigid board; bux board; rigid cardboard|-|gloss; matte; soft touch; lamination; spot UV; foil printing; holographic foil printing|-|-|page|kb_v2/catalog/catalog-cbd-cream-boxes.md|pending|family inferred from the page title, not from a category listing boxes|Christmas Gift Boxes|white cardboard; silver cardboard; holographic cardboard; rigid cardboard|-|embossing; deep embossing; 3D raised UV; UV coating; hot foil stamping; debossing; inside printing; die cut|LED light module; lift tab|-|page|kb_v2/catalog/catalog-christmas-gift-boxes.md|pending|family inferred from the page title, not from a category listing boxes|Cigar Boxes|rigid cardboard|-|spot gloss; drip off; soft touch lamination; matte; gloss; soft touch; lamination; spot UV; hot foil stamping;",
+   "families": [
+    "boxes",
+    "labels"
+   ]
+  },
+  {
+   "id": "capability-registry#15",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "listing boxes|Cigar Boxes|rigid cardboard|-|spot gloss; drip off; soft touch lamination; matte; gloss; soft touch; lamination; spot UV; hot foil stamping; holographic foil; 3D raised UV; embossing; debossing|-|-|page|kb_v2/catalog/catalog-cigar-packaging.md|pending|family taken from the site's own category listing boxes|Comic Book Boxes|grayboard; rigid board; white cardboard; holographic cardboard; cardboard; e-flute; b flute; c flute; e b flute; b c flute; kraft|-|-|-|-|page|kb_v2/catalog/catalog-comic-book-boxes.md|pending|family inferred from the page title, not from a category listing boxes|Cookie Boxes|white cardboard|-|matte lamination; gloss lamination|-|-|page|kb_v2/catalog/catalog-cookie-boxes.md|pending|family inferred from the page title, not from a category listing boxes|Cupcake Boxes|white cardboard|-|gloss lamination; matte lamination; matte; gloss; soft touch; drip off; lamination; spot UV; hot foil stamping; holographic foil; 3D raised UV; embossing; debossing|-|-|page|kb_v2/catalog/catalog-cupcake-boxes.md|pending|family inferred from the page title, not from a category listing boxes|Dietary Supplement packaging|white cardboard|-|drip off; soft touch lamination; spot gloss|-|-|page|kb_v2/catalog/catalog-dietary-supplement-packaging.md|pending|family taken from the",
+   "families": [
+    "boxes"
+   ]
+  },
+  {
+   "id": "capability-registry#16",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "page title, not from a category listing boxes|Dietary Supplement packaging|white cardboard|-|drip off; soft touch lamination; spot gloss|-|-|page|kb_v2/catalog/catalog-dietary-supplement-packaging.md|pending|family taken from the site's own category listing boxes|Display Box With Logo|rigid cardboard; white cardboard; holographic cardboard; silver cardboard; foil|-|gloss UV; gloss lamination; drip off; matte UV; spot gloss; soft touch lamination; matte lamination; deep embossing; hot foil stamping; inside printing; embossing; 3D raised UV; debossing|window|-|page|kb_v2/catalog/catalog-display-box-with-logo.md|pending|family inferred from the page title, not from a category listing boxes|Double Tea Box with Magnetic Closure|holographic cardboard|-|gloss lamination; matte lamination; spot gloss|-|-|page|kb_v2/catalog/catalog-double-tea-box-with-magnetic-closure.md|pending|family taken from the site's own category listing boxes|Eyelash Boxes|rigid cardboard|-|gloss lamination; spot gloss; drip off|-|-|page|kb_v2/catalog/catalog-eyelash-boxes.md|pending|family inferred from the page title, not from a category listing boxes|Foundation Boxes|rigid cardboard|-|gloss lamination; drip off; matte lamination|-|-|page|kb_v2/catalog/catalog-foundation-boxes.md|pending|family inferred from the page title, not from a category listing boxes|Gold Foil Boxes|rigid",
+   "families": [
+    "boxes"
+   ]
+  },
+  {
+   "id": "capability-registry#17",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "Boxes|rigid cardboard|-|gloss lamination; drip off; matte lamination|-|-|page|kb_v2/catalog/catalog-foundation-boxes.md|pending|family inferred from the page title, not from a category listing boxes|Gold Foil Boxes|rigid cardboard; white cardboard; foil|-|holographic; gloss lamination; drip off; soft touch lamination; matte lamination; spot gloss; embossing; deep embossing; 3D raised UV; inside printing; hot foil stamping; debossing|window|-|page|kb_v2/catalog/catalog-gold-foil-boxes.md|pending|family taken from the site's own category listing boxes|Hemp Boxes|rigid cardboard; white cardboard; foil|-|holographic; gloss lamination; drip off; soft touch lamination; matte lamination; spot gloss; embossing; deep embossing; 3D raised UV; inside printing; hot foil stamping; debossing|window|-|page|kb_v2/catalog/catalog-hemp-boxes.md|pending|family inferred from the page title, not from a category listing boxes|Holographic Foiling Boxes|rigid cardboard; white cardboard; foil|-|holographic; gloss lamination; drip off; soft touch lamination; matte lamination; spot gloss; embossing; deep embossing; 3D raised UV; inside printing; hot foil stamping; debossing|window|-|page|kb_v2/catalog/catalog-holographic-foiling-boxes.md|pending|family taken from the site's own category listing",
+   "families": [
+    "boxes"
+   ]
+  },
+  {
+   "id": "capability-registry#18",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "gloss; embossing; deep embossing; 3D raised UV; inside printing; hot foil stamping; debossing|window|-|page|kb_v2/catalog/catalog-holographic-foiling-boxes.md|pending|family taken from the site's own category listing boxes|Hoodie Packaging|e-flute; bux board; grayboard; cardstock; kraft; holographic cardboard|-|matte UV; spot gloss; drip off; gloss lamination|-|-|page|kb_v2/catalog/catalog-custom-hoodie-packaging.md|pending|family taken from the site's own category listing boxes|Lip Balm Boxes|holographic cardboard|-|drip off; gloss lamination; spot gloss|-|-|page|kb_v2/catalog/catalog-lip-balm-boxes.md|pending|family inferred from the page title, not from a category listing boxes|Luxury Clothing Packaging|rigid cardboard; SBS paperboard; white cardboard; kraft; cardboard; corrugated board; silver cardboard; holographic cardboard; foil|-|matte lamination; soft touch lamination; spot gloss; drip off; gloss lamination; matte UV; embossing; deep embossing; debossing; hot foil stamping; 3D raised UV|-|-|page|kb_v2/catalog/catalog-luxury-clothing-packaging.md|pending|family taken from the site's own category listing boxes|Mailer Boxes|kraft|-|matte lamination; drip off; spot gloss|-|-|page|kb_v2/catalog/catalog-mailer-boxes.md|pending|family inferred from the page title, not from a category listing boxes|Match Boxes|rigid cardboard|-|-|-|-|page|kb_v2/catalog/catalog-custom-match-boxes.md|pending|family inferred from",
+   "families": [
+    "boxes"
+   ]
+  },
+  {
+   "id": "capability-registry#19",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "lamination; drip off; spot gloss|-|-|page|kb_v2/catalog/catalog-mailer-boxes.md|pending|family inferred from the page title, not from a category listing boxes|Match Boxes|rigid cardboard|-|-|-|-|page|kb_v2/catalog/catalog-custom-match-boxes.md|pending|family inferred from the page title, not from a category listing boxes|Medical Box with insert|holographic cardboard|-|spot gloss; drip off; soft touch lamination|-|-|page|kb_v2/catalog/catalog-custom-medical-box-with-insert.md|pending|family taken from the site's own category listing boxes|Medicine Boxes|SBS paperboard; kraft; recycled paperboard; corrugated board; rigid board; white cardboard|-|-|-|-|page|kb_v2/catalog/catalog-medicine-boxes.md|pending|family taken from the site's own category listing boxes|Metalized Boxes|holographic cardboard|-|matte UV; drip off; spot gloss|-|-|page|kb_v2/catalog/catalog-metalized-boxes.md|pending|family taken from the site's own category listing boxes|Muffin Boxes|rigid board; white cardboard|-|gloss lamination; matte lamination|-|-|page|kb_v2/catalog/catalog-muffin-boxes.md|pending|family inferred from the page title, not from a category listing boxes|Perfume Boxes|rigid cardboard; white cardboard; foil|-|holographic; gloss lamination; drip off; soft touch lamination; matte lamination; spot gloss; gloss; matte; UV coating; spot UV; varnish; foil stamping; embossing; deep embossing; 3D raised UV;",
+   "families": [
+    "boxes"
+   ]
+  },
+  {
+   "id": "capability-registry#20",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "lamination; matte lamination; spot gloss; gloss; matte; UV coating; spot UV; varnish; foil stamping; embossing; deep embossing; 3D raised UV; inside printing; hot foil stamping; debossing|window|-|page|kb_v2/catalog/catalog-perfume-boxes.md|pending|family taken from the site's own category listing boxes|Pharmaceutical Patch Box|white cardboard|-|-|-|-|page|kb_v2/catalog/catalog-pharmaceutical-patch-box.md|pending|family inferred from the page title, not from a category listing boxes|Pie Boxes|white cardboard|-|matte lamination; gloss lamination|-|-|page|kb_v2/catalog/catalog-pie-boxes.md|pending|family inferred from the page title, not from a category listing boxes|Pop Counter Display Tray|rigid cardboard|-|-|-|-|page|kb_v2/catalog/catalog-pop-counter-display-tray.md|pending|family taken from the site's own category listing boxes|PR Boxes|double coated card stock; kraft; e-flute; rigid board; PVC|-|gloss; matte; soft touch; drip off; lamination; aqueous coating; spot UV; hot foil stamping; 3D raised UV; embossing; debossing; textured|window; cut-out; handle|-|page|kb_v2/catalog/catalog-pr-boxes.md|pending|family inferred from the page title, not from a category listing boxes|Product Display Box|silver cardboard|-|spot gloss; gloss UV; matte UV; gloss lamination|-|-|page|kb_v2/catalog/catalog-custom-product-display-box.md|pending|family taken from the",
+   "families": [
+    "boxes"
+   ]
+  },
+  {
+   "id": "capability-registry#21",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "title, not from a category listing boxes|Product Display Box|silver cardboard|-|spot gloss; gloss UV; matte UV; gloss lamination|-|-|page|kb_v2/catalog/catalog-custom-product-display-box.md|pending|family taken from the site's own category listing boxes|Rack display boxes|corrugated cardboard; bux board; grayboard; kraft; cardstock; holographic cardboard|-|spot gloss; gloss lamination; matte lamination; soft touch; lamination; gloss; matte; spot UV; varnish; foil printing; holographic; hot foil stamping|-|-|page|kb_v2/catalog/catalog-rack-display-boxes.md|pending|family taken from the site's own category listing boxes|Shape Boxes|white cardboard; silver cardboard; holographic cardboard; rigid cardboard; foil|-|drip off; gloss lamination; matte lamination; soft touch lamination; spot gloss; embossing; deep embossing; 3D raised UV; inside printing; hot foil stamping; debossing|window|-|page|kb_v2/catalog/catalog-custom-shaped-boxes.md|pending|family taken from the site's own category listing boxes|Sock Packaging Boxes|holographic cardboard|-|matte UV; drip off; spot gloss|-|-|page|kb_v2/catalog/catalog-sock-packaging-box.md|pending|family taken from the site's own category listing boxes|Standard Green Tea Boxes|holographic cardboard|-|gloss lamination; matte lamination; spot gloss|-|-|page|kb_v2/catalog/catalog-standard-green-tea-boxes.md|pending|family taken from the site's",
+   "families": [
+    "boxes"
+   ]
+  },
+  {
+   "id": "capability-registry#22",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "from the site's own category listing boxes|Standard Green Tea Boxes|holographic cardboard|-|gloss lamination; matte lamination; spot gloss|-|-|page|kb_v2/catalog/catalog-standard-green-tea-boxes.md|pending|family taken from the site's own category listing boxes|Tea Bag Dispenser|rigid cardboard; silver cardboard; foil|-|holographic; gloss lamination; drip off; soft touch lamination; matte lamination; spot gloss; embossing; deep embossing; 3D raised UV; inside printing; hot foil stamping; debossing|window|-|page|kb_v2/catalog/catalog-tea-bag-dispenser.md|pending|family taken from the site's own category listing boxes|Tea Tray and Lid Gift Boxes|-|-|gloss lamination; matte lamination; spot gloss|-|-|page|kb_v2/catalog/catalog-tea-tray-and-lid-gift-boxes.md|pending|family taken from the site's own category listing boxes|Textured Boxes|bux board; kraft; rigid cardboard; textured paper; white cardboard|-|soft touch lamination; spot gloss; drip off; debossing; embossing; gloss; matte; soft touch; lamination; spot UV; foil printing; holographic; spot foiling|raised ink|-|page|kb_v2/catalog/catalog-textured-boxes.md|pending|family taken from the site's own category listing boxes|Torch Boxes|cardboard; paperboard; corrugated cardboard; kraft; rigid cardboard|-|holographic; spot foiling; gloss; matte; soft touch;",
+   "families": [
+    "bags",
+    "boxes"
+   ]
+  },
+  {
+   "id": "capability-registry#23",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "from the site's own category listing boxes|Torch Boxes|cardboard; paperboard; corrugated cardboard; kraft; rigid cardboard|-|holographic; spot foiling; gloss; matte; soft touch; lamination; spot UV; foil printing|-|-|page|kb_v2/catalog/catalog-torch-boxes.md|pending|family taken from the site's own category listing boxes|Tuck Boxes|double coated card stock; kraft; corrugated board; bux board; kraft board; white cardboard|-|-|-|-|page|kb_v2/catalog/catalog-tuck-boxes.md|pending|family inferred from the page title, not from a category listing boxes|Underwear Packaging|silver cardboard|-|drip off; spot gloss; soft touch lamination|-|-|page|kb_v2/catalog/catalog-underwear-packaging.md|pending|family inferred from the page title, not from a category listing boxes|Wallet Boxes|silver cardboard|-|drip off; gloss lamination; spot gloss; matte; gloss; soft touch; lamination; spot UV; hot foil stamping; holographic foil; 3D raised UV; embossing; debossing|-|-|page|kb_v2/catalog/catalog-wallet-boxes.md|pending|family taken from the site's own category listing bags|3 Side Seal Pouches|-|-|spot UV; soft touch; matte; inside printing|-|-|page|kb_v2/catalog/catalog-3-side-seal-pouches.md|pending|family inferred from the page title, not from a category listing bags|Biodegradable StandUp Pouch|-|-|soft",
+   "families": [
+    "bags",
+    "boxes"
+   ]
+  },
+  {
+   "id": "capability-registry#24",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "Pouches|-|-|spot UV; soft touch; matte; inside printing|-|-|page|kb_v2/catalog/catalog-3-side-seal-pouches.md|pending|family inferred from the page title, not from a category listing bags|Biodegradable StandUp Pouch|-|-|soft touch; inside printing; spot UV; matte|-|-|page|kb_v2/catalog/catalog-biodegradable-standup-pouch.md|pending|family inferred from the page title, not from a category listing bags|CBD Mylar Bags|metalized|-|drip off; matte; soft touch; spot UV; inside printing; gloss; spot foiling; spot matte; tactile feel|window|-|page|kb_v2/catalog/catalog-cbd-mylar-bag.md|pending|family inferred from the page title, not from a category listing bags|Child-Resistant Pouches|metalized|-|spot UV; soft touch; matte; inside printing|-|-|page|kb_v2/catalog/catalog-child-resistant-pouches.md|pending|family inferred from the page title, not from a category listing bags|Chocolate Mylar Bags|kraft|-|gloss; inside printing; spot UV; matte|-|-|page|kb_v2/catalog/catalog-chocolate-mylar-bag.md|pending|family inferred from the page title, not from a category listing bags|Christmas Gift Bags|mylar|-|-|zipper|-|page|kb_v2/catalog/catalog-christmas-gift-bags.md|pending|family inferred from the page title, not from a category listing bags|Coffee Bags|kraft|-|spot UV; matte; soft touch; inside printing|-|-|page|kb_v2/catalog/catalog-coffee-bags.md|pending|family inferred from the page title, not from a category",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "capability-registry#25",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "a category listing bags|Coffee Bags|kraft|-|spot UV; matte; soft touch; inside printing|-|-|page|kb_v2/catalog/catalog-coffee-bags.md|pending|family inferred from the page title, not from a category listing bags|Eco-Friendly Pouches|kraft|-|drip off; gloss; matte; soft touch; spot UV; inside printing; spot foiling; spot matte; tactile feel|window|-|page|kb_v2/catalog/catalog-eco-friendly-pouches.md|pending|family inferred from the page title, not from a category listing bags|Flat Bottom Pouches|-|-|drip off; gloss; matte; spot UV; inside printing; spot foiling; spot matte; tactile feel|window|-|page|kb_v2/catalog/catalog-flat-bottom-pouches.md|pending|family inferred from the page title, not from a category listing bags|Hemp Flower Mylar Bag|metalized|-|drip off; gloss; matte; soft touch; spot UV; inside printing; spot foiling; spot matte; tactile feel|window|-|page|kb_v2/catalog/catalog-hemp-flower-mylar-bag.md|pending|family inferred from the page title, not from a category listing bags|Inside Printed Pouches|kraft|-|gloss; inside printing; matte; soft touch|-|-|page|kb_v2/catalog/catalog-inside-printed-pouches.md|pending|family inferred from the page title, not from a category listing bags|Mylar Bags|PE; PP; PET; foil; kraft; metalized|-|gloss; spot UV;",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "capability-registry#26",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "touch|-|-|page|kb_v2/catalog/catalog-inside-printed-pouches.md|pending|family inferred from the page title, not from a category listing bags|Mylar Bags|PE; PP; PET; foil; kraft; metalized|-|gloss; spot UV; matte; soft touch|-|-|page|kb_v2/catalog/catalog-custom-mylar-bags.md|pending|family inferred from the page title, not from a category listing bags|Plastics Bags|-|-|-|-|-|page|kb_v2/catalog/catalog-plastics.md|pending|family inferred from the page title, not from a category listing bags|Poly Mailers|metalized; foil pouch; kraft; PE; PP; PET; foil|-|drip off; gloss; matte; soft touch; spot UV; inside printing; spot foiling; spot matte; tactile feel|window|-|page|kb_v2/catalog/catalog-poly-mailers.md|pending|family inferred from the page title, not from a category listing bags|Pouches|kraft; PET; BOPP; foil; metalized; foil pouch|-|inside printing; gloss; soft touch; matte|-|-|page|kb_v2/catalog/catalog-custom-pouches.md|pending|family taken from the site's own category listing bags|Pre Roll Mylar Bags|-|-|gloss; spot UV; inside printing; matte|-|-|page|kb_v2/catalog/catalog-pre-roll-mylar-bags.md|pending|family inferred from the page title, not from a category listing bags|Smell proof weed bags|PE; PP; PET; foil; kraft; metalized|-|gloss; matte; inside printing; soft",
+   "families": [
+    "bags",
+    "boxes"
+   ]
+  },
+  {
+   "id": "capability-registry#27",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "page title, not from a category listing bags|Smell proof weed bags|PE; PP; PET; foil; kraft; metalized|-|gloss; matte; inside printing; soft touch|-|-|page|kb_v2/catalog/catalog-custom-smell-proof-weed-bags.md|pending|family inferred from the page title, not from a category listing bags|Stand Up Pouches|PE; PP; PET; foil; kraft; metalized|-|gloss; soft touch; matte; inside printing; lamination; spot UV; foil printing; holographic foil printing|tear notch; hang hole; euro hole; easy-open zipper; child-resistant zipper|-|page|kb_v2/catalog/catalog-stand-up-pouch.md|pending|family inferred from the page title, not from a category listing bags|Vape Cartridge Pouches|-|-|inside printing; soft touch; gloss; matte|-|-|page|kb_v2/catalog/catalog-custom-vape-cartridge-pouches.md|pending|family inferred from the page title, not from a category listing bags|Vape Pouches|-|-|inside printing; gloss; soft touch; matte|-|-|page|kb_v2/catalog/catalog-vape-pouches.md|pending|family inferred from the page title, not from a category listing bags|Weed Mylar Bags|foil pouch|-|drip off; matte; soft touch; spot UV; inside printing; gloss; spot foiling; spot matte; tactile feel|window|-|page|kb_v2/catalog/catalog-weed-mylar-bags.md|pending|family inferred from the page title,",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "capability-registry#28",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "off; matte; soft touch; spot UV; inside printing; gloss; spot foiling; spot matte; tactile feel|window|-|page|kb_v2/catalog/catalog-weed-mylar-bags.md|pending|family inferred from the page title, not from a category listing labels|Address Labels|vinyl|-|holographic; gloss lamination; drip off; soft touch lamination; matte lamination; spot gloss; gloss; 3D raised UV; spot foiling; lamination; hot foil stamping; aqueous coating|-|-|page|kb_v2/catalog/catalog-address-labels.md|pending|family taken from the site's own category listing labels|Barcode Labels|vinyl|-|holographic; gloss lamination; drip off; soft touch lamination; matte lamination; spot gloss; die cut; 3D raised UV; spot foiling|-|-|page|kb_v2/catalog/catalog-barcode-labels.md|pending|family taken from the site's own category listing labels|Bottle Labels|PLA; ABS; nylon|-|gloss; spot gloss; gloss lamination; drip off; soft touch lamination; gloss UV; matte UV; aqueous coating|-|-|page|kb_v2/catalog/catalog-bottle-labels.md|pending|family taken from the site's own category listing labels|Canning Labels|-|-|gloss lamination; drip off; soft touch lamination; matte lamination; spot gloss; 3D raised UV; spot foiling|-|-|page|kb_v2/catalog/catalog-canning-labels.md|pending|family inferred from the",
+   "families": [
+    "bags",
+    "labels"
+   ]
+  },
+  {
+   "id": "capability-registry#29",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "labels|Canning Labels|-|-|gloss lamination; drip off; soft touch lamination; matte lamination; spot gloss; 3D raised UV; spot foiling|-|-|page|kb_v2/catalog/catalog-canning-labels.md|pending|family inferred from the page title, not from a category listing labels|Clings|-|-|-|-|-|page|kb_v2/catalog/catalog-clings.md|pending|family inferred from the page title, not from a category listing labels|Cosmetic Labels|-|-|gloss lamination; drip off; soft touch lamination; matte lamination; spot gloss; gloss; 3D raised UV; spot foiling; aqueous coating|-|-|page|kb_v2/catalog/catalog-cosmetic-labels.md|pending|family inferred from the page title, not from a category listing labels|Cut-to-size Sticker Singles|-|-|gloss lamination; drip off; soft touch lamination; matte lamination; spot gloss; 3D raised UV; spot foiling|-|-|page|kb_v2/catalog/catalog-cut-to-size-singles.md|pending|family taken from the site's own category listing labels|Die Cut Labels|vinyl|-|gloss; matte; soft touch; lamination; spot UV; foil printing; holographic foil printing; drip off; spot gloss; matte lamination|-|-|page|kb_v2/catalog/catalog-die-cut-labels.md|pending|family taken from the site's own category listing labels|Domed 3D Labels|-|-|-|-|-|page|kb_v2/catalog/catalog-domed-3d-labels.md|pending|family taken from the site's own category listing",
+   "families": [
+    "labels"
+   ]
+  },
+  {
+   "id": "capability-registry#30",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "gloss; matte lamination|-|-|page|kb_v2/catalog/catalog-die-cut-labels.md|pending|family taken from the site's own category listing labels|Domed 3D Labels|-|-|-|-|-|page|kb_v2/catalog/catalog-domed-3d-labels.md|pending|family taken from the site's own category listing labels|Domed 3D Stickers|-|-|matte lamination; drip off; gloss lamination; gloss; matte; soft touch; lamination; spot UV; foil printing; holographic foil printing; UV coating|-|-|page|kb_v2/catalog/catalog-domed-3d-stickers.md|pending|family taken from the site's own category listing labels|Food Labels|vinyl|-|holographic; spot gloss; gloss lamination; drip off; gloss; matte; soft touch lamination; spot foiling; 3D raised UV; die cut|-|-|page|kb_v2/catalog/catalog-food-labels.md|pending|family taken from the site's own category listing labels|Front-Adhesive Stickers|vinyl; polyester; static cling|-|-|window|-|page|kb_v2/catalog/catalog-front-adhesive-stickers.md|pending|family taken from the site's own category listing labels|Heart Stickers|vinyl|-|gloss; matte; soft touch; lamination; spot UV; foil printing; holographic foil printing|-|-|page|kb_v2/catalog/catalog-heart-stickers.md|pending|family taken from the site's own category listing labels|Hexagon Stickers|vinyl|-|holographic; gloss lamination; drip off; soft touch; matte; spot gloss; 3D raised UV; spot foiling; matte lamination|-|-|page|kb_v2/catalog/catalog-hexagone-stickers.md|pending|family taken from the site's",
+   "families": [
+    "labels"
+   ]
+  },
+  {
+   "id": "capability-registry#31",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "gloss lamination; drip off; soft touch; matte; spot gloss; 3D raised UV; spot foiling; matte lamination|-|-|page|kb_v2/catalog/catalog-hexagone-stickers.md|pending|family taken from the site's own category listing labels|Holographic Labels|metallized film; BOPP; vinyl|tamper-evident seal|spot gloss; gloss lamination; gloss; lamination|colour customization|-|page|kb_v2/catalog/catalog-holographic-labels.md|pending|family taken from the site's own category listing labels|Holographic Stickers|-|-|gloss lamination; drip off; soft touch lamination; matte lamination; spot gloss; gloss; 3D raised UV; spot foiling; aqueous coating|-|-|page|kb_v2/catalog/catalog-holographic-stickers.md|pending|family taken from the site's own category listing labels|Label Stickers|vinyl|-|holographic; gloss; matte; drip off; soft touch lamination; spot foiling; 3D raised UV; die cut|-|-|page|kb_v2/catalog/catalog-custom-labels.md|pending|family inferred from the page title, not from a category listing labels|Metallic Labels|-|-|-|-|-|page|kb_v2/catalog/catalog-metallic-labels.md|pending|family taken from the site's own category listing labels|Name Labels|vinyl|-|gloss lamination; drip off; soft touch lamination; matte lamination; spot gloss; gloss; 3D raised UV; spot foiling|-|-|page|kb_v2/catalog/catalog-name-labels.md|pending|family taken from the site's own category listing labels|Political",
+   "families": [
+    "bags",
+    "labels"
+   ]
+  },
+  {
+   "id": "capability-registry#32",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "touch lamination; matte lamination; spot gloss; gloss; 3D raised UV; spot foiling|-|-|page|kb_v2/catalog/catalog-name-labels.md|pending|family taken from the site's own category listing labels|Political Bumper Stickers|vinyl|-|holographic|-|-|page|kb_v2/catalog/catalog-custom-political-bumper-stickers.md|pending|family inferred from the page title, not from a category listing labels|Political Stickers|-|-|-|-|-|page|kb_v2/catalog/catalog-custom-political-stickers.md|pending|family inferred from the page title, not from a category listing labels|Product Labels|BOPP; vinyl; polyester; kraft; clear film; foil|-|gloss; matte; soft touch; UV coating; spot UV; spot gloss; drip off; matte lamination|-|-|page|kb_v2/catalog/catalog-product-labels.md|pending|family taken from the site's own category listing labels|Round Labels|-|-|gloss lamination; drip off; soft touch lamination; matte lamination; spot gloss; gloss; 3D raised UV; spot foiling; die cut|-|-|page|kb_v2/catalog/catalog-round-labels.md|pending|family taken from the site's own category listing labels|Shape Labels|-|-|gloss; matte; soft touch; spot UV; foil stamping; embossing; debossing; satin; anti-scratch lamination|-|-|page|kb_v2/catalog/catalog-custom-shape-labels.md|pending|family taken from the site's own category listing labels|Sheet Labels|metallized film; BOPP; vinyl|-|gloss lamination|-|-|page|kb_v2/catalog/catalog-sheet-labels.md|pending|family inferred from the page",
+   "families": [
+    "bags",
+    "labels"
+   ]
+  },
+  {
+   "id": "capability-registry#33",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "satin; anti-scratch lamination|-|-|page|kb_v2/catalog/catalog-custom-shape-labels.md|pending|family taken from the site's own category listing labels|Sheet Labels|metallized film; BOPP; vinyl|-|gloss lamination|-|-|page|kb_v2/catalog/catalog-sheet-labels.md|pending|family inferred from the page title, not from a category listing labels|Shipping Labels|-|-|-|-|-|page|kb_v2/catalog/catalog-mailing-shipping-labels.md|pending|family taken from the site's own category listing labels|Shipping Labels|-|-|gloss; soft touch lamination; gloss lamination|-|-|page|kb_v2/catalog/catalog-shipping-labels.md|pending|family taken from the site's own category listing labels|Vinyl Labels|-|-|matte lamination; gloss lamination; gloss|-|-|page|kb_v2/catalog/catalog-vinyl-labels.md|pending|family taken from the site's own category listing labels|Vinyl Stickers|vinyl|-|matte lamination; gloss lamination; matte UV; spot gloss; gloss UV; drip off; soft touch lamination; spot foiling; 3D raised UV|-|-|page|kb_v2/catalog/catalog-vinyl-stickers.md|pending|family taken from the site's own category listing labels|Water Bottle Stickers|vinyl|-|holographic; drip off; gloss lamination; spot gloss; spot foiling; 3D raised UV|full bleed; white border; no border|-|page|kb_v2/catalog/catalog-water-bottle-stickers.md|pending|family inferred from the page title, not from a category listing business_cards|3D Pop-up Folding Business Cards With Character|white cardboard|-|-|-|-|page|kb_v2/catalog/catalog-3d-pop-up-folding-business-cards-with-character.md|pending|family inferred from the",
+   "families": [
+    "bags",
+    "labels",
+    "banners",
+    "business_cards"
+   ]
+  },
+  {
+   "id": "capability-registry#34",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "from the page title, not from a category listing business_cards|3D Pop-up Folding Business Cards With Character|white cardboard|-|-|-|-|page|kb_v2/catalog/catalog-3d-pop-up-folding-business-cards-with-character.md|pending|family inferred from the page title, not from a category listing business_cards|Business Card with QR Code|cardstock; kraft; PVC; PET; acrylic|-|drip off; matte lamination; spot gloss|-|-|page|kb_v2/catalog/catalog-qr-code-business-cards.md|pending|family taken from the site's own category listing business_cards|Embossed Gloss Business Cards|-|-|gloss UV; gloss lamination; drip off; soft touch lamination; matte lamination; spot gloss; 3D raised UV; spot foiling; spot matte; tactile feel|window|-|page|kb_v2/catalog/catalog-embossed-gloss-business-cards.md|pending|family taken from the site's own category listing business_cards|Foil Accent Business Cards|white cardboard; silver cardboard; holographic cardboard|-|gloss lamination; drip off; soft touch lamination; matte lamination; spot gloss; matte; spot UV; 3D raised UV; spot foiling; spot matte; tactile feel|-|-|page|kb_v2/catalog/catalog-foil-accent-business-cards.md|pending|family taken from the site's own category listing business_cards|Folded Business Cards|foil|-|gloss lamination; drip off; soft touch lamination; matte lamination; spot",
+   "families": [
+    "banners",
+    "business_cards"
+   ]
+  },
+  {
+   "id": "capability-registry#35",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "feel|-|-|page|kb_v2/catalog/catalog-foil-accent-business-cards.md|pending|family taken from the site's own category listing business_cards|Folded Business Cards|foil|-|gloss lamination; drip off; soft touch lamination; matte lamination; spot gloss; embossing; deep embossing; 3D raised UV; hot foil stamping; debossing|window|-|page|kb_v2/catalog/catalog-folded-business-card.md|pending|family inferred from the page title, not from a category listing business_cards|Glossy Business Cards|holographic cardboard|-|drip off; matte lamination; spot gloss|-|-|page|kb_v2/catalog/catalog-glossy-business-cards.md|pending|family taken from the site's own category listing business_cards|Kraft Business Cards|white cardboard|-|-|-|-|page|kb_v2/catalog/catalog-kraft-business-cards.md|pending|family taken from the site's own category listing business_cards|Linen Business Cards|-|-|drip off; spot gloss; matte lamination|-|-|page|kb_v2/catalog/catalog-linen-business-cards.md|pending|family taken from the site's own category listing business_cards|Matte Business Cards|white cardboard; silver cardboard; holographic cardboard|-|gloss lamination; drip off; soft touch lamination; matte lamination; spot gloss; matte; spot UV; 3D raised UV; spot foiling; spot matte; tactile feel|-|-|page|kb_v2/catalog/catalog-matte-business-cards.md|pending|family taken from the site's own category listing business_cards|NFC Business Cards|-|-|gloss lamination; matte lamination; spot gloss|-|-|page|kb_v2/catalog/catalog-nfc-business-cards.md|pending|family taken from",
+   "families": [
+    "business_cards"
+   ]
+  },
+  {
+   "id": "capability-registry#36",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "matte; tactile feel|-|-|page|kb_v2/catalog/catalog-matte-business-cards.md|pending|family taken from the site's own category listing business_cards|NFC Business Cards|-|-|gloss lamination; matte lamination; spot gloss|-|-|page|kb_v2/catalog/catalog-nfc-business-cards.md|pending|family taken from the site's own category listing business_cards|Painted Edge Business Cards|-|-|matte lamination; drip off; gloss lamination|-|-|page|kb_v2/catalog/catalog-painted-edge-business-cards.md|pending|family taken from the site's own category listing business_cards|Political Business Cards|cardstock|-|-|-|-|page|kb_v2/catalog/catalog-custom-political-business-cards.md|pending|family inferred from the page title, not from a category listing business_cards|Round Corner Business Card|silver cardboard|-|spot gloss; gloss lamination; drip off|-|-|page|kb_v2/catalog/catalog-round-corner-business-card.md|pending|family taken from the site's own category listing business_cards|Standard Business Cards|cardstock; kraft; PVC; PET; acrylic|-|gloss UV; gloss lamination; drip off; soft touch lamination; matte lamination; spot gloss; 3D raised UV; spot foiling; tactile feel; spot UV; varnish|-|-|page|kb_v2/catalog/catalog-standard-business-card.md|pending|family taken from the site's own category listing business_cards|Ultra Thick Business Cards|grayboard; cardstock; kraft board; holographic cardboard|-|-|-|-|page|kb_v2/catalog/catalog-ultra-thick-business-cards.md|pending|family taken from the site's own category listing banners|A-Frames|-|-|-|-|-|page|kb_v2/catalog/catalog-a-frames.md|pending|family taken from the site's own category",
+   "families": [
+    "banners",
+    "business_cards"
+   ]
+  },
+  {
+   "id": "capability-registry#37",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "Cards|grayboard; cardstock; kraft board; holographic cardboard|-|-|-|-|page|kb_v2/catalog/catalog-ultra-thick-business-cards.md|pending|family taken from the site's own category listing banners|A-Frames|-|-|-|-|-|page|kb_v2/catalog/catalog-a-frames.md|pending|family taken from the site's own category listing banners|Angled Flags Banners|-|-|-|-|-|page|kb_v2/catalog/catalog-angled-flags-banners.md|pending|family taken from the site's own category listing banners|Banners Stands|-|-|-|-|-|page|kb_v2/catalog/catalog-banners-stands.md|pending|family taken from the site's own category listing banners|Canopy Tents|-|-|-|-|-|page|kb_v2/catalog/catalog-canopy-tents.md|pending|family taken from the site's own category listing banners|Car Door Decals|-|-|-|-|-|page|kb_v2/catalog/catalog-car-door-decals.md|pending|family taken from the site's own category listing banners|Car Window Decals|vinyl|-|holographic; gloss; matte|-|-|page|kb_v2/catalog/catalog-car-window-decals.md|pending|family taken from the site's own category listing banners|Desk Name Plates|-|-|-|-|-|page|kb_v2/catalog/catalog-desk-name-plates.md|pending|family taken from the site's own category listing banners|Metal Signs|-|-|-|-|-|page|kb_v2/catalog/catalog-metal-signs.md|pending|family taken from the site's own category listing banners|Parking Sign|-|-|-|-|-|page|kb_v2/catalog/catalog-parking-sign.md|pending|family taken from the site's own category listing banners|Pop Up Display|-|-|-|-|-|page|kb_v2/catalog/catalog-pop-up-display.md|pending|family taken from the site's own category listing banners|Pull up Banners|vinyl; polyester|-|-|-|-|page|kb_v2/catalog/catalog-pull-up-banners.md|pending|family taken from the site's own category listing banners|Rectangle Flags|-|-|-|-|-|page|kb_v2/catalog/catalog-rectangle-flags.md|pending|family taken from the site's own category listing banners|Restroom",
+   "families": [
+    "labels",
+    "banners"
+   ]
+  },
+  {
+   "id": "capability-registry#38",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "up Banners|vinyl; polyester|-|-|-|-|page|kb_v2/catalog/catalog-pull-up-banners.md|pending|family taken from the site's own category listing banners|Rectangle Flags|-|-|-|-|-|page|kb_v2/catalog/catalog-rectangle-flags.md|pending|family taken from the site's own category listing banners|Restroom Signs|-|-|holographic; matte; gloss lamination|-|-|page|kb_v2/catalog/catalog-restroom-signs.md|pending|family taken from the site's own category listing banners|Signicades|corrugated plastic|-|gloss lamination; matte|-|-|page|kb_v2/catalog/catalog-signicades.md|pending|family taken from the site's own category listing banners|Step and Repeat Banners|-|-|-|-|-|page|kb_v2/catalog/catalog-step-and-repeat-banners.md|pending|family taken from the site's own category listing banners|Stretch Table Covers|-|-|-|-|-|page|kb_v2/catalog/catalog-stretch-table-covers.md|pending|family taken from the site's own category listing banners|Table Cloths|-|-|-|-|-|page|kb_v2/catalog/catalog-table-cloths.md|pending|family taken from the site's own category listing banners|Table Runners|-|-|-|-|-|page|kb_v2/catalog/catalog-table-runners.md|pending|family taken from the site's own category listing banners|Tabletop signs|corrugated plastic; foamcore; paperboard|-|varnish; hot foil stamping; gloss; matte|-|-|page|kb_v2/catalog/catalog-tabletop-signs.md|pending|family taken from the site's own category listing banners|Vinyl Banner|-|-|grommets; pole pockets; reinforced corners|-|-|page|kb_v2/catalog/catalog-vinyl-banner.md|pending|family taken from the site's own category listing banners|Wall decals|-|-|-|-|-|page|kb_v2/catalog/catalog-wall-decals.md|pending|family taken from the site's own category listing banners|Way Finding Sign|-|-|holographic; gloss lamination; matte|-|-|page|kb_v2/catalog/catalog-way-finding-sign.md|pending|family taken from the site's",
+   "families": [
+    "boxes",
+    "labels",
+    "banners"
+   ]
+  },
+  {
+   "id": "capability-registry#39",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "listing banners|Wall decals|-|-|-|-|-|page|kb_v2/catalog/catalog-wall-decals.md|pending|family taken from the site's own category listing banners|Way Finding Sign|-|-|holographic; gloss lamination; matte|-|-|page|kb_v2/catalog/catalog-way-finding-sign.md|pending|family taken from the site's own category listing banners|Window Decals|vinyl; static cling|-|die cut; kiss cut; reverse printing|perforation|-|page|kb_v2/catalog/catalog-window-decals.md|pending|family taken from the site's own category listing print|Booklets|-|-|soft touch; matte; gloss; textured; spot UV; varnish; satin; aqueous coating; holographic|-|-|page|kb_v2/catalog/catalog-booklets.md|pending|family taken from the site's own category listing print|Bookmarks|white cardboard; silver cardboard; rigid cardboard|-|holographic; drip off; gloss; matte; soft touch lamination; spot gloss|-|-|page|kb_v2/catalog/catalog-bookmarks.md|pending|family taken from the site's own category listing print|Brochure Printing|gloss paper|-|matte; gloss; soft touch; drip off; lamination; die cut|perforation|-|page|kb_v2/catalog/catalog-brochures.md|pending|family taken from the site's own category listing print|Door hangers|-|-|gloss lamination; drip off; soft touch lamination; matte lamination; spot gloss; 3D raised UV; spot foiling|-|-|page|kb_v2/catalog/catalog-door-hanger.md|pending|family inferred from the page title, not from a category listing print|Envelopes|-|-|-|-|-|page|kb_v2/catalog/catalog-envelope.md|pending|family inferred from the page",
+   "families": [
+    "boxes",
+    "labels",
+    "banners",
+    "print"
+   ]
+  },
+  {
+   "id": "capability-registry#40",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "3D raised UV; spot foiling|-|-|page|kb_v2/catalog/catalog-door-hanger.md|pending|family inferred from the page title, not from a category listing print|Envelopes|-|-|-|-|-|page|kb_v2/catalog/catalog-envelope.md|pending|family inferred from the page title, not from a category listing print|Flyers|-|-|-|-|-|page|kb_v2/catalog/catalog-flyers.md|pending|family inferred from the page title, not from a category listing print|Greeting Cards|-|-|-|-|-|page|kb_v2/catalog/catalog-greeting-cards.md|pending|family taken from the site's own category listing print|Invitations|-|-|-|-|-|page|kb_v2/catalog/catalog-invitations.md|pending|family taken from the site's own category listing print|Magnets|-|-|-|-|-|page|kb_v2/catalog/catalog-magnets.md|pending|family taken from the site's own category listing print|Numbered Tickets|-|-|-|-|-|page|kb_v2/catalog/catalog-numbered-tickets.md|pending|family inferred from the page title, not from a category listing print|Political Brochures|gloss paper|-|matte; gloss; soft touch; drip off; lamination; die cut|perforation|-|page|kb_v2/catalog/catalog-custom-political-brochures.md|pending|family inferred from the page title, not from a category listing print|Political Postcards|cardstock|-|-|-|-|page|kb_v2/catalog/catalog-custom-political-postcards.md|pending|family inferred from the page title, not from a category listing print|Posters|-|-|-|-|-|page|kb_v2/catalog/catalog-poster-boards.md|pending|family inferred from the page title, not from a category listing print|Tear Cards|holographic cardboard|-|-|-|-|page|kb_v2/catalog/catalog-custom-tear-cards.md|pending|family inferred from the page title, not from a category",
+   "families": [
+    "labels",
+    "print"
+   ]
+  },
+  {
+   "id": "capability-registry#41",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|style|material|insert|finish|extras|gauge|scope|source|approved|note",
+   "text": "the page title, not from a category listing print|Tear Cards|holographic cardboard|-|-|-|-|page|kb_v2/catalog/catalog-custom-tear-cards.md|pending|family inferred from the page title, not from a category listing print|Variable Printing|-|-|-|-|-|page|kb_v2/catalog/catalog-variable-printing.md|pending|family inferred from the page title, not from a category listing print|Wall Calendars|-|-|-|-|-|page|kb_v2/catalog/catalog-wall-calenders.md|pending|family inferred from the page title, not from a category listing ```",
+   "families": []
+  },
+  {
+   "id": "capability-registry#42",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "Excluded",
+   "text": "Only statements where print247 itself rules something out. The corpus is affirmative marketing copy: the crawler-recorded `## Not stated on page` bullets, the 31 \"no specification is available\" lines and every \"avoid this in your artwork\" instruction are absence or advice, not refusal, and none of them are here.",
+   "families": []
+  },
+  {
+   "id": "capability-registry#43",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "Excluded",
+   "text": "Every row is `kind: rule`, never `pair`. kb_v2 states a refusal as a use case (\"not for wet use\", \"not for heavy shipping\", \"not re-usable\"), and a use case is not one of the five tuple slots. A `pair` row would make the guard refuse a combination the site actually sells - rigid-cardboard display boxes with a window are on sale, the page only warns against shipping heavy goods in them. So the mechanical matcher stays unused until Sales attests a refusal that is really about the combination. Default-deny already prevents asserting any of these.\n```capability",
+   "families": [
+    "boxes"
+   ]
+  },
+  {
+   "id": "capability-registry#44",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|kind|style|material|insert|finish|extras|reason|source|approved",
+   "text": "labels|rule|clings|-|-|-|-|static cling will not hold on textured or porous walls; the electrostatic grip drops and the edge lifts|kb_v2/catalog/catalog-clings.md|pending banners|rule|-|-|-|-|-|car-window clings must not sit in the driver's direct line of sight (safety, not capability)|kb_v2/catalog/catalog-clings.md|pending labels|rule|-|-|-|-|-|front-adhesive decals are refused on textured or porous surfaces; the adhesive needs a clean flat surface|kb_v2/catalog/catalog-front-adhesive-stickers.md|pending labels|rule|front-adhesive stickers|-|-|-|-|vinyl front-adhesive is one-time application; it loses its stick once removed, so reuse is not offered|kb_v2/catalog/catalog-front-adhesive-stickers.md|pending labels|rule|window decals|-|-|-|reuse|sticky vinyl decals are for long-term application and are not re-usable; only static cling is|kb_v2/catalog/catalog-window-decals.md|pending labels|rule|-|paper|-|-|-|paper stock labels are not made for water or weather; wet use needs a synthetic stock|kb_v2/catalog/catalog-cosmetic-labels.md|pending labels|rule|specialty food labels|-|-|-|-|we will not print a food label on stock that cannot withstand cold storage, oil or handling|kb_v2/catalog/catalog-labels-stickers-specialty-labels.md|pending boxes|rule|display boxes|rigid cardboard|-|window|-|open-front display boxes are shelf units and are not durable for",
+   "families": [
+    "boxes",
+    "labels",
+    "banners"
+   ]
+  },
+  {
+   "id": "capability-registry#45",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|kind|style|material|insert|finish|extras|reason|source|approved",
+   "text": "cannot withstand cold storage, oil or handling|kb_v2/catalog/catalog-labels-stickers-specialty-labels.md|pending boxes|rule|display boxes|rigid cardboard|-|window|-|open-front display boxes are shelf units and are not durable for heavy shipping|kb_v2/catalog/catalog-display-box-with-logo.md|pending boxes|rule|-|paperboard|-|-|-|paperboard alone does not control temperature; coatings only block moisture|kb_v2/catalog/catalog-medicine-boxes.md|pending boxes|rule|-|-|foam insert|-|-|precision foam inserts suit uneven bottles but the page warns they hurt the pack's recyclability|kb_v2/catalog/catalog-perfume-boxes.md|pending business_cards|rule|-|-|-|foil stamping|-|foil runs under 1,000 are refused for machine set-up, not price: print 1,000 and split the batch|kb_v2/catalog/catalog-foil-accent-business-cards.md|pending bags|rule|-|foil|-|-|-|foil-lined structures are multi-layer and some recycling streams reject them, so no curbside claim|kb_v2/catalog/catalog-child-resistant-pouches.md|pending bags|rule|-|mylar|-|deep debossing|-|thin film cannot hold a deep debossed impression; the hub limits it to thicker bags|kb_v2/knowledge/know-mylar-bags-pouches-how-debossed-printing-works-on-mylar-packaging.md|pending bags|rule|-|-|-|-|-|flexographic printing is refused for short runs and for designs that keep changing (plate cost)|kb_v2/knowledge/know-mylar-bags-pouches-when-to-use-flexographic-printing-for-packaging.md|pending bags|rule|-|-|-|-|-|flexographic printing is not quoted for photo-level sharp detail|kb_v2/knowledge/know-mylar-bags-pouches-when-to-use-flexographic-printing-for-packaging.md|pending bags|rule|-|-|-|-|press-to-close zipper|a press-to-close zipper is not sold as a replacement",
+   "families": [
+    "bags",
+    "boxes",
+    "labels"
+   ]
+  },
+  {
+   "id": "capability-registry#46",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|kind|style|material|insert|finish|extras|reason|source|approved",
+   "text": "cost)|kb_v2/knowledge/know-mylar-bags-pouches-when-to-use-flexographic-printing-for-packaging.md|pending bags|rule|-|-|-|-|-|flexographic printing is not quoted for photo-level sharp detail|kb_v2/knowledge/know-mylar-bags-pouches-when-to-use-flexographic-printing-for-packaging.md|pending bags|rule|-|-|-|-|press-to-close zipper|a press-to-close zipper is not sold as a replacement for the original heat-seal barrier|kb_v2/knowledge/know-mylar-bags-pouches-press-to-close-zipper-mylar-pouches.md|pending bags|rule|-|-|-|-|-|a standard sealed pouch is unsuitable for products that keep releasing gas (coffee) unless a degassing valve is added|kb_v2/knowledge/know-mylar-bags-pouches-understanding-degassing-valves-in-mylar-bags.md|pending bags|rule|-|-|-|-|-|not every vacuum pouch is heat-safe; the hub says to check the product specification|kb_v2/knowledge/know-mylar-bags-pouches-what-are-vacuum-pouches.md|pending banners|rule|wall signs|-|-|-|-|the wrinkle-free fabric sign grade is explicitly not recommended for exterior UV and rain|kb_v2/knowledge/know-signs-and-banners-what-are-wall-signs-light-and-simple-guide-to-this-signage-in-everyday-life.md|pending boxes|rule|pillow boxes|-|-|-|-|pillow boxes are described as carrying small, light goods only, not heavy items|kb_v2/knowledge/know-folding-cartons-pillow-boxes-when-minimalism-becomes-the-latest-trend.md|pending boxes|rule|seal-end boxes|-|-|-|-|a seal-end box is not meant for products the customer opens and closes repeatedly|kb_v2/knowledge/know-folding-cartons-seal-end-box-packaging-a-brief-overview.md|pending boxes|rule|-|duplex board|-|-|-|duplex board is ruled out for very heavy or delicate products|kb_v2/knowledge/know-folding-cartons-what-is-a-duplex-board-and-why-is-it-popular.md|pending boxes|rule|-|CCNB|-|-|-|CCNB is not offered for heavy-duty use|kb_v2/knowledge/know-folding-cartons-clay-coated-news-back-ccnb-cost-effective-packaging.md|pending boxes|rule|-|lined paperboard|-|-|-|lined paperboard is not supported for heavy products|kb_v2/knowledge/know-folding-cartons-what-is-lined-paperboard.md|pending",
+   "families": [
+    "bags",
+    "boxes",
+    "banners"
+   ]
+  },
+  {
+   "id": "capability-registry#47",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|kind|style|material|insert|finish|extras|reason|source|approved",
+   "text": "heavy or delicate products|kb_v2/knowledge/know-folding-cartons-what-is-a-duplex-board-and-why-is-it-popular.md|pending boxes|rule|-|CCNB|-|-|-|CCNB is not offered for heavy-duty use|kb_v2/knowledge/know-folding-cartons-clay-coated-news-back-ccnb-cost-effective-packaging.md|pending boxes|rule|-|lined paperboard|-|-|-|lined paperboard is not supported for heavy products|kb_v2/knowledge/know-folding-cartons-what-is-lined-paperboard.md|pending boxes|rule|-|chipboard|-|-|-|chipboard cannot take very heavy weight; it is a shape-and-structure stock|kb_v2/knowledge/know-folding-cartons-what-is-a-chipboard-and-what-role-does-it-play-in-packaging.md|pending print|rule|-|construction paper|-|-|-|construction paper is ruled out for detailed printing; the surface is rough|kb_v2/knowledge/know-folding-cartons-what-is-construction-paper.md|pending ```",
+   "families": [
+    "boxes"
+   ]
+  },
+  {
+   "id": "capability-registry#48",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "Sizes",
+   "text": "The plan's sizing rule is two sources only: a catalogue row or a visitor-typed number. kb_v2 makes that rule almost everything - one family publishes a numeric size list.\n```capability",
+   "families": []
+  },
+  {
+   "id": "capability-registry#49",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|values|note|source",
+   "text": "boxes|-|no size grid and no standard: pages answer \"any size and any shape\" or \"custom sizes and measurements\", so a box size comes from the visitor or from Sales; the only figures in the corpus are cake boxes up to 14 in and pie boxes 9-12 in|kb_v2/catalog/catalog-christmas-gift-boxes.md; kb_v2/catalog/catalog-category-food-beverage-boxes.md bags|-|no size grid: the corpus names sizes in words (small, large, extra large) and lists fill capacities 1 oz to 32 oz under Materials on the stand-up pouch page, never as a size table, so a capacity figure is not a size and must not be quoted as one|kb_v2/catalog/catalog-christmas-gift-bags.md; kb_v2/catalog/catalog-stand-up-pouch.md labels|-|no size grid: pages say \"Standard & Custom Sizes\", \"Fully Custom (Any Shape & Size)\" and \"Custom Width & Height\" without a standard list to read from|kb_v2/catalog/catalog-product-labels.md; kb_v2/catalog/catalog-custom-shape-labels.md; kb_v2/catalog/catalog-window-decals.md business_cards|-|no size row",
+   "families": [
+    "bags",
+    "boxes",
+    "labels"
+   ]
+  },
+  {
+   "id": "capability-registry#50",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|values|note|source",
+   "text": "Shape & Size)\" and \"Custom Width & Height\" without a standard list to read from|kb_v2/catalog/catalog-product-labels.md; kb_v2/catalog/catalog-custom-shape-labels.md; kb_v2/catalog/catalog-window-decals.md business_cards|-|no size row on any card page: the standard card page answers \"Dimensions (LxH): Any custom sizes and measurements\" and no page prints 3.5 x 2 in, so a card size comes from the visitor|kb_v2/catalog/catalog-standard-business-card.md banners|23\" x 66\"; 24\" x 81\"; 33\" x 81\"; 47\" x 81\"|pull-up banners are the only published size list in the corpus; every other sign page answers custom width and height, and \"or custom\" is offered alongside these four|kb_v2/catalog/catalog-pull-up-banners.md; kb_v2/catalog/catalog-window-decals.md print|3.5\" x 8.5\"; 3.5\" x 11\"|tear-card sizes are spec bullets; door-hanger sizes (3.5\" x 8.5\", 4.25\" x 11\", 5.5\" x 17\") appear only in FAQ prose while the page's own Sizes section says none is published, so they",
+   "families": [
+    "labels",
+    "banners"
+   ]
+  },
+  {
+   "id": "capability-registry#51",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|values|note|source",
+   "text": "5.5\" x 17\") appear only in FAQ prose while the page's own Sizes section says none is published, so they are not listed here; no other print product publishes a size|kb_v2/catalog/catalog-custom-tear-cards.md; kb_v2/catalog/catalog-door-hanger.md ```",
+   "families": []
+  },
+  {
+   "id": "capability-registry#52",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "Gauges",
+   "text": "`basis` says how much weight the figure carries: `page` is a spec bullet, `faq` is a Q&A answer on a product page, `knowledge` is a hub article that never claims the figure is ours to quote.\n```capability",
+   "families": []
+  },
+  {
+   "id": "capability-registry#53",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|material|gauge|basis|source|note",
+   "text": "boxes|kraft board|80 lb to 100 lb|page|kb_v2/catalog/catalog-tuck-boxes.md|spec bullet, same wording on the food & beverage category page boxes|rigid paperboard|800 to 1200 gsm|faq|kb_v2/catalog/catalog-tuck-boxes.md|the only gsm range the corpus attaches to a named box stock boxes|corrugated board, bux board, grayboard, cardstock, kraft|12 pt to 28 pt (60 lb to 400 lb)|page|kb_v2/catalog/catalog-custom-hoodie-packaging.md|one bullet covers the whole stock list; the source never splits the range by material boxes|paperboard|12 pt to 28 pt|faq|kb_v2/catalog/catalog-cbd-cream-boxes.md|the answer says \"usually around\" and calls it customizable; it names no material boxes|rigid cardboard and paperboard|18 pt to 24 pt|faq|kb_v2/catalog/catalog-tea-bag-dispenser.md|stated for crush resistance business_cards|cardstock|13 pt, 14 pt, 16 pt, 18 pt|page|kb_v2/catalog/catalog-standard-business-card.md|spec bullets; the page's Materials list is multi-material business_cards|cardstock|12 pt, 14 pt or 16 pt, 18 pt or 24 pt|faq|kb_v2/catalog/catalog-folded-business-card.md|advice by use (bulk mailer / pocket / premium) business_cards|cardstock|32 pt|page|kb_v2/catalog/catalog-ultra-thick-business-cards.md|also 32 pt linen",
+   "families": [
+    "bags",
+    "boxes"
+   ]
+  },
+  {
+   "id": "capability-registry#54",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|material|gauge|basis|source|note",
+   "text": "16 pt, 18 pt or 24 pt|faq|kb_v2/catalog/catalog-folded-business-card.md|advice by use (bulk mailer / pocket / premium) business_cards|cardstock|32 pt|page|kb_v2/catalog/catalog-ultra-thick-business-cards.md|also 32 pt linen on the linen page and 32 pt raised foil on the premium page business_cards|coated board|16 point|faq|kb_v2/catalog/catalog-embossed-gloss-business-cards.md|the same answer gives 20 mil PVC or PETG for the plastic version business_cards|PVC, PETG|20 mil|faq|kb_v2/catalog/catalog-embossed-gloss-business-cards.md|water and tear resistance business_cards|cardstock (tent cards)|12 to 24 point|knowledge|kb_v2/knowledge/know-business-cards-tent-card-standing-business-card-guide.md|hub article, not a product page print|gloss paper, high-finish and uncoated paper|70 lb to 100 lb|page|kb_v2/catalog/catalog-brochures.md|same wording on the political brochure page print|high-finish and uncoated paper|60 lb to 75 lb|page|kb_v2/catalog/catalog-booklets.md|the page names no paper type beyond that print|cardstock|10 pt|page|kb_v2/catalog/catalog-custom-political-postcards.md|adjacent Materials bullet bags|metallized film|5 mil|faq|kb_v2/catalog/catalog-pre-roll-mylar-bags.md|stated as an oxygen, moisture and UV barrier bags|metallized film|120 micron|faq|kb_v2/catalog/catalog-vape-pouches.md|named as beating the \"high barrier\" oxygen threshold bags|laminate|80 micron|faq|kb_v2/catalog/catalog-vape-pouches.md|single-pod promo weight bags|foil|80 micron|faq|kb_v2/catalog/catalog-flat-bottom-pouches.md|quoted inside a coffee shelf-life",
+   "families": [
+    "bags",
+    "boxes",
+    "print"
+   ]
+  },
+  {
+   "id": "capability-registry#55",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|material|gauge|basis|source|note",
+   "text": "bags|metallized film|120 micron|faq|kb_v2/catalog/catalog-vape-pouches.md|named as beating the \"high barrier\" oxygen threshold bags|laminate|80 micron|faq|kb_v2/catalog/catalog-vape-pouches.md|single-pod promo weight bags|foil|80 micron|faq|kb_v2/catalog/catalog-flat-bottom-pouches.md|quoted inside a coffee shelf-life comparison bags|compostable and recyclable constructions|80 to 150 micron|faq|kb_v2/catalog/catalog-eco-friendly-pouches.md|the answer says \"across most constructions\" bags|PE|100 micron (about 4 mil) and 130 to 150 micron|faq|kb_v2/catalog/catalog-hemp-flower-mylar-bag.md|split by pack size, not by material; the page's own Materials bullet is Metalized+Clear bags|PET|120 micron|faq|kb_v2/catalog/catalog-poly-mailers.md|suggested for pointed parts banners|vinyl|13 oz, 18 oz|faq|kb_v2/catalog/catalog-step-and-repeat-banners.md|matte stretch polyester is named alongside, without a weight banners|scrim vinyl|13 oz to 18 oz per square yard|knowledge|kb_v2/knowledge/know-signs-and-banners-what-are-scrim-vinyl-banners-durable-guide.md|hub article banners|mesh|8 oz per yard|knowledge|kb_v2/knowledge/know-signs-and-banners-what-are-mesh-banners-and-why-theyre-taking-over-signs.md|hub article, compared against 13 oz vinyl banners|backlit vinyl|15 to 20 oz per square yard|knowledge|kb_v2/knowledge/know-signs-and-banners-what-is-backlit-vinyl-and-what-does-it-mean.md|hub article banners|coroplast|4 mm, 6 mm, 8 mm|knowledge|kb_v2/knowledge/know-signs-and-banners-what-are-corrugated-plastic-coroplast-compositions.md|hub article; the yard-sign guide repeats 4 mm as standard banners|PVC board / Sintra|3, 5, 10, 19 mm|knowledge|kb_v2/knowledge/know-signs-and-banners-what-is-pvc-board-sintra-expanded-pvc-a-clear-guide-for-signs-and-banners.md|hub article banners|acrylic|1/8 in to 1",
+   "families": [
+    "bags",
+    "boxes",
+    "banners"
+   ]
+  },
+  {
+   "id": "capability-registry#56",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|material|gauge|basis|source|note",
+   "text": "yard-sign guide repeats 4 mm as standard banners|PVC board / Sintra|3, 5, 10, 19 mm|knowledge|kb_v2/knowledge/know-signs-and-banners-what-is-pvc-board-sintra-expanded-pvc-a-clear-guide-for-signs-and-banners.md|hub article banners|acrylic|1/8 in to 1 in|knowledge|kb_v2/knowledge/know-signs-and-banners-what-are-acrylic-signs-how-they-deliver-real-efficiency.md|hub article; 3/16 in and 1/4 in named as the popular sign thicknesses labels|none published|-|-|-|no label, sticker or decal page in kb_v2 states a face-stock gauge in pt, mil, micron or gsm ```",
+   "families": [
+    "labels",
+    "banners"
+   ]
+  },
+  {
+   "id": "capability-registry#57",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "Questions for production",
+   "text": "```capability",
+   "families": []
+  },
+  {
+   "id": "capability-registry#58",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|question|asked|source",
+   "text": "banners|which sign products are ours as a line: Signicades, desk name plates, restroom signs, parking signs and A-frames are named by the signs category page but publish no specs|sales and production|kb_v2/catalog/catalog-signicades.md print|coasters, mugs, keychains, envelopes, wall calendars, posters, numbered tickets and variable printing have pages but no specs and no category listing; are these live product lines?|sales|kb_v2/catalog/catalog-coaster.md; kb_v2/catalog/catalog-mugs.md; kb_v2/catalog/catalog-keychain.md boxes|is supplements-packaging a seventh catalogue family or part of boxes? The site gives it its own category prefix and one page|sales|kb_v2/catalog/catalog-supplements-packaging.md bags|which film constructions are actually stocked, and which gauge do we quote for a given pack size? Every gauge in the corpus is an FAQ answer that names no material or splits by size|production|kb_v2/catalog/catalog-hemp-flower-mylar-bag.md labels|no label page publishes a face-stock thickness, so which stock do we quote for freezer, outdoor",
+   "families": [
+    "bags",
+    "boxes",
+    "labels",
+    "banners"
+   ]
+  },
+  {
+   "id": "capability-registry#59",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|question|asked|source",
+   "text": "or splits by size|production|kb_v2/catalog/catalog-hemp-flower-mylar-bag.md labels|no label page publishes a face-stock thickness, so which stock do we quote for freezer, outdoor and UV exposure?|production|kb_v2/catalog/catalog-barcode-labels.md boxes|flute profiles are listed with no thickness, ECT or ply figure anywhere in the corpus: what do we actually specify for E, B, C, EB and BC flute?|production|kb_v2/catalog/catalog-category-food-beverage-boxes.md print|the mug page reads as a copyright condition but the sentence is garbled; can we repeat any copyright rule to a visitor?|legal|kb_v2/catalog/catalog-mugs.md bags|is the published WVTR figure (below 0.1 g/m2/day) ours to state, and where is the test report?|production and legal|kb_v2/catalog/catalog-hemp-flower-mylar-bag.md ```",
+   "families": [
+    "bags",
+    "boxes",
+    "labels"
+   ]
+  },
+  {
+   "id": "capability-registry#60",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "Not attested",
+   "text": "Values that must not appear in an answer as something we make. `class: probe` rows are the negative probes the bot must fail; `class: v1-absent` rows are what the old six-page vocabulary claimed and kb_v2 never says - they are kept for the auditor, and the primer lists only the probes, because 80 absent values in the prompt would push the useful ones out.\n```capability",
+   "families": []
+  },
+  {
+   "id": "capability-registry#61",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|value|note|class",
+   "text": "boxes|pillow box|described generically in the folding-carton hub; no product page offers one, so we do not say we make it|probe boxes|sleeve box|the phrase \"Sleeves use 40% less material than full boxes\" appears in FAQ prose on a box category page; no sleeve product page exists|probe boxes|rigid mylar box|mixes a bag material with a box form; neither page pairs them|probe bags|Child-Guard zipper|the brand name does not appear anywhere in kb_v2; the mechanisms the site names are push-and-pull, push-and-slide, press-to-close and pinch-and-pull|probe bags|squeeze-then-slide zipper|phrasing not in kb_v2; see the four mechanisms the site does name|probe labels|braille embossing|in the v1 vocabulary; no label or card page in kb_v2 mentions braille|probe print|letterpress|not in kb_v2; the print pages name offset, digital, screen and flexographic|probe bags|high-barrier metalized foil|v1 vocabulary (bags/material); the string does not occur anywhere",
+   "families": [
+    "bags",
+    "boxes",
+    "labels"
+   ]
+  },
+  {
+   "id": "capability-registry#62",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|value|note|class",
+   "text": "the print pages name offset, digital, screen and flexographic|probe bags|high-barrier metalized foil|v1 vocabulary (bags/material); the string does not occur anywhere in kb_v2|v1-absent bags|metalized + clear front|v1 vocabulary (bags/material); the string does not occur anywhere in kb_v2|v1-absent bags|kraft paper laminate|v1 vocabulary (bags/material); the string does not occur anywhere in kb_v2|v1-absent bags|clear/transparent film|v1 vocabulary (bags/material); the string does not occur anywhere in kb_v2|v1-absent bags|kraft film|v1 vocabulary (bags/material); the string does not occur anywhere in kb_v2|v1-absent bags|compostable multi-layer|v1 vocabulary (bags/material); the string does not occur anywhere in kb_v2|v1-absent bags|metalized foil|v1 vocabulary (bags/finish); the string does not occur anywhere in kb_v2|v1-absent bags|kraft paper laminate|v1 vocabulary (bags/finish); the string does not occur anywhere in kb_v2|v1-absent bags|metalized + clear front|v1 vocabulary (bags/finish); the string does not occur anywhere in kb_v2|v1-absent bags|copper foil|v1 vocabulary (bags/finish); the string",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "capability-registry#63",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|value|note|class",
+   "text": "bags|metalized + clear front|v1 vocabulary (bags/finish); the string does not occur anywhere in kb_v2|v1-absent bags|copper foil|v1 vocabulary (bags/finish); the string does not occur anywhere in kb_v2|v1-absent bags|rose-gold foil|v1 vocabulary (bags/finish); the string does not occur anywhere in kb_v2|v1-absent bags|AQ coating|v1 vocabulary (bags/finish); the string does not occur anywhere in kb_v2|v1-absent bags|Euro hole|v1 vocabulary (bags/extras); the string does not occur anywhere in kb_v2|v1-absent bags|Child-Guard zipper|v1 vocabulary (bags/extras); the string does not occur anywhere in kb_v2|v1-absent bags|easy-open standard zipper|v1 vocabulary (bags/extras); the string does not occur anywhere in kb_v2|v1-absent boxes|none|v1 vocabulary (boxes/insert); the string does not occur anywhere in kb_v2|v1-absent boxes|die-cut foam insert|v1 vocabulary (boxes/insert); the string does not occur anywhere in kb_v2|v1-absent boxes|die-cut cardboard insert|v1 vocabulary (boxes/insert); the string does not occur anywhere in kb_v2|v1-absent boxes|tamper-evident glue pattern|v1 vocabulary (boxes/insert); the",
+   "families": [
+    "bags",
+    "boxes",
+    "labels"
+   ]
+  },
+  {
+   "id": "capability-registry#64",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|value|note|class",
+   "text": "kb_v2|v1-absent boxes|die-cut cardboard insert|v1 vocabulary (boxes/insert); the string does not occur anywhere in kb_v2|v1-absent boxes|tamper-evident glue pattern|v1 vocabulary (boxes/insert); the string does not occur anywhere in kb_v2|v1-absent boxes|braille embossing|v1 vocabulary (boxes/insert); the string does not occur anywhere in kb_v2|v1-absent boxes|copper foil|v1 vocabulary (boxes/finish); the string does not occur anywhere in kb_v2|v1-absent boxes|rose-gold foil|v1 vocabulary (boxes/finish); the string does not occur anywhere in kb_v2|v1-absent boxes|AQ coating|v1 vocabulary (boxes/finish); the string does not occur anywhere in kb_v2|v1-absent boxes|full-colour print|v1 vocabulary (boxes/finish); the string does not occur anywhere in kb_v2|v1-absent labels|silver film|v1 vocabulary (labels/material); the string does not occur anywhere in kb_v2|v1-absent labels|foil gold|v1 vocabulary (labels/finish); the string does not occur anywhere in kb_v2|v1-absent labels|foil silver|v1 vocabulary (labels/finish); the string does not occur anywhere in kb_v2|v1-absent labels|foil rose|v1 vocabulary (labels/finish); the string does",
+   "families": [
+    "bags",
+    "boxes",
+    "labels"
+   ]
+  },
+  {
+   "id": "capability-registry#65",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|value|note|class",
+   "text": "kb_v2|v1-absent labels|foil silver|v1 vocabulary (labels/finish); the string does not occur anywhere in kb_v2|v1-absent labels|foil rose|v1 vocabulary (labels/finish); the string does not occur anywhere in kb_v2|v1-absent banners|vinyl 9 oz|v1 vocabulary (banners/material); the string does not occur anywhere in kb_v2|v1-absent banners|vinyl 10 oz|v1 vocabulary (banners/material); the string does not occur anywhere in kb_v2|v1-absent banners|vinyl 13 oz|v1 vocabulary (banners/material); the string does not occur anywhere in kb_v2|v1-absent banners|vinyl 15 oz|v1 vocabulary (banners/material); the string does not occur anywhere in kb_v2|v1-absent banners|vinyl 18 oz|v1 vocabulary (banners/material); the string does not occur anywhere in kb_v2|v1-absent banners|vinyl 20 oz|v1 vocabulary (banners/material); the string does not occur anywhere in kb_v2|v1-absent banners|vinyl 22 oz|v1 vocabulary (banners/material); the string does not occur anywhere in kb_v2|v1-absent banners|heat-welded hem|v1 vocabulary (banners/finish); the string does not occur anywhere in kb_v2|v1-absent banners|CMYK print|v1",
+   "families": [
+    "labels",
+    "banners"
+   ]
+  },
+  {
+   "id": "capability-registry#66",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|value|note|class",
+   "text": "does not occur anywhere in kb_v2|v1-absent banners|heat-welded hem|v1 vocabulary (banners/finish); the string does not occur anywhere in kb_v2|v1-absent banners|CMYK print|v1 vocabulary (banners/finish); the string does not occur anywhere in kb_v2|v1-absent business_cards|any Pantone colour|v1 vocabulary (business_cards/finish); the string does not occur anywhere in kb_v2|v1-absent business_cards|NFC tap profile|v1 vocabulary (business_cards/extras); the string does not occur anywhere in kb_v2|v1-absent print|weather-proof stock|v1 vocabulary (print/finish); the string does not occur anywhere in kb_v2|v1-absent print|Z-fold|v1 vocabulary (print/fold); the string does not occur anywhere in kb_v2|v1-absent print|gate-fold|v1 vocabulary (print/fold); the string does not occur anywhere in kb_v2|v1-absent print|accordion-fold|v1 vocabulary (print/fold); the string does not occur anywhere in kb_v2|v1-absent print|roll-fold|v1 vocabulary (print/fold); the string does not occur anywhere in kb_v2|v1-absent print|french fold|v1 vocabulary (print/fold); the string does not occur anywhere in kb_v2|v1-absent print|cross-fold|v1 vocabulary (print/fold); the string does",
+   "families": [
+    "bags",
+    "banners"
+   ]
+  },
+  {
+   "id": "capability-registry#67",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "family|value|note|class",
+   "text": "in kb_v2|v1-absent print|french fold|v1 vocabulary (print/fold); the string does not occur anywhere in kb_v2|v1-absent print|cross-fold|v1 vocabulary (print/fold); the string does not occur anywhere in kb_v2|v1-absent print|double parallel fold|v1 vocabulary (print/fold); the string does not occur anywhere in kb_v2|v1-absent print|step-down|v1 vocabulary (print/fold); the string does not occur anywhere in kb_v2|v1-absent print|poster-style|v1 vocabulary (print/fold); the string does not occur anywhere in kb_v2|v1-absent ```",
+   "families": []
+  },
+  {
+   "id": "capability-registry#68",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "Aliases",
+   "text": "The written forms the site uses for one value, so a visitor's spelling resolves instead of reading as an invented noun. `bot/capability.py::normalise` folds a query through this table before it builds a tuple key; the builder folds the same pairs at extraction time via MERGE, so the two never drift apart.\n```capability",
+   "families": []
+  },
+  {
+   "id": "capability-registry#69",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "variant|canonical",
+   "text": "3 dimensional raised uv|3D raised UV 3 dimensional raised uv effects|3D raised UV aq coating|aqueous coating aqueous|aqueous coating buxboard|bux board card board|cardboard carry handles|handle child resistant zippers|child-resistant zipper clear transparent film|clear film clear window|window color customization|colour customization corflute|corrugated plastic corrugated|corrugated board corrugated e flute|e-flute corrugated plastics|corrugated plastic corrugated stock|corrugated board corrugated substrates|corrugated board cut outs|cut-out die cut foam insert|foam insert die cutting|die cut e flute corrugated|e-flute easy open standard zipper|easy-open zipper easy open zippers|easy-open zipper euro holes|Euro hole foam inserts|foam insert foil gold|gold foil foil rose|rose gold foil foil silver|silver foil gloss laminate|gloss lamination gloss laminated|gloss lamination glossy|gloss gold foiling|foil printing greyboard|grayboard handles|handle hang holes|hang hole heat sealed|heat seal high barrier metalized foil|metalized foil hot stamp|hot foil stamping hot stamp foiling|hot foil stamping inside glass|reverse printing kiss cutting|kiss cut layered",
+   "families": [
+    "bags",
+    "boxes",
+    "labels"
+   ]
+  },
+  {
+   "id": "capability-registry#70",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "variant|canonical",
+   "text": "barrier metalized foil|metalized foil hot stamp|hot foil stamping hot stamp foiling|hot foil stamping inside glass|reverse printing kiss cutting|kiss cut layered reveal mechanisms|layered reveal mechanism led light modules|LED light module lift tabs|lift tab magnetic closures|magnetic closure matte laminate|matte lamination matte laminated|matte lamination metallized film layer|metallized film molded pulp trays|molded pulp tray mylar bags|mylar bag paperboard dividers|paperboard divider perforations|perforation polyethylene|PE polyethylene terephthalate|PET polypropylene|PP raised inks|raised ink raised uv|3D raised UV resealable tabs|resealable tab ribbon pulls|ribbon pull rigid|rigid board rigid grayboard|grayboard rigid stocks|rigid board sbs|SBS paperboard sheen aqueous|aqueous coating softtouch|soft touch softtouch lamination|soft touch lamination spot foil|spot foiling spotuv|spot UV stackable designs|stackable design tabs|lift tab tamper evident features|tamper-evident seal tamper evident glue pattern|tamper-evident seal textured papers|textured paper transparent polyester|polyester uv|UV coating varnishing|varnish velvet lined trays|velvet-lined tray vent holes|vent hole weather proof stock|weatherproof stock",
+   "families": [
+    "bags",
+    "boxes"
+   ]
+  },
+  {
+   "id": "capability-registry#71",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "variant|canonical",
+   "text": "seal textured papers|textured paper transparent polyester|polyester uv|UV coating varnishing|varnish velvet lined trays|velvet-lined tray vent holes|vent hole weather proof stock|weatherproof stock ```",
+   "families": []
+  },
+  {
+   "id": "capability-registry#72",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "Catalogue pages with no family",
+   "text": "```capability",
+   "families": []
+  },
+  {
+   "id": "capability-registry#73",
+   "doc_id": "capability-registry",
+   "title": "Capability registry (kb_v2)",
+   "category": "capabilities",
+   "source": "kb_v2 catalogue corpus (469 files, all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "page|title|kind",
+   "text": "catalog-best-sellers|Best Sellers|other\ncatalog-coaster|Coasters|product\ncatalog-deals-nfc|NFC Card|deal\ncatalog-keychain|Keychains|product\ncatalog-mugs|Custom Printed Mugs|product\n```",
+   "families": []
+  },
+  {
+   "id": "compliance-allowlist#1",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "What this file is",
+   "text": "PLAN_V2 §4.5: presence in the KB is **not** a licence to assert. The KB is full of marketing prose —\n\"weatherproof\", \"smell-proof\", \"cosmetic and food-grade (SBS)\" — and a grounding rule based on \"the\nphrase appears somewhere in the KB\" would let the model lift a campaign adjective into a compliance\nclaim. So compliance and capability claims get their own tier, stricter than the registry:",
+   "families": []
+  },
+  {
+   "id": "compliance-allowlist#2",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "What this file is",
+   "text": "- A claim is assertable **only** if it appears in the `allowed` table below, in the wording given,\nscoped to the family given.\n- Anything else → **BLOCK** `unsupported_claim`, and the bot uses the fixed deflection at the bottom\nof this file.\n- Explaining **why** an option suits a product stays allowed without a row here (\"a straight-walled\nrigid box keeps a glass jar from tipping\"); asserting a **property** does not (\"so it is food safe\").\nTwo drafting rules that every row obeys:",
+   "families": [
+    "boxes"
+   ]
+  },
+  {
+   "id": "compliance-allowlist#3",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "What this file is",
+   "text": "1. **The source wording wins.** Where two verified files phrase the same thing differently, the row\nkeeps both, separately, and says never merge. Example: the site says *FDA-approved food-grade\nmaterials … on demand* ([pouches.md](../products/pouches.md)) while the internal sales script says\n*FDA-compliant materials, interior linings and inks*\n([materials-by-family.md](../materials/materials-by-family.md)). Neither may be rewritten into the\nother, and the script version must be introduced as a script rule, because that file says so.\n2. **No number, standard, body or certificate that is not printed in a verified file.** The KB names\nno test standard, no certification body and no certificate number anywhere\n([facts/design-support.md](../facts/design-support.md): \"These are memberships, not product\ncertifications, and no certificate numbers are shown\"). So the bot never produces one.",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "compliance-allowlist#4",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "Allowed claims",
+   "text": "Format: `topic|family|say|source|never_say`. Cells are separated by `|`; a list inside a cell uses\n`;`; commas are ordinary text. `family: any` means the row is not family-scoped.\n```capability",
+   "families": []
+  },
+  {
+   "id": "compliance-allowlist#5",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "topic|family|say|source|never_say",
+   "text": "food-contact|bags|Jerky bags are food-grade for direct contact.|kb/materials/pouches-mylar-materials-finishes.md; kb/products/beef-jerky-bags.md|Never extend food-grade beyond the jerky line; never upgrade it to food safe or FDA approved; never apply it to a pouch the customer names unless the jerky row covers it. food-contact|bags|FDA-approved food-grade materials are used on demand for food packaging.|kb/products/pouches.md|Keep \"on demand\" — it is a request, not a default. Never say all our pouches are FDA approved, never drop \"on demand\", never name a certificate or standard. food-contact|boxes|SBS paperboard is the board line used for cosmetic and food-grade boxes.|kb/materials/boxes-campaign-materials.md; kb/products/boxes-campaign-styles.md|Never say SBS is food safe or FDA approved — the source names a use, not a certification. This is the exact R15 case in PLAN_V2 §15. food-contact|boxes|Food boxes use 14-16pt lightweight, 18-20pt standard and 24pt heavy-duty board.|kb/products/boxes.md|These are board grades, not",
+   "families": [
+    "bags",
+    "boxes"
+   ]
+  },
+  {
+   "id": "compliance-allowlist#6",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "topic|family|say|source|never_say",
+   "text": "R15 case in PLAN_V2 §15. food-contact|boxes|Food boxes use 14-16pt lightweight, 18-20pt standard and 24pt heavy-duty board.|kb/products/boxes.md|These are board grades, not a safety claim. Never present a gauge as food certification. food-contact|any|Script rule, from our internal sales guidance: food packaging uses FDA-compliant materials, interior linings and inks.|kb/materials/materials-by-family.md|Always introduce it as a script rule — that file says so. Never merge it with the site's FDA-approved sentence, never present it as site-published. food-contact|any|Script rule: food-safe coatings include polyethylene, wax coatings, PLA and aqueous coating.|kb/materials/materials-by-family.md|A named coating is not a claim that a specific job carries it. Never say a given box or pouch is food safe. moisture|bags|Do not store items containing more than 10 percent moisture in mylar pouches — this is a category rule, not a guarantee for a specific product;",
+   "families": [
+    "bags",
+    "boxes"
+   ]
+  },
+  {
+   "id": "compliance-allowlist#7",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "topic|family|say|source|never_say",
+   "text": "than 10 percent moisture in mylar pouches — this is a category rule, not a guarantee for a specific product; food use is confirmed with the team.|kb/products/pouches.md|Never turn it into a clearance for the customer's product, never drop the confirm-with-the-team clause, never quote a moisture figure other than 10 percent. barrier|bags|Mylar pouches use high-barrier film that blocks oxygen, moisture and light.|kb/materials/pouches-mylar-materials-finishes.md; kb/products/pouches.md|Never quote a barrier test value, layer stack or micron spec — the source states none. Never say weatherproof or smell-proof (see the never table). barrier|bags|High-barrier metalized foil gives maximum protection against oxygen and light for long-term storage.|kb/products/pouches.md|Keep it to oxygen and light; the source does not claim moisture or odour protection for this film. heat|bags|Let hot food cool before sealing: barrier film handles warmth but extreme heat can",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "compliance-allowlist#8",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "topic|family|say|source|never_say",
+   "text": "or odour protection for this film. heat|bags|Let hot food cool before sealing: barrier film handles warmth but extreme heat can melt the inner layer, so fill at room temperature for long-term storage.|kb/products/pouches-mylar-filling-use.md|Never give a temperature number — none is stated. Never promise a hot-fill capability. sealing|bags|Heat-seal with a standard commercial impulse sealer, steady pressure for about two seconds above the zipper line, creating an airtight, tamper-evident seal until the consumer tears the notch.|kb/products/pouches-mylar-filling-use.md|Tamper-evidence here describes that seal, not the pouch as a certified tamper-evident product. child-resistance|bags|Child-resistant zippers use a two-step motion — squeeze both sides, then slide — and certified child-resistant zippers require two-handed strength.|kb/products/pouches.md|Never claim certification for a specific order, never name a standard, body or certificate number, never say child-proof. child-resistance|bags|Child-Guard zippers are also offered among the bag",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "compliance-allowlist#9",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "topic|family|say|source|never_say",
+   "text": "order, never name a standard, body or certificate number, never say child-proof. child-resistance|bags|Child-Guard zippers are also offered among the bag extras.|kb/materials/extras.md|Child-Guard and child-resistant are listed separately in the sources; never merge them into one claim. tamper-evidence|boxes|Pharmaceutical boxes can include braille embossing, custom die-cut foam or cardboard inserts, tamper-evident glue patterns and perforated tear strips.|kb/products/boxes.md|Scoped to pharmaceutical boxes as named options. Never generalise to every box style, never call it a tamper-evident certification. sustainability|boxes|Sustainable options include biodegradable inks and recycled paper.|kb/facts/boxes-campaign-faq.md; kb/materials/boxes-campaign-materials.md|Never say recyclable, compostable, plastic-free or curbside recyclable — no source states any of them. sustainability|boxes|Kraft paperboard 18-24pt is the eco-friendly retail packaging option.|kb/materials/boxes-campaign-materials.md|A material description, not a certification. Never attach a standard or a percentage of recycled content. sustainability|bags|Script rule: water-based inks with nearly zero VOC emission are used",
+   "families": [
+    "bags",
+    "boxes",
+    "labels"
+   ]
+  },
+  {
+   "id": "compliance-allowlist#10",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "topic|family|say|source|never_say",
+   "text": "attach a standard or a percentage of recycled content. sustainability|bags|Script rule: water-based inks with nearly zero VOC emission are used for mylar printing.|kb/materials/materials-by-family.md|Introduce as a script rule. Never quote a VOC figure other than \"nearly zero\", never claim a certification. sustainability|bags|Script rule: mylar eco options are PLA (polylactic acid) and compostable multi-layer structures.|kb/materials/materials-by-family.md|These are named material options, not a claim that a given pouch is compostable. Never say certified compostable. water-resistance|labels|Clear labels are made from durable BOPP film, are water-resistant and scratch-resistant, and suit glass and plastic jars and bottles.|kb/products/labels-bottle-wine-spirits.md|Water-resistant, not waterproof. Never add dishwasher safe, freezer safe or submersion claims. water-resistance|labels|Vinyl is used for abrasion resistance and outdoor use and is highly resistant to water and sun.|kb/products/labels.md|Never say waterproof or UV-proof; the source says highly resistant. water-resistance|labels|For products that",
+   "families": [
+    "bags",
+    "labels"
+   ]
+  },
+  {
+   "id": "compliance-allowlist#11",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "topic|family|say|source|never_say",
+   "text": "and is highly resistant to water and sun.|kb/products/labels.md|Never say waterproof or UV-proof; the source says highly resistant. water-resistance|labels|For products that face water or oils, BOPP or vinyl with a gloss or matte laminate is usually recommended.|kb/products/labels.md; kb/products/labels-bottle-wine-spirits.md|A recommendation, not a guarantee. Never promise oil-proof or grease-proof performance. water-resistance|labels|Vinyl is weatherproof and flexible and handles oils and moisture, in gloss or matte.|kb/products/labels-bottle-wine-spirits.md|\"Weatherproof\" is sourced for vinyl labels only — never extend it to mylar pouches, where it is marketing wording with no test data. membership|banners|We are a registered member of the Printing United Alliance.|kb/facts/design-support.md|A membership, not a certification. Never say certified by, accredited by, or ISO/GMP/HACCP registered. membership|any|Our About page lists FPA, NCA, SFA and the Central Fort Bend Chamber of Commerce.|kb/facts/design-support.md|Verify the acronym before using it — the NCA acronym",
+   "families": [
+    "bags",
+    "labels",
+    "banners"
+   ]
+  },
+  {
+   "id": "compliance-allowlist#12",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "topic|family|say|source|never_say",
+   "text": "FPA, NCA, SFA and the Central Fort Bend Chamber of Commerce.|kb/facts/design-support.md|Verify the acronym before using it — the NCA acronym differs from the INCA name in older notes. Never call any of these a certification body that certified a product. ```",
+   "families": []
+  },
+  {
+   "id": "compliance-allowlist#13",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "Never say — sourced bans",
+   "text": "Each row is a phrase that **does** appear in our own material or is a natural upgrade of an allowed\nrow, and is banned anyway. `why` carries the source that bans it, so the guard can explain the block.\n```capability",
+   "families": []
+  },
+  {
+   "id": "compliance-allowlist#14",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "claim|family|why",
+   "text": "weatherproof|bags|The campaign hero calls mylar pouches weatherproof, but the source file records it as campaign marketing wording with no test data in the repo (kb/materials/pouches-mylar-materials-finishes.md). smell-proof|bags|Same source: llms.txt calls them smell-proof — marketing wording, no test data, so it is not assertable. odor-proof / odour-proof|bags|Same ban as smell-proof; a spelling variant is not a new source. food safe|any|No verified file uses the phrase. The sourced words are food-grade for the jerky line and FDA-approved food-grade materials on demand. FDA approved / FDA approved facility|any|The site sentence is about materials used on demand for food packaging (kb/products/pouches.md). Nothing states the facility is FDA registered or approved. FDA certified|any|No source. FDA does not certify packaging; the KB never claims it. BPA-free|any|The word BPA appears nowhere in the verified KB. child-proof|bags|The sourced term",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "compliance-allowlist#15",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "claim|family|why",
+   "text": "not certify packaging; the KB never claims it. BPA-free|any|The word BPA appears nowhere in the verified KB. child-proof|bags|The sourced term is child-resistant, and certification is only described for certified zippers requiring two-handed strength. Never upgrade resistant to proof. certified child-resistant for your order|bags|Certification is described as a property of certified zippers in general (kb/products/pouches.md), not as something the bot may promise for a specific job. recyclable|any|No source states recyclability for any product. The sourced sustainability words are biodegradable inks and recycled paper for boxes. compostable (as a property of a job)|bags|Compostable multi-layer is a named material option in the internal script, not a claim about a finished pouch. No certification is named. biodegradable (as a property of a pouch or box)|any|Biodegradable is sourced only for inks on boxes (kb/facts/boxes-campaign-faq.md; kb/materials/boxes-campaign-materials.md).",
+   "families": [
+    "bags",
+    "boxes"
+   ]
+  },
+  {
+   "id": "compliance-allowlist#16",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "claim|family|why",
+   "text": "is named. biodegradable (as a property of a pouch or box)|any|Biodegradable is sourced only for inks on boxes (kb/facts/boxes-campaign-faq.md; kb/materials/boxes-campaign-materials.md). plastic-free|any|No source. curbside recyclable|any|No source. waterproof|labels|The sourced words are water-resistant (BOPP clear labels) and highly resistant to water and sun (vinyl). \"Weatherproof\" is sourced for vinyl labels only. dishwasher safe / freezer safe / microwave safe|any|No source for any of them. oil-proof / grease-proof|labels|The sourced wording is that vinyl handles oils and moisture, and that BOPP or vinyl with laminate is usually recommended for water or oil exposure. barrier test value / OTR / WVTR number|bags|The source states no layer stack, micron spec, valve or barrier test value (kb/materials/pouches-mylar-materials-finishes.md). micron spec presented as a guarantee|bags|80-150 micron is a pouch-page film range and 5-7 mil is a recommendation for sharp or",
+   "families": [
+    "bags",
+    "boxes",
+    "labels"
+   ]
+  },
+  {
+   "id": "compliance-allowlist#17",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "claim|family|why",
+   "text": "spec presented as a guarantee|bags|80-150 micron is a pouch-page film range and 5-7 mil is a recommendation for sharp or heavy products; neither is a performance guarantee, and the two figures are never merged. ISO 9001 / GMP / HACCP / FSC certified|any|No certification of any kind is named in the verified KB. FSC appears once, as FSC-compliant paperboard used for mushroom products in the internal script (kb/materials/materials-by-family.md) — a script line about one category, not a company certification, so it is not assertable without sales confirmation. certificate number|any|No certificate numbers are shown anywhere (kb/facts/design-support.md). guaranteed / guaranteed fit / guaranteed shelf life|any|Sizes and capacities in the KB are listing values and guides, and the KB itself says never present a capacity as a guarantee. ```",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "compliance-allowlist#18",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "claim|family|why",
+   "text": "values and guides, and the KB itself says never present a capacity as a guarantee. ```",
+   "families": []
+  },
+  {
+   "id": "compliance-allowlist#19",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "Fixed deflection",
+   "text": "When a claim is outside the `allowed` table, the bot does not improvise a softer version of it. It\nsays the property is confirmed with the quote, and keeps helping:\n> Material and compliance specs are confirmed by our team with your quote — tell me what the product\n> is and how it ships, and I will get the right options in front of them.\nThe deflection is the whole answer to a compliance question. It is not a licence to then assert the\nclaim anyway in the next sentence, and §4.5's rule still holds: the bot may explain **why** an option\nsuits the product, using general packaging knowledge, without naming a property we have not signed.",
+   "families": []
+  },
+  {
+   "id": "compliance-allowlist#20",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "Open items",
+   "text": "1. **Named approver (D-10).** `approver:` in the frontmatter is `pending`. Production drafts, counsel or the owner approves; the name goes on the file before any row is assertable in live v2. 2. **Two claims need a decision, not a source.** (a) Is the jerky line's \"food-grade for direct contact\" the only food-contact claim sales wants made in chat, or should the FDA-approved materials sentence carry it for other pouch lines? (b) The script says label stock is *PP white vinyl only* while the site lists six label materials — that conflict is in the registry's `needs_production_answer`, and until it is resolved the water-resistance rows above are the only label property claims the bot may make. 3. **FSC-compliant paperboard** for mushroom products is deliberately **not** an allowed row: it is one",
+   "families": [
+    "bags",
+    "labels"
+   ]
+  },
+  {
+   "id": "compliance-allowlist#21",
+   "doc_id": "compliance-allowlist",
+   "title": "Compliance and capability claims — the only sentences the bot may assert",
+   "category": "capabilities",
+   "source": "kb/products/pouches.md + kb/products/beef-jerky-bags.md + kb/products/boxes.md + kb/products/labels.md + kb/products/labels-bottle-wine-spirits.md + kb/products/boxes-campaign-styles.md + kb/materials/materials-by-family.md + kb/materials/pouches-mylar-materials-finishes.md + kb/materials/boxes-campaign-materials.md + kb/materials/extras.md + kb/facts/boxes-campaign-faq.md + kb/facts/design-support.md (all status: verified)",
+   "status": "draft",
+   "last_reviewed": "2026-10-30",
+   "section": "Open items",
+   "text": "claims the bot may make. 3. **FSC-compliant paperboard** for mushroom products is deliberately **not** an allowed row: it is one line in the internal script about one category, and turning it into a claim is exactly the marketing-to-compliance lift §4.5 exists to stop. If production wants it assertable, it gets a row with a name against it.",
+   "families": []
+  },
+  {
+   "id": "fact-artwork#1",
+   "doc_id": "fact-artwork",
+   "title": "Artwork and file formats",
+   "category": "facts",
+   "source": "print247.us product pages + print247.us/category/business-cards-shapes-business-cards + print247.us/category/boxes-packaging-cosmetic-boxes",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Accepted artwork formats: AI, PDF, EPS or ZIP on most product\npages. Business cards also accept PSD — PSD is business-card\nspecific, not general.\nCosmetic boxes: artwork includes 3mm bleed and live text should\nremain within the safe area.\nChild-resistant pouches: the production crew preflights files and\nfixes unnoticed errors.\nNo artwork submission deadline was found anywhere on the site —\nnever invent one; if asked, hand off to the team.\nPrinting: CMYK plus Pantone/PMS matching, offset, digital and\nflexographic for food.",
+   "families": [
+    "bags",
+    "boxes",
+    "business_cards"
+   ]
+  },
+  {
+   "id": "boxes-campaign-faq#1",
+   "doc_id": "boxes-campaign-faq",
+   "title": "Boxes campaign FAQs",
+   "category": "facts",
+   "source": "boxes-campaign-main/src/app/components/home/faqs/index.jsx",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "Boxes campaign FAQs: minimum order is 1000 customized box units, which\nenables wholesale pricing and quality standards. A free digital mockup\nis always generated for approval before final printing (the hero also\npromises free 3D mockups — keep both wordings separate). Production\ntypically takes 12-15 working days to complete and ship standard orders;\nrush production is offered for wholesale orders with tight deadlines,\nwith no rush duration stated. Material is chosen by the team from\nproduct weight and shipping conditions, with board thickness reviewed so\nnothing arrives damaged. Sustainable options include biodegradable inks\nand recycled paper. Boxes ship flat, which massively reduces freight\ncosts, prevents transit damage, and saves warehouse space until boxes\nare folded for fulfilment.",
+   "families": [
+    "boxes"
+   ]
+  },
+  {
+   "id": "boxes-campaign-quote-form#1",
+   "doc_id": "boxes-campaign-quote-form",
+   "title": "Boxes quote form (boxes campaign page)",
+   "category": "facts",
+   "source": "boxes-campaign-main/src/app/components/home/banner/boxesForm/index.jsx, banner/modal/modal.jsx, customQuote/index.jsx",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "A boxes quote on the campaign page needs: box type (main form dropdown), width (required), height (required), length (optional, blank = 0), unit (inches/cm/mm, default inches), quantity of at least 1000, full name, email, and US phone (10-15 digits); note and artwork files are optional. There is no preset size list — any numeric width and height are accepted. Dimensions are submitted as width x height x length. There is no material picker and no finish picker in the form, and the company field is not shown in the live UI. Minimum order is 1000 units, enforced in the form and FAQ (the campaign page never says \"per size\"). On success the visitor reaches a thank-you page, with a quote number in the URL when the backend returns one, and",
+   "families": [
+    "boxes"
+   ]
+  },
+  {
+   "id": "boxes-campaign-quote-form#2",
+   "doc_id": "boxes-campaign-quote-form",
+   "title": "Boxes quote form (boxes campaign page)",
+   "category": "facts",
+   "source": "boxes-campaign-main/src/app/components/home/banner/boxesForm/index.jsx, banner/modal/modal.jsx, customQuote/index.jsx",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "success the visitor reaches a thank-you page, with a quote number in the URL when the backend returns one, and a rep contacts them with the quote — no day-count SLA is stated on this page.",
+   "families": [
+    "boxes"
+   ]
+  },
+  {
+   "id": "boxes-campaign-shipping#1",
+   "doc_id": "boxes-campaign-shipping",
+   "title": "Boxes campaign shipping (context note)",
+   "category": "facts",
+   "source": "boxes-campaign-main/src/app/components/home/banner/index.jsx, faqs/index.jsx, trust/index.jsx, brands/index.jsx",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "Boxes campaign shipping context: fast shipping across the USA, with a\nlocal US production facility claimed. Boxes ship flat — the FAQ gives\nthree reasons: lower freight cost, less transit damage, and warehouse\nspace saved until folding. Context note: this campaign page names no\ncarrier and does not claim free shipping. The knowledge base's\nfree-nationwide-US-shipping-via-UPS fact comes from the main site, not\nfrom this campaign page, and must not be cited to this page.",
+   "families": [
+    "boxes"
+   ]
+  },
+  {
+   "id": "fact-contact#1",
+   "doc_id": "fact-contact",
+   "title": "Contact and locations",
+   "category": "facts",
+   "source": "print247.us footer + print247.us/contact-us + print247.us/deals/custom-mailer-boxes",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Main contact, from the footer on every page: 1631 Cottonwood\nSchool Rd, Rosenberg, TX 77471, USA; phone +1 (832) 807-3429;\nemail Support@print247.us. Channels: Live Chat, WhatsApp,\nInstagram, Facebook, LinkedIn. Started in 2018 (About page).\nRosenberg facility: the company runs a local packaging\nmanufacturing plant in Rosenberg, equipped with automated pouch\nlines (child-resistant pouches page).",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "fact-contact#2",
+   "doc_id": "fact-contact",
+   "title": "Contact and locations",
+   "category": "facts",
+   "source": "print247.us footer + print247.us/contact-us + print247.us/deals/custom-mailer-boxes",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Context notes, do not merge:\n- A pouch page mentions manufacturing units in both Rosenberg and\nHouston. Do not state a Houston facility as fact without sales\nconfirmation — Houston is mentioned, Rosenberg is the footer\nfacility.\n- A mailer-boxes page footer lists a Sylmar, California address\n(12744 San Fernando Rd, Bldg 2, Sylmar, CA 91342). This is a\npage-footer address, not a confirmed second facility — do not\npresent it as a facility without sales confirmation.\n- A \"Book an Appointment\" link exists on the contact page, and\nvisitors can meet the team at the Rosenberg office.",
+   "families": [
+    "bags",
+    "boxes"
+   ]
+  },
+  {
+   "id": "fact-design-support#1",
+   "doc_id": "fact-design-support",
+   "title": "Free design support",
+   "category": "facts",
+   "source": "print247.us homepage + print247.us/areas-we-serve/california + print247.us/brochures",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Free design support is offered to all customers. After initial\npayment, the packaging design is prepared free of cost, based on\nthe visitor's need.\nUnlimited digital mockups are offered, with multiple mockups for\nevery style, and endless design revisions on brochures.\nTrust lines, use only as site wording and never as a testimonial:\nin-house capabilities have served over 100 industries and over\n5000 brands; 5000+ satisfied customers and 4.8 out of 5 stars on\nTrustpilot sitewide; the mailer-boxes page shows 4.8 based on 718\nreviews (a different scope, do not merge the two counts).",
+   "families": [
+    "boxes",
+    "print"
+   ]
+  },
+  {
+   "id": "fact-design-support#2",
+   "doc_id": "fact-design-support",
+   "title": "Free design support",
+   "category": "facts",
+   "source": "print247.us homepage + print247.us/areas-we-serve/california + print247.us/brochures",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Memberships: registered member of the Printing United Alliance\n(banners category). About page lists FPA, NCA, SFA and Central\nFort Bend Chamber of Commerce — the NCA acronym differs from the\nINCA name in older notes, so verify the acronym before using it.\nThese are memberships, not product certifications, and no\ncertificate numbers are shown.",
+   "families": [
+    "banners"
+   ]
+  },
+  {
+   "id": "fact-moq#1",
+   "doc_id": "fact-moq",
+   "title": "Minimum order quantity",
+   "category": "facts",
+   "source": "print247.us product quote forms + lead-follow-up repo, src/domain/minimumOrder.ts",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Minimum order quantity is 1000 units per size for most products.\nQuote forms on product pages state \"Minimum order quantity 1000\",\nincluding tuck boxes, pull-up banners, barcode labels and brochures.\nCosmetic boxes FAQ: 1000 units for most cosmetic box types.\nBusiness cards FAQ: 1000 cards.\nBanners have no minimum in the old sales script: one, two or more\nunits can be ordered. Vinyl banner spec says \"Minimum Quantity —\n1000 Banners (Short run orders accepted)\", so a short banner run\nis possible — ask the team, do not refuse it outright.",
+   "families": [
+    "boxes",
+    "labels",
+    "banners",
+    "business_cards",
+    "print"
+   ]
+  },
+  {
+   "id": "fact-moq#2",
+   "doc_id": "fact-moq",
+   "title": "Minimum order quantity",
+   "category": "facts",
+   "source": "print247.us product quote forms + lead-follow-up repo, src/domain/minimumOrder.ts",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Context notes (sales team position: each wording is correct in its\nown context, do not merge them into one rule):\n- About page \"No bulk order requirement needed\" and cosmetic page\n\"no minimum order quantities\" for labeling services are marketing\nwording for flexible / small-run options, not a replacement for\nthe 1000 figure on quote forms. When a visitor quotes those lines,\nask which product they mean and confirm with the team.\n- Old sales script, multiple designs: 500 each. This is a script\nrule, not a site-published rule — state it only as \"per our sales\nscript\", and confirm with the team before quoting it.\n- Plain boxes or bags with no printing are per size only.",
+   "families": [
+    "bags",
+    "boxes"
+   ]
+  },
+  {
+   "id": "fact-payments#1",
+   "doc_id": "fact-payments",
+   "title": "Payment methods",
+   "category": "facts",
+   "source": "print247.us footer + print247.us/refund-return-policy + lead-follow-up repo, companyKnowledge.ts",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Site-published payment methods (footer on every page): Visa,\nMastercard, American Express, Discover, PayPal.\nRefund page payment methods: ACH, Zelle, Wire Transfer, Zoho\nPayments (credit and debit cards).\nInternal sales-script facts (state as script rules, not site\nclaims): payments ACH, Wire and Zelle, plus card links with a 3\npercent fee. No payment fee or surcharge is stated anywhere on\nthe site itself, so never quote the 3 percent fee as a site fact.\nPayment is due upon ordering (Terms page); late payment may incur\ninterest. After initial payment, the packaging design is prepared\nfree of cost (homepage).",
+   "families": []
+  },
+  {
+   "id": "pouches-mylar-campaign-context#1",
+   "doc_id": "pouches-mylar-campaign-context",
+   "title": "Mylar campaign context notes (not universal rules)",
+   "category": "facts",
+   "source": "custom-mylar-campaign-print247-main/src/app/App.tsx, beefJerky/FAQSection.tsx, beefJerky/StepsSection.tsx",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "Campaign context only — each wording keeps its own source, never merged into one universal rule. Minimum order: the campaign Steps say batches start at 1000 units total; the jerky FAQ says 1000 pieces per design; the main-site rule is 1000 units per size. Turnaround: 12-15 working/business days, orders shipped flat, production plus shipping; a rush production facility exists but no rush day count is stated. Pricing: no automated pricing — a real quote from the team; no prices exist in this repo. Response claims on the same form disagree: the form header says custom pricing in under 1 business hour, the footer says requests are reviewed within 24 business hours — neither is the main-site quote SLA, and neither may be quoted as an SLA. No sample policy, shipping",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "pouches-mylar-campaign-context#2",
+   "doc_id": "pouches-mylar-campaign-context",
+   "title": "Mylar campaign context notes (not universal rules)",
+   "category": "facts",
+   "source": "custom-mylar-campaign-print247-main/src/app/App.tsx, beefJerky/FAQSection.tsx, beefJerky/StepsSection.tsx",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "hours — neither is the main-site quote SLA, and neither may be quoted as an SLA. No sample policy, shipping carrier, support hours, or artwork format list is stated in this repo.",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "fact-pricing-approach#1",
+   "doc_id": "fact-pricing-approach",
+   "title": "Pricing approach — no price list",
+   "category": "facts",
+   "source": "print247.us blog posts (estimates only) + print247.us/custom-quote",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "There is no standalone price table and no per-product price on\nprint247.us. The bot must NEVER quote a dollar figure as a\nPrint247 price.\nBlog posts give ESTIMATES only (box-cost blog, mylar-cost blog):\nper-unit ranges, quantity tiers, add-on amounts, rush upcharges\nand setup figures. These are blog estimates, not Print247's price\nlist, and they start at quantities below the 1000 minimum order.\nQuoting them as prices would contradict the MOQ and mislead the\nvisitor.\nCorrect behaviour on a price question: collect the spec (product,\nsize, quantity, material, finish, artwork, deadline), explain that\npricing depends on the spec, and give the quote path and the 2 to\n3 business day quote SLA for roll stock and custom-sized bags\n(see facts/quote-flow.md).",
+   "families": [
+    "bags",
+    "boxes"
+   ]
+  },
+  {
+   "id": "fact-pricing-approach#2",
+   "doc_id": "fact-pricing-approach",
+   "title": "Pricing approach — no price list",
+   "category": "facts",
+   "source": "print247.us blog posts (estimates only) + print247.us/custom-quote",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "ERP instant pricing exists in the old bot only for flat pouches,\nstand-up pouches and flat-bottom pouches, with house defaults the\nvisitor never sees. That path is NOT in this KB and must not be\nused until it is built with disclosed assumptions.",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "fact-proof-approval#1",
+   "doc_id": "fact-proof-approval",
+   "title": "Proof approval and production start",
+   "category": "facts",
+   "source": "print247.us/contact-us + print247.us/category/business-cards-shapes-business-cards + print247.us/terms-and-conditions",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Nothing goes into production until the visitor is happy with the\nfinal details and design. Before bulk production begins, approval\non the proof must be received.\nApproved proofs are final (Terms page): approval authorizes\nproduction and the company is not liable for errors present in\napproved proofs.\nContact process after reaching out: (1) tell the team what is\nneeded, (2) work through the details, (3) review the quote —\npricing and information before moving forward, (4) production\nstarts after approval.\nOnce an order is confirmed, it enters production quickly and\nmodifications are limited (FAQ page). Cancellation rules are in\npolicies/refund-returns.md, not here.",
+   "families": []
+  },
+  {
+   "id": "fact-quote-flow#1",
+   "doc_id": "fact-quote-flow",
+   "title": "Quote flow and quote SLA",
+   "category": "facts",
+   "source": "print247.us/custom-quote + print247.us/contact-us + lead-follow-up repo quote fields",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "There is no cart, no configurator and no instant price on the\nsite. The quote flow is: Get a Quote / contact form → consult →\ndieline and free artwork support → unlimited digital mockups and\nphysical prototype approval → production starts after approval →\nquality checks → delivery.\nQuotes for printed roll stock or custom-sized bags are made within\n2 to 3 business days (custom-quote page).\nThe 7 quote fields collected in chat are: product, material,\nsizes, finishes, quantity, extras, skus. Defaults that never block\na quote: skus is 1, extras is none. A quote is ready when product,\nsizes and quantity are known and the minimum order is satisfied.",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "fact-quote-flow#2",
+   "doc_id": "fact-quote-flow",
+   "title": "Quote flow and quote SLA",
+   "category": "facts",
+   "source": "print247.us/custom-quote + print247.us/contact-us + lead-follow-up repo quote fields",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Free design support is offered, and design is prepared free of\ncost after initial payment (homepage). A \"Book an Appointment\"\nlink exists on the contact page.",
+   "families": []
+  },
+  {
+   "id": "fact-samples#1",
+   "doc_id": "fact-samples",
+   "title": "Samples and proofs",
+   "category": "facts",
+   "source": "print247.us product pages + print247.us/category/supplements-packaging + print247.us/child-resistant-pouches",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Samples take 3 to 4 business days (digital pouch and box samples).\nImportant nuance: individual samples and sample kits currently\nfeature standard, pre-printed products. Samples are NOT made with\nthe customer's own artwork. Never promise a custom-artwork sample.\nDigital proofs land in the inbox within 3 days (child-resistant\npouches page). Unlimited digital mockups are offered, and a\nphysical prototype can be approved on the homepage process.\nPhysical colour proofs are mentioned only as a blog figure — that\nfigure is a blog estimate, never quote it as a Print247 price.\nFully printed prototypes are usually not free, because they\nrequire full machine setups (box-cost blog FAQ, estimate only).",
+   "families": [
+    "bags",
+    "boxes"
+   ]
+  },
+  {
+   "id": "fact-sizes#1",
+   "doc_id": "fact-sizes",
+   "title": "Sizes, units and dimensions",
+   "category": "facts",
+   "source": "print247.us product pages + lead-follow-up repo, src/domain/sizeUnit.ts",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Sizes are dimensions with units, for example 4x6x2 inches or\n100x150mm, written as width x height x depth.\nA pack count is NOT a size and NOT a quantity: \"2 count\", \"10 ct\",\n\"5-pack\" and \"30 capsules per bag\" say how many items go inside\neach bag, not how big the bag is or how many bags to order. Leave\nsizes and quantity unanswered for a pack count alone.\nPouch stock weights: 1 oz, 2 oz, 4 oz, 8 oz, 12 oz, 16 oz, 32 oz.\nLarge-format mylar: 5 gallon 20-30 inches, 5.0 to 7.0 mil; 55 gallon\n38-54 inches, 10 to 12 mil.\nBusiness cards: 13 PT, 14 PT, 16 PT, 18 PT (thickness, not size).\nBox board: 12 to 24pt generally.",
+   "families": [
+    "bags",
+    "boxes",
+    "business_cards"
+   ]
+  },
+  {
+   "id": "fact-sizes#2",
+   "doc_id": "fact-sizes",
+   "title": "Sizes, units and dimensions",
+   "category": "facts",
+   "source": "print247.us product pages + lead-follow-up repo, src/domain/sizeUnit.ts",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "If a visitor gives a size without a unit, ask for the unit instead\nof assuming inches or mm.",
+   "families": []
+  },
+  {
+   "id": "fact-sku#1",
+   "doc_id": "fact-sku",
+   "title": "What a SKU means on an order",
+   "category": "facts",
+   "source": "print247.us custom quote flow + old bot quote fields (product, sizes, quantity, skus, extras)",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "SKU stands for Stock Keeping Unit. On a Print247 order, one SKU\nmeans one design variant: one artwork, in one size, with one set\nof finishes. A new design, a new size, or a new finish set is a\nnew SKU.\nBy default an order has 1 SKU and no extras. If you order the\nsame product in 3 different designs, that is 3 SKUs. The minimum\norder of 1000 units applies per size, not per SKU as a separate\nrule — the bot must not invent a per-SKU minimum.",
+   "families": []
+  },
+  {
+   "id": "fact-support-hours#1",
+   "doc_id": "fact-support-hours",
+   "title": "Support hours and availability",
+   "category": "facts",
+   "source": "print247.us header + print247.us/custom-quote",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Office Timings: Monday to Friday, 09:00 am to 5:00 pm. This is the\nheader on every page of print247.us, and the contact page shows a\n\"Closed\" badge outside those hours.\nContext note (sales team position: each wording is correct in its\nown context): the custom-quote page also says \"we are available\n24/7 to assist and guide you\". Do not merge these into one claim.\nState office hours for the office, and state the 24/7 line only as\nthe quote page's assistance wording, or hand the visitor to the\nteam if they ask when a human will reply. No separate live-chat\nhours were found anywhere on the site. The \"247\" in the brand name\nis NOT a support-hours claim on its own.",
+   "families": []
+  },
+  {
+   "id": "fact-turnaround#1",
+   "doc_id": "fact-turnaround",
+   "title": "Standard turnaround",
+   "category": "facts",
+   "source": "print247.us homepage + print247.us/shipping-policy + lead-follow-up repo, companyKnowledge.ts",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Standard turnaround is 12 to 15 business days, including production\nand delivery to the doorstep.\nBreakdown from the Shipping Policy: after design approval, production\nmoves forward within 48 hours, manufacturing takes 4 to 5 business\ndays, UPS transit takes 6 to 7 business days across the USA.\nProduction starts within 24 hours of final artwork approval in the\nold sales script. The 24 hours is the START, not the total — never\npromise delivery in 24 hours.",
+   "families": []
+  },
+  {
+   "id": "fact-turnaround#2",
+   "doc_id": "fact-turnaround",
+   "title": "Standard turnaround",
+   "category": "facts",
+   "source": "print247.us homepage + print247.us/shipping-policy + lead-follow-up repo, companyKnowledge.ts",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Expedited orders: the Shipping Policy says expedited orders can be\ncompleted in 5 to 7 business days, with timelines varying by size,\nmaterials and complexity. The old sales script says rush orders are\n10 to 12 business days and the production slot must be checked first.\nContext: the policy figure is the published expedited range; the\nscript figure is the old rush-production figure. A rush date is\ntherefore never a commitment in chat; it goes to the team to confirm.\nA blog post mentions a 20 to 30 percent rush upcharge — that is a\nblog estimate only, never quote it as a Print247 fee.",
+   "families": []
+  },
+  {
+   "id": "boxes-campaign-materials#1",
+   "doc_id": "boxes-campaign-materials",
+   "title": "Custom box materials (boxes campaign page)",
+   "category": "materials",
+   "source": "boxes-campaign-main/src/app/components/home/materials/index.jsx, faqs/index.jsx",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "Box materials on the boxes campaign page: kraft paperboard 18-24pt,\neco-friendly retail packaging; corrugated cardboard 3-6mm single/double\nwall, shipping heavy or fragile items; SBS (solid bleached sulfate)\n12-18pt, cosmetic and food-grade boxes; rigid chipboard 32-80pt, premium\ngift and luxury boxes. Thickness varies by material grade and box style;\nthe team recommends thickness from product weight and shipping\nconditions after a manual spec review. Sustainability (FAQ):\nbiodegradable inks and recycled paper. Context note: kraft and SBS sit\ninside the general 12-24pt board range, corrugated is quoted in mm, and\nrigid chipboard 32-80pt sits well outside that range — keep all figures\nlabelled by material, never merged into one range.",
+   "families": [
+    "boxes"
+   ]
+  },
+  {
+   "id": "material-extras#1",
+   "doc_id": "material-extras",
+   "title": "Bag extras and add-ons",
+   "category": "materials",
+   "source": "print247.us/stand-up-pouch + lead-follow-up repo, src/domain/quoteFields.ts",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Bag extras include zipper, tear notch, hang hole, window, Euro hole,\ndegassing valve, child-resistant zipper, easy-open standard zipper\nand press-to-close zipper. Child-Guard zippers are also offered.\nExtras default to \"none\" in the quote slots, so a label or box order\nis never held up waiting for a bag extra. Only ask about extras for\nbags and pouches.\nBlog add-on figures (for example zipper or valve amounts) are blog\nestimates only and must never be quoted as Print247 prices. See\nfacts/pricing-approach.md.",
+   "families": [
+    "bags",
+    "boxes",
+    "labels"
+   ]
+  },
+  {
+   "id": "material-finishes#1",
+   "doc_id": "material-finishes",
+   "title": "Finishes and lamination",
+   "category": "materials",
+   "source": "print247.us/stand-up-pouch + lead-follow-up repo, src/domain/finishes.ts",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Finishes include matte lamination, gloss lamination, soft-touch\nlamination, spot UV, foil stamping, gold foil, copper foil,\nrose-gold foil, holographic foil printing, embossing, drip-off\nand AQ coating.\nStand-up pouch add-ons: gloss, matte and soft-touch laminations,\nspot UV, foil printing, holographic foil printing.\nPrinting methods: CMYK plus Pantone/PMS matching, offset, digital\nand flexographic for food. Finishes are a separate slot from\nmaterial — \"matte\" alone does not answer the material question.",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "material-by-family#1",
+   "doc_id": "material-by-family",
+   "title": "Materials by product family",
+   "category": "materials",
+   "source": "lead-follow-up repo, src/domain/companyKnowledge.ts (internal sales script, not site-published)",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Materials by family, from the internal sales script. State these\nas script rules when asked, not as site claims.\nBags and pouches: PET, PE, kraft and foil films.\nLabels: PP white vinyl only.\nBoxes: board, never film.\nFood packaging: FDA-compliant materials, interior linings and inks.\nFood-safe coatings include polyethylene, wax coatings, PLA and\naqueous coating. Supplements packaging uses FSC-compliant paperboard\nfor mushroom products (category page).\nMylar eco options: PLA (polylactic acid) and compostable multi-layer\nstructures. Water-based inks with nearly zero VOC emission are used\nfor mylar printing.",
+   "families": [
+    "bags",
+    "boxes",
+    "labels"
+   ]
+  },
+  {
+   "id": "pouches-mylar-materials-finishes#1",
+   "doc_id": "pouches-mylar-materials-finishes",
+   "title": "Mylar pouch materials and finishes (campaign page)",
+   "category": "materials",
+   "source": "custom-mylar-campaign-print247-main/src/app/App.tsx PILLS + FAQ, beefJerky/MaterialsSection.tsx, public/llms.txt",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "Mylar pouches use high-barrier film blocking oxygen, moisture, and light; the hero calls them weatherproof and llms.txt calls them smell-proof (campaign marketing wording, no test data in the repo). Jerky bags are food-grade for direct contact. Eco-friendly inks are used. Thickness: 5-7 mil is recommended only for sharp or heavy products (jerky, hardware) to prevent punctures — a recommendation, not a film spec, and not to be merged with the 80-150 micron pouch-film range. Main finishes (16): metalized foil, metalized + clear front, plain white, clear/transparent, kraft paper laminate, foil pouch, glossy, soft-touch, holographic, spot UV, clear window, resealable zipper, tear notch, hang hole, matte, child-resistant zipper. Jerky finishes (12): high-barrier metalized foil, metalized + clear front, kraft paper laminate, clear/transparent, clear window, matte, glossy, soft-touch, spot UV, resealable zipper,",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "pouches-mylar-materials-finishes#2",
+   "doc_id": "pouches-mylar-materials-finishes",
+   "title": "Mylar pouch materials and finishes (campaign page)",
+   "category": "materials",
+   "source": "custom-mylar-campaign-print247-main/src/app/App.tsx PILLS + FAQ, beefJerky/MaterialsSection.tsx, public/llms.txt",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "high-barrier metalized foil, metalized + clear front, kraft paper laminate, clear/transparent, clear window, matte, glossy, soft-touch, spot UV, resealable zipper, tear notch, hang hole — child-resistant, plain white, foil pouch and holographic are NOT on the jerky list. No layer stack, micron spec, valve, or barrier test value is stated here.",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "policy-privacy#1",
+   "doc_id": "policy-privacy",
+   "title": "Privacy Policy",
+   "category": "policies",
+   "source": "print247.us/privacy-policy",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Privacy Policy summary, from the published page.\nInformation collected: (a) information provided by the visitor —\nname, email address, shipping address — when ordering, signing up\nor communicating; (b) automatic information — IP address, device\ninformation and site-interaction data via cookies or equivalent\ntechnology.\nUse: personalization, order fulfilment (shared with trusted third\nparties such as shipping companies) and communication (order\nupdates, promotions; opt-out available). Mobile information is\nnever shared with third parties or affiliates for marketing.\nProtection: SSL encryption and access control — authorized\nemployees only, bound by confidentiality. Cookies are used for\nbasic functionality, performance and preferences. Data is retained\nas long as needed to provide services and comply with law.",
+   "families": []
+  },
+  {
+   "id": "policy-privacy#2",
+   "doc_id": "policy-privacy",
+   "title": "Privacy Policy",
+   "category": "policies",
+   "source": "print247.us/privacy-policy",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Limitation stated on the page: no website can guarantee immunity\nfrom unauthorized access. The policy may change with notice;\nchanges do not affect previously collected data.",
+   "families": []
+  },
+  {
+   "id": "policy-refund-returns#1",
+   "doc_id": "policy-refund-returns",
+   "title": "Refund and Returns",
+   "category": "policies",
+   "source": "print247.us/refund-return-policy",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Refund and Returns summary, from the published page.\nReturn-request window: 5 business days after receiving the order\nto REQUEST a return. This is the request step, after the Terms\npage's 3-working-day fault-notify step. Products must be in\noriginal condition, unused, as received, with tags and inserts\nintact, plus proof of purchase. Initiate at Support@print247.us;\nonce approved, shipping instructions are provided. Returns without\nprior approval are not accepted. Return shipping is the customer's\nresponsibility unless the defect is verified as company-side.",
+   "families": []
+  },
+  {
+   "id": "policy-refund-returns#2",
+   "doc_id": "policy-refund-returns",
+   "title": "Refund and Returns",
+   "category": "policies",
+   "source": "print247.us/refund-return-policy",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Eligibility: returns only for defective or incorrect items — NOT\nfor fully customized or client-designed packaging made from\nscratch. Returns are accepted if different materials were used\nthan confirmed at final design approval. Claims need clear photo\nevidence within 5 business days of delivery. Transit-damaged\npackaging must be refused at delivery with immediate photo proof.\nSlight colour or measurement variations (CMYK vs RGB) are not\ndefects. Client-side issues (bad design files, mishandling,\nmisuse, poor storage) do not qualify.\nCompany-side defects: the affected quantity is reprinted free of\ncharge; the company's decision after a 5-business-day internal\nreview is conclusive.",
+   "families": []
+  },
+  {
+   "id": "policy-refund-returns#3",
+   "doc_id": "policy-refund-returns",
+   "title": "Refund and Returns",
+   "category": "policies",
+   "source": "print247.us/refund-return-policy",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Cancellation: allowed within 4 hours of proof approval; a 5 percent\nservice fee applies after processing but before production; once\nin the press stage, no cancellations or refunds. Orders can be\nheld in complimentary warehouse storage until the shipping date\nis confirmed.\nAccepted payment methods on this page: ACH, Zelle, Wire Transfer,\nZoho Payments (credit and debit cards).",
+   "families": []
+  },
+  {
+   "id": "policy-shipping#1",
+   "doc_id": "policy-shipping",
+   "title": "Shipping Policy",
+   "category": "policies",
+   "source": "print247.us/shipping-policy",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Shipping Policy summary, from the published page.\nShipping is free nationwide (all-inclusive pricing, no extra\ncharges). UPS is the exclusive carrier. Tracking numbers are\nemailed once the order ships.\nInternational delivery is not published in this policy. For\ndelivery outside the USA — including China, India, the UK, Canada,\nAustralia and anywhere else abroad — the policy names no carrier,\nno cost and no promise, so the bot must never promise it. The\ncorrect answer is: shipping is free nationwide via UPS, and for\ndelivery to your country the team will confirm whether delivery is\npossible and what it costs when they send the quote. The delivery\nquestion goes into the quote for the team; it is never answered\nwith a guessed carrier or price.",
+   "families": []
+  },
+  {
+   "id": "policy-shipping#2",
+   "doc_id": "policy-shipping",
+   "title": "Shipping Policy",
+   "category": "policies",
+   "source": "print247.us/shipping-policy",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Timeline: after design approval, production moves forward within\n48 hours; manufacturing takes 4 to 5 business days; UPS transit\ntakes 6 to 7 business days across the USA, for a total of 12 to\n15 business days after design approval.\nExpedited orders can be completed in 5 to 7 business days, with\ntimelines varying by size, materials and complexity. A rush date\nis never a commitment in chat; the team confirms it (see\nfacts/turnaround.md).\nWeather delays and other logistics issues after the package\nleaves the facility are outside the company's control. Support:\nSupport@print247.us, +1 (832) 807-3429.",
+   "families": []
+  },
+  {
+   "id": "policy-terms#1",
+   "doc_id": "policy-terms",
+   "title": "Terms and Conditions",
+   "category": "policies",
+   "source": "print247.us/terms-and-conditions",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Terms and Conditions summary, from the published page.\nAll orders are subject to acceptance and the company may refuse\nservice at its discretion. Payment is due upon ordering; late\npayment may incur interest.\nPrinting faults must be NOTIFIED within 3 working days of delivery\nwith clear evidence (photos or samples); claims after that are not\nconsidered. This is the notify step — it is different from the\nRefund page's 5-business-day return-request step (see\npolicies/refund-returns.md). Do not merge the two numbers.\nProofs sent before production are final: approval authorizes\nproduction and the company is not liable for errors present in\napproved proofs.",
+   "families": []
+  },
+  {
+   "id": "policy-terms#2",
+   "doc_id": "policy-terms",
+   "title": "Terms and Conditions",
+   "category": "policies",
+   "source": "print247.us/terms-and-conditions",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "The company is not liable for delivery delays beyond its control\n(shipping delays, natural disasters, material shortages); risk of\nloss passes to the customer on delivery. The customer must ensure\nartwork does not infringe third-party IP and grants the company a\nlicence to use materials for the order. Liability is capped at the\namount paid for the specific order; no indirect or consequential\ndamages. Claims email: Support@print247.us. Terms may be changed\nwith or without prior notice.",
+   "families": []
+  },
+  {
+   "id": "product-banners#1",
+   "doc_id": "product-banners",
+   "title": "Banners and signs",
+   "category": "products",
+   "source": "print247.us/category/signs-banners-banner + print247.us/vinyl-banner + print247.us/pull-up-banners",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Banners and signs include vinyl banners, pull-up banners, banner\nstands, flag printing, angled flags, rectangle flags, outdoor and\nrigid signs, office signs, decals, table coverings, and event and\ntradeshow displays.\nVinyl banner weights: 9 oz, 10 oz, 13 oz, 15 oz, 18 oz, 20 oz, 22 oz.\nFinishing: heat-welded hems and grommets, reinforced corners, pole\npockets available. Printed in CMYK.\nPull-up banner types: Standard, Premium, Double-sided, Wide-format,\nTabletop. Pull-up sizes include 33.5 x 79 inches, 23.5 x 79 inches\nand 47 x 79 inches.\nBanners have no minimum in the old sales script. Vinyl banner spec\nsays \"Minimum Quantity — 1000 Banners (Short run orders accepted)\".\nSee facts/moq.md for the full context note.",
+   "families": [
+    "boxes",
+    "labels",
+    "banners"
+   ]
+  },
+  {
+   "id": "beef-jerky-bags#1",
+   "doc_id": "beef-jerky-bags",
+   "title": "Beef jerky bags (campaign variant page)",
+   "category": "products",
+   "source": "custom-mylar-campaign-print247-main/src/app/components/beefJerky/",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "Beef jerky bags are food-grade mylar pouches for direct jerky contact, printed in the USA, with resealable zippers and free design support. Jerky sizes (W x H + gusset): 4x6+2 sample/single-serve 1-1.5 oz; 5x8+3 snack retail 2-3 oz; 6x9+3.5 standard retail 3-5 oz; 7x11+4 large retail 6-8 oz; 8x12+4 bulk/value 12-16 oz. Jerky finishes: high-barrier metalized foil, metalized + clear front, kraft paper laminate, clear/transparent, clear window, matte, glossy, soft-touch, spot UV, resealable zipper, tear notch, hang hole. Minimum order: 1000 pieces per design (jerky FAQ wording). Turnaround: 12-15 business days production plus shipping; rush facility available, details via experts. Context note: the jerky quote form collects style, quantity, note, name, email and phone only — no dimension fields — which is a gap against the bot's normal quote flow,",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "beef-jerky-bags#2",
+   "doc_id": "beef-jerky-bags",
+   "title": "Beef jerky bags (campaign variant page)",
+   "category": "products",
+   "source": "custom-mylar-campaign-print247-main/src/app/components/beefJerky/",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "name, email and phone only — no dimension fields — which is a gap against the bot's normal quote flow, not a rule to copy.",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "boxes-campaign-styles#1",
+   "doc_id": "boxes-campaign-styles",
+   "title": "Custom box styles (boxes campaign page)",
+   "category": "products",
+   "source": "boxes-campaign-main/src/app/components/home/boxStyles/index.jsx, banner/boxesForm/index.jsx",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "Box style cards on the boxes campaign page: custom product boxes,\ngift boxes, mailer boxes, kraft boxes, display boxes, square boxes,\ncosmetic boxes, apparel boxes. The main quote form dropdown has only:\nproduct box, display box, mailer box, gift box, kraft box, other —\nsquare, cosmetic and apparel boxes have cards but no dropdown value and\nmap to Other in the main form; the style-card modal preserves the card\ntitle as the product type. Uses named on the page: retail packaging,\nbranding, product protection, eco-friendly retail (kraft), shipping\nheavy/fragile items (corrugated), cosmetic and food-grade (SBS), premium\ngift/luxury (rigid chipboard). No tuck-end, auto-lock, pillow, sleeve or\ntray style is named here, and rigid appears as a material, not a style.",
+   "families": [
+    "boxes"
+   ]
+  },
+  {
+   "id": "product-boxes#1",
+   "doc_id": "product-boxes",
+   "title": "Custom boxes",
+   "category": "products",
+   "source": "print247.us/category/boxes-packaging-cosmetic-boxes + print247.us/tuck-boxes + print247.us/deals/custom-mailer-boxes",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Custom boxes include display boxes, rigid boxes, metalized boxes,\ncosmetic boxes, CBD boxes, pharmaceutical boxes, apparel boxes, food\nand beverage boxes, mailer boxes and folding cartons.\nTuck box styles: Straight Tuck End, Reverse Tuck End, Crash Lock,\nSnap Lock Bottom, Gable, Dispenser, Perforated, Double Wall, Window\nCutouts, Hang Tabs.\nBox board is generally 12 to 24pt. Pharmaceutical boxes primarily use\n14pt to 24pt SBS (Solid Bleached Sulfate) paperboard. Food boxes:\n14pt to 16pt lightweight, 18pt to 20pt standard, 24pt heavy duty.\nBoxes are shipped flat. Pharmaceutical boxes can include braille\nembossing, custom die-cut foam or cardboard inserts, tamper-evident\nglue patterns and perforated tear strips.\nMinimum order quantity: 1000 units per size (see facts/moq.md for\ncontext notes).",
+   "families": [
+    "boxes",
+    "labels"
+   ]
+  },
+  {
+   "id": "product-business-cards#1",
+   "doc_id": "product-business-cards",
+   "title": "Business cards",
+   "category": "products",
+   "source": "print247.us/category/business-cards-shapes-business-cards + print247.us/standard-business-card + print247.us/nfc-business-cards",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Business cards include standard cards, shape cards and NFC cards.\nCard stocks: Cardstock, Kraft, PVC, PET, Acrylic, in 13 PT, 14 PT,\n16 PT and 18 PT. Printing: Offset (CMYK), single-sided,\ndouble-sided, digital, any Pantone colour.\nMinimum order quantity for business cards: 1000 cards, per the\nshapes business cards FAQ.\nOn approval, a 3D mockup is generated showing the card from every\nangle. NFC cards work by tap: the prospect taps their phone and\nthe profile opens.\nArtwork for business cards: AI, PDF and PSD files are accepted\n(see facts/artwork.md — PSD is business-card specific).",
+   "families": [
+    "business_cards"
+   ]
+  },
+  {
+   "id": "product-labels-bottle-wine-spirits#1",
+   "doc_id": "product-labels-bottle-wine-spirits",
+   "title": "Beverage and bottle labels — wine, whiskey and spirits",
+   "category": "products",
+   "source": "print247.us/category/labels-stickers-custom-labels (Beverage Labels; oval labels for jars, bottles, tins) + kb/products/labels.md materials",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "Yes — we print beverage and bottle labels, including wine labels.\nWhiskey bottle labels are made the same way: a custom bottle label\nin your size, material and finish, so yes, we can print whiskey\nbottle labels like wine labels. Tell us your bottle size and the\nlook you want, and we will quote it like any other bottle label.",
+   "families": [
+    "labels"
+   ]
+  },
+  {
+   "id": "product-labels-bottle-wine-spirits#2",
+   "doc_id": "product-labels-bottle-wine-spirits",
+   "title": "Beverage and bottle labels — wine, whiskey and spirits",
+   "category": "products",
+   "source": "print247.us/category/labels-stickers-custom-labels (Beverage Labels; oval labels for jars, bottles, tins) + kb/products/labels.md materials",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "Beverage labels on the site include foil options (gold, silver, rose)\nwith hot-stamp colour locking and no peeling, and are fully\ncustomizable. Clear labels are made from durable BOPP film, are\nwater-resistant and scratch-resistant, and suit glass and plastic\njars and bottles. Oval labels suit jars, bottles, tins and cosmetic\ncontainers, sized to fit a flat or slightly curved surface without\nwrinkling. For products that face water or oils, BOPP or vinyl with a\ngloss or matte laminate is usually recommended. Vinyl is weatherproof\nand flexible, handles oils and moisture, and comes in gloss or matte.",
+   "families": [
+    "bags",
+    "labels"
+   ]
+  },
+  {
+   "id": "product-labels-bottle-wine-spirits#3",
+   "doc_id": "product-labels-bottle-wine-spirits",
+   "title": "Beverage and bottle labels — wine, whiskey and spirits",
+   "category": "products",
+   "source": "print247.us/category/labels-stickers-custom-labels (Beverage Labels; oval labels for jars, bottles, tins) + kb/products/labels.md materials",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "Context note: whiskey is not listed as a separate product page of its\nown — it is covered here because it is a spirit bottle label, made\nwith the same bottle-label production as wine and other beverage\nlabels. Do not claim a separate whiskey-only product line exists.\nMinimum order follows the general rule: 1000 units. Labels are custom\nsized to fit the bottle; roll labels are matched to core size, roll\ndirection and maximum roll diameter, and sheet labels come in A4 or\nletter-size sheets.",
+   "families": [
+    "bags",
+    "labels"
+   ]
+  },
+  {
+   "id": "product-labels#1",
+   "doc_id": "product-labels",
+   "title": "Labels and stickers",
+   "category": "products",
+   "source": "print247.us/category/labels-stickers-custom-labels + print247.us/die-cut-labels + print247.us/barcode-labels",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Labels and stickers include custom labels, special stickers, product\nlabels, business labels, custom stickers, specialty labels, product\nstickers, barcode labels, die-cut labels, roll labels, kiss-cut\nlabels, oval labels, paper labels and round labels.\nLabel materials: white paper for standard shelf and product work,\nsilver film for asset and equipment IDs, clear film for transparent\nlabels, vinyl for abrasion resistance and outdoor use (highly\nresistant to water and sun), holographic film for brand security.\nFor products that face water or oils, BOPP or vinyl with a gloss or\nmatte laminate is usually recommended. Roll labels are matched to\ncore size, roll direction and maximum roll diameter. Sheet labels\ncome in A4 or letter-size sheets. Kiss cut means cutting through\nthe label layer but leaving the liner.",
+   "families": [
+    "bags",
+    "labels"
+   ]
+  },
+  {
+   "id": "product-labels#2",
+   "doc_id": "product-labels",
+   "title": "Labels and stickers",
+   "category": "products",
+   "source": "print247.us/category/labels-stickers-custom-labels + print247.us/die-cut-labels + print247.us/barcode-labels",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Barcode labels go through an in-line inspection process and are\ngraded to standard. Labels use PP white vinyl only in the old sales\nscript for label stock — state that as a script rule, not a site\nclaim, if asked.",
+   "families": [
+    "labels"
+   ]
+  },
+  {
+   "id": "product-overview#1",
+   "doc_id": "product-overview",
+   "title": "Everything Print247 offers",
+   "category": "products",
+   "source": "print247.us homepage + print247.us/sitemap",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "Print247 offers custom packaging and print products across these\ncategories: custom boxes (display, rigid, metalized, cosmetic, CBD,\npharmaceutical, apparel, food and beverage, mailer, folding\ncartons); mylar bags and pouches (stand-up, flat, 3-side-seal,\nflat-bottom, spout, child-resistant, vape, coffee, chocolate,\npre-roll, CBD, inside-printed, poly mailers); labels and stickers\n(custom, product, business, specialty, barcode, die-cut, roll,\nkiss-cut); signs and banners (vinyl, pull-up, stands, flags,\noutdoor, office, decals, table coverings, event displays);\nbusiness cards (standard, shape, NFC); and print products\n(postcards, flyers, brochures, bookmarks, folders, booklets,\nmagnets, greeting cards, invitations).\nWhen a visitor asks what the company offers in general, list these\ncategories first, then ask which one they need. Do not answer a\ngeneral \"what do you offer\" question with one category only.\nDetail for each category is in its own product file.",
+   "families": [
+    "bags",
+    "boxes",
+    "labels",
+    "banners",
+    "business_cards",
+    "print"
+   ]
+  },
+  {
+   "id": "pouches-mylar-filling-use#1",
+   "doc_id": "pouches-mylar-filling-use",
+   "title": "Filling and using mylar pouches (campaign FAQs)",
+   "category": "products",
+   "source": "custom-mylar-campaign-print247-main/src/app/App.tsx FAQS, beefJerky/FAQSection.tsx",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "Let hot food cool before sealing a mylar pouch: barrier film handles\nwarmth, but extreme heat can melt the inner layer; fill at room\ntemperature for long-term storage. Heat-seal with a standard commercial\nimpulse sealer, steady pressure for about two seconds above the zipper\nline, creating an airtight, tamper-evident seal until the consumer tears\nthe notch. Oxygen absorbers work with high-barrier film: size the\nabsorber to the fill weight and drop it in just before sealing.\nHang holes for pegboard display: standard round punches and sombrero\nstyle cuts at the top of the pouch.",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "pouches-mylar-sizes#1",
+   "doc_id": "pouches-mylar-sizes",
+   "title": "Mylar pouch sizes (campaign page)",
+   "category": "products",
+   "source": "custom-mylar-campaign-print247-main/src/app/App.tsx SIZES, beefJerky/MaterialsSection.tsx SIZES",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "Mylar pouch sizes are Width x Height, with gusset as the third dimension. Units: inches, cm, or mm. On the main campaign form the gusset is optional (blank = 0); the jerky form has no dimension fields. Main popular sizes (guide, not a guarantee): 3x4 inches — single-serve powders, herb samples — 2-5g; 4x6 inches — gummies, hard candy — 14-28g; 5x8 inches — ground coffee, bath salts — 56-113g; 6x9 inches — protein powders, pet treats — 113-226g; 8x12 inches — bulk food, rice, beans — 453-907g. Jerky sizes (W x H + gusset): 4x6+2 — sample/single-serve — 1-1.5 oz; 5x8+3 — snack retail — 2-3 oz; 6x9+3.5 — standard retail — 3-5 oz; 7x11+4 — large retail — 6-8 oz; 8x12+4 — bulk/value — 12-16 oz. Context note:",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "pouches-mylar-sizes#2",
+   "doc_id": "pouches-mylar-sizes",
+   "title": "Mylar pouch sizes (campaign page)",
+   "category": "products",
+   "source": "custom-mylar-campaign-print247-main/src/app/App.tsx SIZES, beefJerky/MaterialsSection.tsx SIZES",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "standard retail — 3-5 oz; 7x11+4 — large retail — 6-8 oz; 8x12+4 — bulk/value — 12-16 oz. Context note: the same nominal size has different capacities across the two tables because capacity depends on gusset and fill — never present a capacity as a guarantee. Custom cutting is offered.",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "pouches-mylar-styles#1",
+   "doc_id": "pouches-mylar-styles",
+   "title": "Mylar pouch styles (campaign page)",
+   "category": "products",
+   "source": "custom-mylar-campaign-print247-main/src/app/App.tsx, beefJerky/QuoteForm.tsx, beefJerky/GallerySection.tsx",
+   "status": "verified",
+   "last_reviewed": "2026-10-29",
+   "section": "",
+   "text": "Form-selectable mylar pouch styles on the campaign page: stand-up pouch,\nflat pouch (3-side seal), pinch bottom pouch, side gusset pouch,\nflat bottom pouch, and custom. The beef-jerky form adds clear pouch.\nGallery styles: stand-up pouches (bottom gusset, stand on shelves),\n3-side seal bags (single-serve), flat bottom pouches (five printable\nsides), and spout pouches (liquid, nozzle cap).\nContext note: spout pouch appears in the gallery but is NOT a form\ndropdown option (gallery prefill bug) — do not offer it as a\nform-selectable style until dev fixes it. This campaign list is\nnarrower than the general pouch list: no vape, CBD, chocolate,\npre-roll, or poly-mailer styles are named here.",
+   "families": [
+    "bags",
+    "boxes"
+   ]
+  },
+  {
+   "id": "product-pouches#1",
+   "doc_id": "product-pouches",
+   "title": "Mylar bags and pouches",
+   "category": "products",
+   "source": "print247.us/category/mylar-bags-mylar-pouch + print247.us/stand-up-pouch + print247.us/child-resistant-pouches",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Mylar bags and pouches include stand-up pouches, flat pouches,\n3-side-seal pouches, flat-bottom pouches, spout pouches,\nchild-resistant pouches, vape pouches, coffee pouches, chocolate\npouches, pre-roll pouches, CBD pouches, inside-printed pouches and\npoly mailers.\nPouch films are 80 to 150 microns on pouch pages. Stand-up pouch\nstock weights: 1 oz, 2 oz, 4 oz, 8 oz, 12 oz, 16 oz, 32 oz.\nPrinting: flexographic, gravure, digital. Rotogravure is copperplate\nprinting and suits large runs; digital printing suits small runs\nwith zero or very low setup.\nChild-resistant zippers use a two-step motion: squeeze both sides,\nthen slide. Certified child-resistant zippers require two-handed\nstrength. High-barrier metalized foil gives maximum protection\nagainst oxygen and light for long-term storage.",
+   "families": [
+    "bags",
+    "boxes"
+   ]
+  },
+  {
+   "id": "product-pouches#2",
+   "doc_id": "product-pouches",
+   "title": "Mylar bags and pouches",
+   "category": "products",
+   "source": "print247.us/category/mylar-bags-mylar-pouch + print247.us/stand-up-pouch + print247.us/child-resistant-pouches",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Food rule from the mylar category: do not store items in mylar\npouches that contain more than 10 percent moisture (stated as a\ncategory rule, not a guarantee for a specific product — confirm\nwith the team for food use).\nOnly FDA-approved food-grade materials are used on demand for food\npackaging. Pouches are made at the local Rosenberg plant, which has\nautomated pouch lines.",
+   "families": [
+    "bags"
+   ]
+  },
+  {
+   "id": "product-print-products#1",
+   "doc_id": "product-print-products",
+   "title": "Print products",
+   "category": "products",
+   "source": "print247.us/category/print-products-print-products + print247.us/flyers + print247.us/brochures",
+   "status": "verified",
+   "last_reviewed": "2026-10-28",
+   "section": "",
+   "text": "Print products include postcards, flyers, brochure printing,\nbookmarks, presentation folders, booklets, magnets, greeting cards\nand invitations.\nBrochure fold styles include Bi-Fold, Tri-Fold, Z-Fold, Gate-Fold,\nAccordion-Fold, Roll-Fold, French Fold, Cross-Fold, Double Parallel\nFold, Half-Fold, Step-Down, Envelope, Insert and Folder,\nPoster-Style and Die-Cut.\nFlyers: letter size 8.5 x 11 inches, QR codes can link to landing\npages, numbering and variable data can track responses, die-cut\nflyers are available, weather-proof stocks and eco-friendly inks\nare offered.\nVariable data printing can automatically change names, numbers and\nbarcodes on a run. Print products FAQ says small minimum order\nquantities are offered on many premium custom items — this is a\nper-item exception, not a replacement for the general 1000 MOQ.\nConfirm the item with the team before quoting a small quantity.",
+   "families": [
+    "bags",
+    "labels",
+    "print"
+   ]
+  }
+ ]
+}

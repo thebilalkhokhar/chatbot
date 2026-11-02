@@ -1,0 +1,13 @@
+.pytest_cache
+**/__pycache__
+**/*.py[cod]
+.venv
+venv
+out
+tests
+tools
+PLAN.md
+PLAN_V2.md
+.env
+.env.*
+!.env.example

@@ -1,20 +1,31 @@
 from __future__ import annotations
 
 import os
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = PACKAGE_DIR.parent
 PROJECT_DIR = ROOT_DIR.parent
+SEED_DIR = ROOT_DIR / "seed"
 
 MODES = {"fake", "live", "dry_run", "shadow"}
 CONTEXTS = {"full", "retrieval", "catalogue"}
 ARCHES = {"v1", "v2"}
+SEED_FILES = (
+    "catalogue_primer.txt",
+    "kb_index.json",
+    "golden.jsonl",
+)
 
 
 class ConfigError(RuntimeError):
     pass
+
+
+def on_vercel() -> bool:
+    return os.getenv("VERCEL") == "1"
 
 
 def load_dotenv(path: Path | None = None) -> None:
@@ -56,6 +67,25 @@ def _path(name: str, default: Path) -> Path:
     if not path.is_absolute():
         path = ROOT_DIR / path
     return path.resolve()
+
+
+def _default_kb_dir() -> Path:
+    bundled = ROOT_DIR / "kb"
+    if bundled.is_dir():
+        return bundled
+    return PROJECT_DIR / "kb"
+
+
+def _default_data_dir() -> Path:
+    if on_vercel():
+        return Path("/tmp/chatbot-data")
+    return ROOT_DIR / "data"
+
+
+def _default_out_dir() -> Path:
+    if on_vercel():
+        return Path("/tmp/chatbot-out")
+    return ROOT_DIR / "out"
 
 
 @dataclass(frozen=True)
@@ -113,9 +143,9 @@ class Config:
         if arch not in ARCHES:
             raise ConfigError(f"BOT_ARCH must be one of {sorted(ARCHES)}, got {arch!r}")
         return cls(
-            kb_dir=_path("BOT_KB_DIR", PROJECT_DIR / "kb"),
-            data_dir=_path("BOT_DATA_DIR", ROOT_DIR / "data"),
-            out_dir=_path("BOT_OUT_DIR", ROOT_DIR / "out"),
+            kb_dir=_path("BOT_KB_DIR", _default_kb_dir()),
+            data_dir=_path("BOT_DATA_DIR", _default_data_dir()),
+            out_dir=_path("BOT_OUT_DIR", _default_out_dir()),
             mode=mode,
             allow_live=_flag("BOT_ALLOW_LIVE"),
             model=os.getenv("BOT_LLM_MODEL", "gpt-5-nano").strip(),
@@ -137,3 +167,9 @@ class Config:
     def ensure_dirs(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.out_dir.mkdir(parents=True, exist_ok=True)
+        if SEED_DIR.is_dir():
+            for name in SEED_FILES:
+                src = SEED_DIR / name
+                dest = self.data_dir / name
+                if src.is_file() and not dest.exists():
+                    shutil.copy2(src, dest)

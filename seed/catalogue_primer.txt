@@ -1,0 +1,103 @@
+CATALOGUE PRIMER - what Print247 offers
+Rendered from kb/capabilities by chatbot/bot/capability.py; do not edit by hand.
+This is the whole option set. A style, material, finish, extra, gauge or size not listed
+here is not ours: describe the need, offer the nearest listed option, let the team confirm.
+Never invent a value. Everything below is site-attested; a specific build is still confirmed
+by the team with the quote.
+Product names below are the site's own page titles.
+
+BAGS
+  style: 3 Side Seal Pouches, Biodegradable StandUp Pouch, CBD Mylar Bags, Child-Resistant Pouches, Chocolate Mylar Bags, Christmas Gift Bags, Coffee Bags, Eco-Friendly Pouches, Flat Bottom Pouches, Hemp Flower Mylar Bag, Inside Printed Pouches, Mylar Bags, Plastics Bags, Poly Mailers, Pouches, Pre Roll Mylar Bags, Smell proof weed bags, Stand Up Pouches, Vape Cartridge Pouches, Vape Pouches, Weed Mylar Bags
+  material: BOPP, PE, PET, PP, foil, foil pouch, kraft, metalized, mylar
+  colour: clear, plain white, white
+  finish: drip off, foil printing, gloss, holographic foil printing, inside printing, lamination, matte, soft touch, spot UV, spot foiling, spot matte, tactile feel
+  extras: child-resistant zipper, easy-open zipper, euro hole, hang hole, tear notch, window, zipper
+  sizes: no size grid: the corpus names sizes in words (small, large, extra large) and lists fill capacities 1 oz to 32 oz under Materials on the stand-up pouch page, never as a size table, so a capacity figure is not a size and must not be quoted as one
+
+BOXES
+  style: Boxes With Lid, CBD Boxes, CBD Cream Boxes, Christmas Gift Boxes, Cigar Boxes, Comic Book Boxes, Cookie Boxes, Cupcake Boxes, Dietary Supplement packaging, Display Box With Logo, Double Tea Box with Magnetic Closure, Eyelash Boxes, Foundation Boxes, Gold Foil Boxes, Hemp Boxes, Holographic Foiling Boxes, Hoodie Packaging, Lip Balm Boxes, Luxury Clothing Packaging, Mailer Boxes, Match Boxes, Medical Box with insert, Medicine Boxes, Metalized Boxes, Muffin Boxes, PR Boxes, Perfume Boxes, Pharmaceutical Patch Box, Pie Boxes, Pop Counter Display Tray, Product Display Box, Rack display boxes, Shape Boxes, Sock Packaging Boxes, Standard Green Tea Boxes, Tea Bag Dispenser, Tea Tray and Lid Gift Boxes, Textured Boxes, Torch Boxes, Tuck Boxes, Underwear Packaging, Wallet Boxes
+  material: PET, PVC, SBS paperboard, acetate, b c flute, b flute, bux board, c flute, cardboard, cardstock, corrugated board, corrugated cardboard, double coated card stock, e b flute, e-flute, foil, grayboard, holographic cardboard, kraft, kraft board, kraft paperboard, paperboard, recycled paperboard, rigid board, rigid cardboard, silver cardboard, textured paper, white cardboard
+  colour: clear, silver, transparent, white
+  finish: 3D raised UV, UV coating, aqueous coating, debossing, deep embossing, die cut, drip off, embossing, foil printing, foil stamping, gloss, gloss UV, gloss lamination, holographic, holographic foil, holographic foil printing, hot foil stamping, inside printing, lamination, matte, matte UV, matte lamination, soft touch, soft touch lamination, spot UV, spot foiling, spot gloss, textured, varnish
+  extras: LED light module, cut-out, handle, layered reveal mechanism, lift tab, magnetic closure, raised ink, resealable tab, ribbon pull, stackable design, vent hole, window
+  insert: foam insert, molded pulp tray, paperboard divider, sauce cup insert, velvet-lined tray
+  sizes: no size grid and no standard: pages answer "any size and any shape" or "custom sizes and measurements", so a box size comes from the visitor or from Sales; the only figures in the corpus are cake boxes up to 14 in and pie boxes 9-12 in
+  gauge stated on a product page: kraft board: 80 lb to 100 lb; corrugated board, bux board, grayboard, cardstock, kraft: 12 pt to 28 pt (60 lb to 400 lb)
+
+LABELS
+  style: Address Labels, Barcode Labels, Bottle Labels, Canning Labels, Clings, Cosmetic Labels, Cut-to-size Sticker Singles, Die Cut Labels, Domed 3D Labels, Domed 3D Stickers, Food Labels, Front-Adhesive Stickers, Heart Stickers, Hexagon Stickers, Holographic Labels, Holographic Stickers, Label Stickers, Metallic Labels, Name Labels, Political Bumper Stickers, Political Stickers, Product Labels, Round Labels, Shape Labels, Sheet Labels, Shipping Labels, Vinyl Labels, Vinyl Stickers, Water Bottle Stickers
+  material: ABS, BOPP, PLA, clear film, foil, kraft, metallized film, nylon, polyester, static cling, vinyl
+  colour: clear, iridescent, silver, white
+  finish: 3D raised UV, UV coating, anti-scratch lamination, aqueous coating, debossing, die cut, drip off, embossing, foil printing, foil stamping, gloss, gloss UV, gloss lamination, holographic, holographic foil printing, hot foil stamping, lamination, matte, matte UV, matte lamination, satin, soft touch, soft touch lamination, spot UV, spot foiling, spot gloss
+  extras: colour customization, full bleed, no border, white border, window
+  insert: tamper-evident seal
+  sizes: no size grid: pages say "Standard & Custom Sizes", "Fully Custom (Any Shape & Size)" and "Custom Width & Height" without a standard list to read from
+
+BANNERS
+  style: A-Frames, Angled Flags Banners, Banners Stands, Canopy Tents, Car Door Decals, Car Window Decals, Desk Name Plates, Metal Signs, Parking Sign, Pop Up Display, Pull up Banners, Rectangle Flags, Restroom Signs, Signicades, Step and Repeat Banners, Stretch Table Covers, Table Cloths, Table Runners, Tabletop signs, Vinyl Banner, Wall decals, Way Finding Sign, Window Decals
+  material: corrugated plastic, foamcore, paperboard, polyester, static cling, vinyl
+  colour: clear, frosted, metallic chrome, silver, white, white opaque
+  finish: die cut, gloss, gloss lamination, grommets, holographic, hot foil stamping, kiss cut, matte, pole pockets, reinforced corners, reverse printing, varnish
+  extras: perforation
+  sizes we list: 23" x 66", 24" x 81", 33" x 81", 47" x 81"
+
+BUSINESS CARDS
+  style: 3D Pop-up Folding Business Cards With Character, Business Card with QR Code, Embossed Gloss Business Cards, Foil Accent Business Cards, Folded Business Cards, Glossy Business Cards, Kraft Business Cards, Linen Business Cards, Matte Business Cards, NFC Business Cards, Painted Edge Business Cards, Political Business Cards, Round Corner Business Card, Standard Business Cards, Ultra Thick Business Cards
+  material: PET, PVC, acrylic, cardstock, foil, grayboard, holographic cardboard, kraft, kraft board, silver cardboard, white cardboard
+  finish: 3D raised UV, debossing, deep embossing, drip off, embossing, gloss UV, gloss lamination, hot foil stamping, matte, matte lamination, soft touch lamination, spot UV, spot foiling, spot gloss, spot matte, tactile feel, varnish
+  extras: window
+  fold: half fold
+  sizes: no size row on any card page: the standard card page answers "Dimensions (LxH): Any custom sizes and measurements" and no page prints 3.5 x 2 in, so a card size comes from the visitor
+  gauge stated on a product page: cardstock: 13 pt, 14 pt, 16 pt, 18 pt; cardstock: 32 pt
+
+PRINT
+  style: Booklets, Bookmarks, Brochure Printing, Door hangers, Envelopes, Flyers, Greeting Cards, Invitations, Magnets, Numbered Tickets, Political Brochures, Political Postcards, Posters, Tear Cards, Variable Printing, Wall Calendars
+  material: cardstock, gloss paper, holographic cardboard, rigid cardboard, silver cardboard, white cardboard
+  colour: silver, white
+  finish: 3D raised UV, aqueous coating, die cut, drip off, gloss, gloss lamination, holographic, lamination, matte, matte lamination, satin, soft touch, soft touch lamination, spot UV, spot foiling, spot gloss, textured, varnish
+  extras: perforation
+  fold: bi fold, envelope, insert and folder, tri fold
+  sizes we list: 3.5" x 8.5", 3.5" x 11"
+  gauge stated on a product page: gloss paper, high-finish and uncoated paper: 70 lb to 100 lb; high-finish and uncoated paper: 60 lb to 75 lb; cardstock: 10 pt
+
+GAUGES NOT FOR THE REPLY
+  21 figures come from a FAQ answer or a hub article, not a product spec (micron, mil, gsm, oz, lb, pt and mm measure different things per family). Say the team confirms the gauge with the quote; never quote one of these numbers.
+
+DO NOT OFFER
+  labels: static cling will not hold on textured or porous walls; the electrostatic grip drops and the edge lifts
+  banners: car-window clings must not sit in the driver's direct line of sight (safety, not capability)
+  labels: front-adhesive decals are refused on textured or porous surfaces; the adhesive needs a clean flat surface
+  labels: vinyl front-adhesive is one-time application; it loses its stick once removed, so reuse is not offered
+  labels: sticky vinyl decals are for long-term application and are not re-usable; only static cling is
+  labels: paper stock labels are not made for water or weather; wet use needs a synthetic stock
+  labels: we will not print a food label on stock that cannot withstand cold storage, oil or handling
+  boxes: open-front display boxes are shelf units and are not durable for heavy shipping
+  boxes: paperboard alone does not control temperature; coatings only block moisture
+  boxes: precision foam inserts suit uneven bottles but the page warns they hurt the pack's recyclability
+  business_cards: foil runs under 1,000 are refused for machine set-up, not price: print 1,000 and split the batch
+  bags: foil-lined structures are multi-layer and some recycling streams reject them, so no curbside claim
+  bags: thin film cannot hold a deep debossed impression; the hub limits it to thicker bags
+  bags: flexographic printing is refused for short runs and for designs that keep changing (plate cost)
+  bags: flexographic printing is not quoted for photo-level sharp detail
+  bags: a press-to-close zipper is not sold as a replacement for the original heat-seal barrier
+  bags: a standard sealed pouch is unsuitable for products that keep releasing gas (coffee) unless a degassing valve is added
+  bags: not every vacuum pouch is heat-safe; the hub says to check the product specification
+  banners: the wrinkle-free fabric sign grade is explicitly not recommended for exterior UV and rain
+  boxes: pillow boxes are described as carrying small, light goods only, not heavy items
+  boxes: a seal-end box is not meant for products the customer opens and closes repeatedly
+  boxes: duplex board is ruled out for very heavy or delicate products
+  boxes: CCNB is not offered for heavy-duty use
+  boxes: lined paperboard is not supported for heavy products
+  boxes: chipboard cannot take very heavy weight; it is a shape-and-structure stock
+  print: construction paper is ruled out for detailed printing; the surface is rough
+  never ours, anywhere: pillow box, sleeve box, rigid mylar box, Child-Guard zipper, squeeze-then-slide zipper, braille embossing, letterpress
+
+COLOUR is not a capability: white, silver, clear, frosted and iridescent name the
+look of a stock, so a colour never decides whether we can make something.
+SIZES: only a size listed above, or one the customer typed, may appear in a reply.
+Never calculate or imply a dimension, and never present a listed size as a
+guaranteed fit - the packaging team confirms the final size.
+COMPLIANCE: only the signed sentences in the compliance allow-list may be
+asserted; otherwise say specs are confirmed by the team with the quote and keep
+helping. Explain why an option suits the product; never name a property we have
+not signed.
