@@ -27,6 +27,8 @@ from .kb import KBIndex, load_or_build
 from .llm import LLMClient, LLMError
 from .personas import persona_for
 from .state import (
+    BASIS_MODEL,
+    FAMILY_PRODUCT,
     FIELD_LABELS,
     PRODUCT_QUESTION,
     STATUS_SUGGESTED,
@@ -37,6 +39,7 @@ from .state import (
     asks_to_share_reference,
     continue_ask,
     extract_fields,
+    family_candidates,
     field_clarify_phrase,
     family_of,
     greeting_ack,
@@ -47,6 +50,7 @@ from .state import (
     is_visitor_greeting,
     is_goodbye,
     is_job_pitch,
+    product_disambiguation_question,
     refuses_contact,
     wants_human,
 )
@@ -270,6 +274,34 @@ class Orchestrator:
                 return REPHRASES[key]
             return state.question_for(key)
         return ""
+
+    def _ambiguous_product_ask(
+        self,
+        state: ConversationState,
+        visitor: str,
+        accepted: dict[str, str],
+    ) -> tuple[str, str]:
+        """Keep product open: suggest the first-mentioned family, or re-ask the menu.
+
+        Clear `{product} for {purpose}` lines are resolved in `family_of` before this
+        runs. Remaining multi-family messages use propose-and-confirm instead of a
+        stalled handoff.
+        """
+        product = state.fields["product"]
+        # Attempts emptied the ask-set; keep one more confirm / menu turn.
+        product.attempts = min(product.attempts, 1)
+        if product.status == STATUS_SUGGESTED and product.value:
+            return ("product", state.question_for("product") or PRODUCT_QUESTION)
+        candidates = family_candidates(visitor)
+        if len(candidates) < 2:
+            candidates = family_candidates("", tuple(state.visitor_texts()[-4:]))
+        if len(candidates) >= 2 and "product" not in accepted and not product.done:
+            preferred = candidates[0]
+            label = FAMILY_PRODUCT.get(preferred, preferred.replace("_", " "))
+            # Direct suggest — avoid echo/traceable rejecting a multi-family line.
+            state.set_field("product", label, BASIS_MODEL, raw="", status=STATUS_SUGGESTED)
+            return ("product", product_disambiguation_question(candidates))
+        return ("product", state.question_for("product") or PRODUCT_QUESTION)
 
     def _unattested_note(
         self,
@@ -854,6 +886,10 @@ class Orchestrator:
             if is_visitor_greeting(visitor) or vision is not None:
                 # Image turns must confirm what we saw — never stall into handoff.
                 expected = ("product", state.question_for("product") or PRODUCT_QUESTION)
+            elif state.family() == "unknown":
+                # Hybrid: multi-family with no head noun → suggest + confirm.
+                # Never stall while the product family is still open.
+                expected = self._ambiguous_product_ask(state, visitor, accepted)
             else:
                 handoff_reason = "stalled"
         if handoff_reason:

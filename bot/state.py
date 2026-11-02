@@ -301,21 +301,33 @@ USE_CASE_NOUN_RE = re.compile(
     + USE_CASE_TAIL,
     re.I,
 )
+# Product token shared by "X for Y" / "Y X" head-noun resolution and use-case extractors.
+_PRODUCT_HEAD_ALTS = (
+    r"labels?|stickers?|decals?|bags?|pouch(?:es)?|mylar|boxes?|cartons?|mailers?|"
+    r"banners?|signs?|business cards?|cards?"
+)
 # "{product} for {purpose}" — labels for whisky bottles, boxes for candles.
-# Excludes "for example" / "for instance"; product-family phrases are dropped later.
+# Excludes "for example" / "for instance"; purpose may name another family (pizza box).
+# Group 1 stays the purpose (USE_CASE_TAIL); product token is non-capturing.
 USE_CASE_PRODUCT_FOR_RE = re.compile(
     r"\b(?:(?:custom|plain|blank|printed|die[- ]?cut)\s+)*"
-    r"(?:labels?|stickers?|decals?|bags?|pouch(?:es)?|mylar|boxes?|cartons?|mailers?|"
-    r"banners?|signs?|business cards?|cards?)\s+for\s+"
+    rf"(?:{_PRODUCT_HEAD_ALTS})\s+for\s+"
     r"(?!example\b|instance\b|now\b|sale\b|me\b|us\b|you\b)"
     + USE_CASE_TAIL,
+    re.I,
+)
+# Head product only (group 1), for multi-family attachment: labels for … box → labels.
+PRODUCT_FOR_HEAD_RE = re.compile(
+    r"\b(?:(?:custom|plain|blank|printed|die[- ]?cut)\s+)*"
+    rf"({_PRODUCT_HEAD_ALTS})\s+for\s+"
+    r"(?!example\b|instance\b|now\b|sale\b|me\b|us\b|you\b)",
     re.I,
 )
 # "{purpose} {product}" — whiskey bottle label, honey jar stickers.
 # Banners/signs omitted: "parking sign" is the product name, not a use case.
 USE_CASE_PURPOSE_PRODUCT_RE = re.compile(
     r"\b([a-z][a-z0-9 &'\-]{1,40}?)\s+"
-    r"(?:labels?|stickers?|decals?|bags?|pouch(?:es)?|boxes?|cartons?|mailers?|"
+    r"(labels?|stickers?|decals?|bags?|pouch(?:es)?|boxes?|cartons?|mailers?|"
     r"business cards?)\b",
     re.I,
 )
@@ -412,25 +424,109 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _token_family(token: str) -> str:
+    """Map a short product span to one family. Does not scan purpose nouns."""
+    blob = str(token or "").strip()
+    if not blob:
+        return "unknown"
+    if BUSINESS_CARD_RE.search(blob):
+        return "business_cards"
+    if BANNER_RE.search(blob):
+        return "banners"
+    if LABEL_RE.search(blob):
+        return "labels"
+    if BAG_RE.search(blob):
+        return "bags"
+    if BOX_RE.search(blob):
+        return "boxes"
+    if PRINT_RE.search(blob):
+        return "print"
+    return "unknown"
+
+
+def family_candidates(product: str = "", texts: tuple[str, ...] = ()) -> list[str]:
+    """Product families mentioned, in left-to-right order. Empty when none."""
+    blob = " ".join([product, *texts]).strip()
+    if not blob:
+        return []
+    hits: list[tuple[int, str]] = []
+    for regex, family in (
+        (BUSINESS_CARD_RE, "business_cards"),
+        (BANNER_RE, "banners"),
+        (LABEL_RE, "labels"),
+        (BAG_RE, "bags"),
+        (BOX_RE, "boxes"),
+        (PRINT_RE, "print"),
+    ):
+        for match in regex.finditer(blob):
+            hits.append((match.start(), family))
+    hits.sort(key=lambda item: item[0])
+    ordered: list[str] = []
+    for _start, family in hits:
+        if family not in ordered:
+            ordered.append(family)
+    return ordered
+
+
+def headed_product_family(text: str) -> str:
+    """Head noun when one product is ordered and another appears only as purpose.
+
+    `labels for my pizza box` / `pizza box labels` → labels, not boxes.
+    `boxes and labels` stays unresolved (conjunction, not purpose+product).
+    """
+    value = str(text or "")
+    if not value.strip():
+        return "unknown"
+    product_for = PRODUCT_FOR_HEAD_RE.search(value)
+    if product_for:
+        headed = _token_family(product_for.group(1))
+        if headed != "unknown":
+            return headed
+    purpose_product = USE_CASE_PURPOSE_PRODUCT_RE.search(value)
+    if purpose_product:
+        purpose = purpose_product.group(1)
+        # "boxes and labels" / "bags or boxes" — two products, not purpose+head.
+        if re.search(r"\b(?:and|or|vs\.?|versus)\b", purpose, re.I):
+            return "unknown"
+        headed = _token_family(purpose_product.group(2))
+        if headed != "unknown":
+            return headed
+    return "unknown"
+
+
 def family_of(product: str = "", texts: tuple[str, ...] = ()) -> str:
     blob = " ".join([product, *texts]).strip()
     if not blob:
         return "unknown"
+    # Banners / business cards win as whole-product lines (unchanged priority).
     if BANNER_RE.search(blob):
         return "banners"
     if BUSINESS_CARD_RE.search(blob):
         return "business_cards"
-    found: list[str] = []
-    if LABEL_RE.search(blob):
-        found.append("labels")
-    if BAG_RE.search(blob):
-        found.append("bags")
-    if BOX_RE.search(blob):
-        found.append("boxes")
-    if PRINT_RE.search(blob):
-        found.append("print")
-    unique = list(dict.fromkeys(found))
-    return unique[0] if len(unique) == 1 else ("unknown" if len(unique) > 1 else "unknown")
+    unique = family_candidates(product, texts)
+    # family_candidates also records banners/cards; drop them here — already handled.
+    unique = [name for name in unique if name not in {"banners", "business_cards"}]
+    if len(unique) == 1:
+        return unique[0]
+    if not unique:
+        return "unknown"
+    headed = headed_product_family(blob)
+    if headed != "unknown" and headed in unique:
+        return headed
+    return "unknown"
+
+
+def product_disambiguation_question(candidates: list[str]) -> str:
+    """Hybrid confirm when several families appear with no clear head noun."""
+    labels = [FAMILY_PRODUCT.get(name, name.replace("_", " ")) for name in candidates[:3]]
+    if not labels:
+        return PRODUCT_QUESTION
+    if len(labels) == 1:
+        return f"Just to confirm — are you looking for {labels[0]}?"
+    if len(labels) == 2:
+        return f"Just to confirm — are you looking for {labels[0]}, or {labels[1]}?"
+    leading = ", ".join(labels[:-1])
+    return f"Just to confirm — are you looking for {leading}, or {labels[-1]}?"
 
 
 def is_plain(text: str) -> bool:
@@ -595,30 +691,47 @@ def normalize_finish(text: str) -> str | None:
     return None
 
 
-def _use_case_phrase(raw: str) -> str:
+def _use_case_phrase(raw: str, *, allow_packaging_nouns: bool = False) -> str:
     phrase = re.sub(r"\s+", " ", str(raw or "")).strip(" .,;:")
     words = [word for word in phrase.lower().split() if word not in USE_CASE_STOP_WORDS]
     if not words:
         return ""
     cleaned = " ".join(words)
-    # A bare product family ("boxes", "coffee bags") is the product, not the use case.
-    if family_of(phrase) != "unknown" or family_of(cleaned) != "unknown":
-        return ""
+    # A bare product family ("boxes", "coffee bags") is the product, not the use case —
+    # unless it is the purpose after an ordered head product (labels for pizza box).
+    if not allow_packaging_nouns:
+        if family_of(phrase) != "unknown" or family_of(cleaned) != "unknown":
+            return ""
     return cleaned[:60]
 
 
 def use_case_from(text: str) -> str:
     """What it is for: the thing going inside, or the channel it sells through."""
     value = str(text or "")
-    for pattern in (USE_CASE_NOUN_RE, USE_CASE_PRODUCT_FOR_RE):
-        match = pattern.search(value)
-        if match:
-            phrase = _use_case_phrase(match.group(1))
+    # When the message orders a head product (`labels for …`), keep purpose nouns
+    # even if they name another family (pizza box, shipping bags). Prefer the
+    # `{product} for {purpose}` span over `for shipping …` so "stickers for
+    # shipping bags" keeps "shipping bags", not a bare "bags".
+    headed = headed_product_family(value)
+    if headed != "unknown":
+        product_for = USE_CASE_PRODUCT_FOR_RE.search(value)
+        if product_for:
+            phrase = _use_case_phrase(product_for.group(1), allow_packaging_nouns=True)
             if phrase:
                 return phrase
+    noun = USE_CASE_NOUN_RE.search(value)
+    if noun:
+        phrase = _use_case_phrase(noun.group(1), allow_packaging_nouns=False)
+        if phrase:
+            return phrase
+    product_for = USE_CASE_PRODUCT_FOR_RE.search(value)
+    if product_for:
+        phrase = _use_case_phrase(product_for.group(1), allow_packaging_nouns=False)
+        if phrase:
+            return phrase
     purpose = USE_CASE_PURPOSE_PRODUCT_RE.search(value)
-    if purpose:
-        phrase = _use_case_phrase(purpose.group(1))
+    if purpose and not re.search(r"\b(?:and|or|vs\.?|versus)\b", purpose.group(1), re.I):
+        phrase = _use_case_phrase(purpose.group(1), allow_packaging_nouns=True)
         words = phrase.split() if phrase else []
         lead_blocked = {
             "i",

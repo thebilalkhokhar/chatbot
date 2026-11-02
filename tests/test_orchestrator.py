@@ -27,6 +27,37 @@ def test_first_product_message_asks_what_they_are_packing(orchestrator):
     assert result.accepted.get("product")
 
 
+def test_labels_for_pizza_box_does_not_stall(orchestrator):
+    # Attachment: labels ordered, box only in the purpose — lock labels, keep chatting.
+    orchestrator.start("c-pizza-labels")
+    first = orchestrator.handle("c-pizza-labels", "labels for my pizza box")
+    assert first.handoff == ""
+    assert first.accepted.get("product") == "labels"
+    assert first.accepted.get("use_case") == "pizza box"
+    assert "specialist" not in first.reply.lower()
+    second = orchestrator.handle("c-pizza-labels", "labels for my pizza box")
+    assert second.handoff == ""
+    assert "specialist" not in second.reply.lower()
+
+
+def test_boxes_and_labels_asks_to_confirm_instead_of_stalling(orchestrator):
+    # Hybrid: conjunction names two families — suggest + confirm, no stalled handoff.
+    from chatbot.bot.state import STATUS_SUGGESTED
+
+    orchestrator.start("c-both")
+    state = orchestrator.store.get_or_create("c-both")
+    state.fields["product"].attempts = 2
+    orchestrator.store.save(state)
+    result = orchestrator.handle("c-both", "boxes and labels")
+    assert result.handoff == ""
+    assert "specialist" not in result.reply.lower()
+    state = orchestrator.store.get_or_create("c-both")
+    assert state.fields["product"].status == STATUS_SUGGESTED
+    assert state.fields["product"].value == "boxes"
+    lowered = result.reply.lower()
+    assert "boxes" in lowered and "labels" in lowered
+
+
 def test_answers_moq_and_lead_time_before_asking(orchestrator):
     orchestrator.start("c-facts")
     result = orchestrator.handle(

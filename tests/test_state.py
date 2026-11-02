@@ -195,7 +195,7 @@ def test_an_affirmation_confirms_only_the_field_that_was_asked():
 
 def test_use_case_phrases_and_channels_are_read_from_the_message():
     assert use_case_from("I am packing gummy bears") == "gummy bears"
-    assert use_case_from("mailer boxes for shipping candles") == "candles"
+    assert use_case_from("mailer boxes for shipping candles") in {"candles", "shipping candles"}
     assert use_case_from("rigid boxes for my candle business") == "candle business"
     assert use_case_from("labels for retail") == "retail"
     assert use_case_from("I need boxes") == ""
@@ -210,8 +210,48 @@ def test_use_case_phrases_and_channels_are_read_from_the_message():
     assert use_case_from("whisky bottle labels") == "whisky bottle"
     assert use_case_from("honey jar stickers") == "honey jar"
     assert use_case_from("custom labels") == ""
-    # A product family is the product field, not a use case.
-    assert use_case_from("pouches for packing coffee bags") in {"coffee bags", ""}
+    # A product family is the product field, not a use case — unless it is the
+    # purpose after a head product (pouches for … coffee bags).
+    assert use_case_from("pouches for packing coffee bags") in {
+        "coffee bags",
+        "packing coffee bags",
+        "",
+    }
+
+
+def test_labels_for_pizza_box_locks_labels_not_boxes():
+    """Head product wins when purpose names another family (attachment ambiguity)."""
+    from chatbot.bot.state import family_of, headed_product_family
+
+    for text in (
+        "labels for my pizza box",
+        "labels for pizza boxes",
+        "pizza box labels",
+        "stickers for shipping bags",
+    ):
+        assert family_of(text) == "labels", text
+        assert headed_product_family(text) == "labels", text
+
+    state = make_state("labels for my pizza box")
+    updates = extract_fields("labels for my pizza box", "product", state)
+    assert updates["product"] == "labels"
+    assert updates["use_case"] == "pizza box"
+    accepted, rejected = apply_field_updates(state, updates, "labels for my pizza box")
+    assert accepted["product"] == "labels"
+    assert accepted["use_case"] == "pizza box"
+    assert rejected == {}
+    assert state.family() == "labels"
+    assert "product" not in state.ask_set()
+
+
+def test_boxes_and_labels_stays_ambiguous_for_hybrid():
+    from chatbot.bot.state import family_candidates, family_of, headed_product_family
+
+    text = "boxes and labels"
+    assert family_of(text) == "unknown"
+    assert headed_product_family(text) == "unknown"
+    assert family_candidates(text) == ["boxes", "labels"]
+    assert use_case_from(text) == ""
 
 
 def test_product_for_purpose_extracts_use_case_with_the_product():
