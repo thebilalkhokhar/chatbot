@@ -3,39 +3,76 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Print247 local chat</title>
+<title>Print247 chat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
 <style>
   :root {
-    --ink: #15221b;
-    --muted: #6b7f71;
-    --line: #d8e2db;
-    --accent: #146c43;
-    --accent-soft: #e7f3ec;
-    --paper: #ffffff;
-    --canvas: #eef3ef;
-    --warn-bg: #fff8e6;
-    --warn-line: #f0dfae;
-    --warn-ink: #6b5200;
-    --debug-bg: #0f1b14;
-    --debug-line: #223b2c;
-    --debug-ink: #d6e6db;
-    --debug-muted: #8fa99a;
+    --bg: #0b0c10;
+    --bg-elev: #12141c;
+    --panel: #161922;
+    --panel-2: #1b1f2b;
+    --line: rgba(255, 255, 255, 0.08);
+    --line-strong: rgba(255, 255, 255, 0.12);
+    --ink: #f4f6fb;
+    --muted: #8b93a7;
+    --muted-2: #6b7388;
+    --teal: #4fd1c5;
+    --teal-dim: rgba(79, 209, 197, 0.14);
+    --purple: #7c5cff;
+    --purple-2: #5b3fd4;
+    --purple-glow: rgba(124, 92, 255, 0.45);
+    --green: #3dd68c;
+    --green-dim: rgba(61, 214, 140, 0.14);
+    --amber: #f0b429;
+    --amber-dim: rgba(240, 180, 41, 0.14);
+    --red: #ff7b7b;
+    --bot-bubble: #222634;
     --block: #ff9b9b;
     --warn: #ffd479;
     --info: #9fc7ff;
+    --radius: 18px;
+    --radius-sm: 12px;
+    --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+    --font: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
   body {
     margin: 0;
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-    background: var(--canvas);
+    font-family: var(--font);
     color: var(--ink);
+    background:
+      radial-gradient(1200px 600px at 12% -10%, rgba(124, 92, 255, 0.16), transparent 55%),
+      radial-gradient(900px 500px at 95% 0%, rgba(79, 209, 197, 0.1), transparent 50%),
+      radial-gradient(800px 500px at 70% 110%, rgba(91, 63, 212, 0.12), transparent 45%),
+      var(--bg);
   }
+  button {
+    font: inherit;
+    cursor: pointer;
+    border: 0;
+    border-radius: 999px;
+    padding: 9px 14px;
+    background: var(--teal);
+    color: #06221f;
+    font-weight: 650;
+    font-size: 13px;
+  }
+  button:hover { filter: brightness(1.06); }
+  button:disabled { opacity: .5; cursor: not-allowed; filter: none; }
+  .ghost {
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+    font-weight: 500;
+  }
+
   .topbar {
-    max-width: 1280px;
+    max-width: 1440px;
     margin: 0 auto;
-    padding: 16px 18px 0;
+    padding: 18px 22px 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -45,121 +82,189 @@
   .brand { display: flex; align-items: center; gap: 12px; }
   .mark {
     width: 42px; height: 42px; border-radius: 12px;
-    background: var(--accent); color: #fff;
+    background: linear-gradient(145deg, #57e0c8, #2bb89f);
+    color: #05332c;
     display: grid; place-items: center;
-    font-weight: 800; font-size: 13px; letter-spacing: .5px;
+    font-weight: 800; font-size: 12px; letter-spacing: .4px;
+    box-shadow: 0 0 0 1px rgba(79, 209, 197, 0.25), 0 8px 24px rgba(79, 209, 197, 0.2);
   }
-  h1 { margin: 0; font-size: 18px; letter-spacing: -.2px; }
-  .brand p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+  h1 { margin: 0; font-size: 18px; letter-spacing: -.3px; font-weight: 700; }
+  .brand p { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
   .status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .badge {
-    display: inline-flex; align-items: center;
-    padding: 5px 10px; border-radius: 999px;
-    font-size: 11.5px; font-weight: 600; letter-spacing: .2px;
-    background: #e8efe9; color: #41564a; border: 1px solid transparent;
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 6px 11px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; letter-spacing: .15px;
+    background: rgba(255,255,255,0.04);
+    color: var(--muted);
+    border: 1px solid var(--line);
   }
-  .badge.fake { background: #e8efe9; color: #41564a; }
-  .badge.live { background: #d8f3e2; color: #0c5c36; }
-  .badge.dry_run, .badge.shadow { background: #fff1cc; color: #745300; }
-  .badge.muted { background: transparent; border-color: var(--line); color: var(--muted); font-weight: 500; }
-  button {
-    font: inherit; cursor: pointer;
-    border: 0; border-radius: 10px;
-    padding: 9px 14px;
-    background: var(--accent); color: #fff;
-    font-weight: 600; font-size: 13px;
+  .badge .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--muted-2);
+    box-shadow: 0 0 0 3px rgba(139, 147, 167, 0.12);
   }
-  button:hover { filter: brightness(1.06); }
-  button:disabled { opacity: .55; cursor: not-allowed; }
-  .ghost {
-    background: transparent; color: var(--ink);
-    border: 1px solid var(--line); font-weight: 500;
+  .badge.live { color: #b8f5d5; background: rgba(61, 214, 140, 0.08); border-color: rgba(61, 214, 140, 0.22); }
+  .badge.live .dot { background: var(--green); box-shadow: 0 0 0 3px rgba(61, 214, 140, 0.18); }
+  .badge.fake { color: var(--muted); }
+  .badge.dry_run, .badge.shadow { color: #ffe4a3; background: var(--amber-dim); border-color: rgba(240, 180, 41, 0.25); }
+  .badge.dry_run .dot, .badge.shadow .dot { background: var(--amber); }
+  .badge.muted { font-weight: 500; }
+  #new-chat {
+    background: var(--teal);
+    color: #05332c;
+    padding: 9px 16px;
+    box-shadow: 0 8px 22px rgba(79, 209, 197, 0.22);
   }
+  #new-chat::before { content: "+ "; font-weight: 700; }
+
   .layout {
-    max-width: 1280px;
+    max-width: 1440px;
     margin: 0 auto;
-    padding: 14px 18px 18px;
+    padding: 14px 22px 22px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 440px;
+    grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.95fr);
     gap: 16px;
-    height: calc(100vh - 76px);
+    height: calc(100vh - 82px);
+  }
+
+  .chat-card, .side-panel {
+    min-height: 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0.03), transparent 28%), var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(10px);
   }
   .chat-card {
-    display: flex; flex-direction: column; min-height: 0;
-    background: var(--paper);
-    border: 1px solid var(--line);
-    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
-    box-shadow: 0 10px 30px rgba(20, 50, 32, .05);
   }
   .messages {
     flex: 1; min-height: 0;
     overflow-y: auto;
-    padding: 22px 22px 12px;
-    display: flex; flex-direction: column; gap: 14px;
+    padding: 22px 22px 14px;
+    display: flex; flex-direction: column; gap: 16px;
     scroll-behavior: smooth;
   }
-  .msg { display: flex; flex-direction: column; }
+  .messages::-webkit-scrollbar, .side-scroll::-webkit-scrollbar { width: 8px; }
+  .messages::-webkit-scrollbar-thumb, .side-scroll::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.1); border-radius: 999px;
+  }
+
+  .msg { display: flex; flex-direction: column; gap: 8px; max-width: 100%; }
+  .msg.bot { align-items: flex-start; }
   .msg.visitor { align-items: flex-end; }
+  .msg.system { align-items: center; }
+  .msg-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    width: 100%;
+    max-width: 100%;
+  }
+  .msg.visitor .msg-row { flex-direction: row-reverse; }
+  .avatar {
+    width: 30px; height: 30px; flex: 0 0 30px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-size: 12px; font-weight: 700;
+    background: linear-gradient(145deg, #57e0c8, #2aa999);
+    color: #05332c;
+    box-shadow: 0 0 0 1px rgba(79, 209, 197, 0.25);
+  }
   .bubble {
-    max-width: 78%;
-    padding: 10px 14px;
-    border-radius: 14px;
+    width: max-content;
+    max-width: min(560px, 85%);
+    flex: 0 0 auto;
+    padding: 11px 14px;
+    border-radius: 16px;
     line-height: 1.5;
     white-space: pre-wrap;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
+    word-break: normal;
     font-size: 14px;
   }
   .msg.bot .bubble {
-    background: #f1f6f2; border: 1px solid #dce8df;
-    border-bottom-left-radius: 4px;
+    background: var(--bot-bubble);
+    border: 1px solid var(--line);
+    border-bottom-left-radius: 6px;
+    color: #e8ecf7;
   }
   .msg.visitor .bubble {
-    background: var(--accent); color: #fff;
-    border-bottom-right-radius: 4px;
+    background: linear-gradient(145deg, #8a6bff, #5b3fd4);
+    color: #fff;
+    border-bottom-right-radius: 6px;
+    box-shadow: 0 0 0 1px rgba(124, 92, 255, 0.35), 0 10px 28px var(--purple-glow);
   }
-  .meta { font-size: 11px; color: var(--muted); margin-top: 4px; padding: 0 4px; }
-  .msg.system { align-items: center; }
   .msg.system .bubble {
-    background: var(--warn-bg);
-    border: 1px solid var(--warn-line);
-    color: var(--warn-ink);
+    background: rgba(240, 180, 41, 0.1);
+    border: 1px solid rgba(240, 180, 41, 0.28);
+    color: #ffe4a3;
     border-radius: 999px;
     font-size: 12.5px;
     max-width: 92%;
     text-align: center;
     padding: 8px 14px;
   }
-  .typing { display: inline-flex; gap: 4px; align-items: center; padding: 4px 2px; }
+  .meta { font-size: 11px; color: var(--muted-2); padding: 0 4px 0 40px; }
+  .msg.visitor .meta { padding: 0 4px; text-align: right; }
+  .bubble.with-image { display: grid; gap: 8px; }
+  .bubble.with-image img {
+    max-width: 220px; max-height: 160px; border-radius: 10px;
+    display: block; object-fit: cover;
+  }
+  .typing { display: inline-flex; gap: 5px; align-items: center; padding: 2px 4px; }
   .typing i {
     width: 6px; height: 6px; border-radius: 50%;
-    background: #7d9b88; animation: blink 1.2s infinite;
+    background: #8b93a7; animation: blink 1.2s infinite;
   }
   .typing i:nth-child(2) { animation-delay: .15s; }
   .typing i:nth-child(3) { animation-delay: .3s; }
   @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+
+  .quick-replies {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    padding-left: 40px;
+  }
+  .chip-btn {
+    background: rgba(255,255,255,0.03);
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    padding: 7px 12px;
+    font-size: 12.5px;
+    font-weight: 550;
+  }
+  .chip-btn:hover { border-color: rgba(79, 209, 197, 0.45); background: var(--teal-dim); }
+  .chip-btn.accent {
+    color: var(--teal);
+    border-color: rgba(79, 209, 197, 0.45);
+    background: transparent;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .chip-btn.accent svg { width: 14px; height: 14px; }
+
   .composer {
     display: flex; flex-direction: column; gap: 8px;
-    padding: 12px 14px;
-    border-top: 1px solid #e3ebe5;
-    background: #fbfdfb;
-  }
-  .composer-row {
-    display: flex; gap: 10px; align-items: flex-end;
+    padding: 12px 16px 0;
+    border-top: 1px solid var(--line);
+    background: rgba(0,0,0,0.12);
   }
   .attach-preview {
     display: none;
     align-items: center;
     gap: 10px;
     padding: 8px 10px;
-    border: 1px solid #d5e3d9;
-    border-radius: 12px;
-    background: #f3f8f4;
+    border: 1px solid var(--line-strong);
+    border-radius: 14px;
+    background: rgba(255,255,255,0.03);
   }
   .attach-preview.show { display: flex; }
   .attach-preview img {
     width: 48px; height: 48px; object-fit: cover;
-    border-radius: 8px; border: 1px solid #cfe0d4;
+    border-radius: 8px; border: 1px solid var(--line);
   }
   .attach-preview .meta-col { flex: 1; min-width: 0; }
   .attach-preview .name {
@@ -169,135 +274,304 @@
   .attach-preview .hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
   .attach-preview .clear {
     background: transparent; color: var(--muted);
-    border: 1px solid var(--line); padding: 6px 10px; font-weight: 500;
+    border: 1px solid var(--line-strong); padding: 6px 10px; font-weight: 500;
+  }
+  .composer-row {
+    display: flex; gap: 8px; align-items: center;
+    padding: 4px 6px;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    background: rgba(255,255,255,0.03);
+  }
+  .composer-row:focus-within {
+    border-color: rgba(79, 209, 197, 0.45);
+    box-shadow: 0 0 0 3px rgba(79, 209, 197, 0.1);
+  }
+  .composer-row.multiline {
+    align-items: flex-end;
+    border-radius: 22px;
   }
   .icon-btn {
-    width: 44px; height: 44px; flex: 0 0 44px;
+    width: 36px; height: 36px; flex: 0 0 36px;
     display: grid; place-items: center;
-    background: transparent; color: var(--ink);
-    border: 1px solid #cad9cf; border-radius: 12px;
-    padding: 0; font-size: 18px; line-height: 1;
+    background: transparent; color: var(--muted);
+    border: 0; border-radius: 50%;
+    padding: 0;
   }
-  .icon-btn:hover { background: #eef5f0; }
+  .icon-btn:hover { color: var(--ink); background: rgba(255,255,255,0.05); }
+  .icon-btn svg { width: 18px; height: 18px; }
   textarea {
     flex: 1;
     resize: none;
-    border: 1px solid #cad9cf;
+    border: 0;
     border-radius: 12px;
-    padding: 11px 13px;
+    padding: 6px 4px;
     font: inherit;
     font-size: 14px;
-    line-height: 1.4;
-    min-height: 44px;
+    line-height: 22px;
+    height: 22px;
+    min-height: 22px;
     max-height: 140px;
     outline: none;
-    background: #fff;
+    background: transparent;
     color: var(--ink);
+    overflow-y: hidden;
   }
-  textarea:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(20, 108, 67, .12);
+  textarea::placeholder { color: var(--muted-2); }
+  #send {
+    width: 36px; height: 36px; flex: 0 0 36px;
+    border-radius: 50%;
+    padding: 0;
+    display: grid; place-items: center;
+    background: var(--teal);
+    color: #05332c;
+    box-shadow: 0 8px 18px rgba(79, 209, 197, 0.25);
   }
-  .bubble.with-image { display: grid; gap: 8px; }
-  .bubble.with-image img {
-    max-width: 220px; max-height: 160px; border-radius: 10px;
-    display: block; object-fit: cover;
-  }
+  #send svg { width: 18px; height: 18px; }
   .foot {
     display: flex; justify-content: space-between; gap: 10px;
-    padding: 0 16px 10px;
-    font-size: 11px; color: var(--muted);
-    background: #fbfdfb;
+    padding: 10px 18px 14px;
+    font-size: 11px; color: var(--muted-2);
+    background: rgba(0,0,0,0.12);
   }
-  .debug-card {
-    background: var(--debug-bg);
-    color: var(--debug-ink);
-    border: 1px solid var(--debug-line);
-    border-radius: 16px;
-    padding: 16px;
+
+  .side-panel {
+    display: flex;
+    flex-direction: column;
+    padding: 14px;
+    overflow: hidden;
+  }
+  .tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 14px;
+    background: rgba(0,0,0,0.28);
+    border: 1px solid var(--line);
+    margin-bottom: 14px;
+  }
+  .tab {
+    background: transparent;
+    color: var(--muted);
+    border-radius: 11px;
+    padding: 9px 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .tab.active {
+    background: linear-gradient(145deg, #8a6bff, #5b3fd4);
+    color: #fff;
+    box-shadow: 0 8px 18px rgba(91, 63, 212, 0.35);
+  }
+  .side-scroll {
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
-    font-size: 12px;
+    padding-right: 2px;
+  }
+  .empty {
+    color: var(--muted);
+    font-size: 12.5px;
+    padding: 8px 2px;
+  }
+
+  .status-card {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 14px;
+    align-items: center;
+    padding: 14px;
+    border-radius: 16px;
+    background: linear-gradient(145deg, rgba(91, 63, 212, 0.18), rgba(22, 25, 34, 0.9));
+    border: 1px solid rgba(124, 92, 255, 0.22);
+    margin-bottom: 16px;
+  }
+  .ring {
+    width: 58px; height: 58px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    background:
+      radial-gradient(circle at center, var(--panel) 58%, transparent 59%),
+      conic-gradient(var(--teal) calc(var(--pct, 0) * 1%), rgba(255,255,255,0.08) 0);
+  }
+  .ring span {
+    font-size: 13px; font-weight: 700; color: var(--ink);
+  }
+  .status-card h3 {
+    margin: 0 0 4px;
+    font-size: 15px;
+    letter-spacing: -.2px;
+  }
+  .status-card p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12.5px;
     line-height: 1.45;
   }
-  .debug-head {
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 10px; margin-bottom: 12px;
+  .status-card.ready {
+    background: linear-gradient(145deg, rgba(61, 214, 140, 0.14), rgba(22, 25, 34, 0.9));
+    border-color: rgba(61, 214, 140, 0.25);
   }
-  .debug-card h2 { margin: 0; font-size: 13px; letter-spacing: .4px; text-transform: uppercase; color: #b9d2c3; }
-  .debug-card h3 {
-    margin: 16px 0 7px;
-    font-size: 10.5px; letter-spacing: .8px; text-transform: uppercase;
-    color: var(--debug-muted); font-weight: 600;
+  .status-card.ready .ring {
+    background:
+      radial-gradient(circle at center, var(--panel) 58%, transparent 59%),
+      conic-gradient(var(--green) calc(var(--pct, 0) * 1%), rgba(255,255,255,0.08) 0);
   }
-  .switch { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--debug-muted); cursor: pointer; }
-  .switch input { accent-color: #4ea978; }
-  .debug-card .empty { color: var(--debug-muted); font-size: 12px; }
-  .summary { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .section-label {
+    margin: 0 0 8px;
+    font-size: 11px;
+    letter-spacing: .7px;
+    text-transform: uppercase;
+    color: var(--muted-2);
+    font-weight: 650;
+  }
+  .req-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .req-row {
+    display: grid;
+    grid-template-columns: 18px 78px 1fr;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.025);
+    border: 1px solid var(--line);
+  }
+  .req-row .ico {
+    width: 18px; height: 18px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-size: 11px; font-weight: 800;
+  }
+  .req-row.ok .ico { background: var(--green-dim); color: var(--green); }
+  .req-row.miss .ico { background: var(--amber-dim); color: var(--amber); }
+  .req-row .label { color: var(--muted); font-size: 12.5px; font-weight: 550; }
+  .req-row .value { font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
+  .req-row.ok .value { color: var(--green); }
+  .req-row.miss .value { color: var(--amber); }
+
+  .tag-cloud { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  .tag {
+    display: inline-flex;
+    padding: 7px 11px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 550;
+    border: 1px solid var(--line-strong);
+    color: var(--muted);
+    background: transparent;
+  }
+  .tag.filled {
+    color: #b8f5d5;
+    border-color: rgba(61, 214, 140, 0.35);
+    background: var(--green-dim);
+  }
+  .tag.suggested {
+    color: #cfc2ff;
+    border-color: rgba(124, 92, 255, 0.35);
+    background: rgba(124, 92, 255, 0.12);
+  }
+
+  .side-foot {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .side-foot-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: baseline;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .side-foot-top code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    color: var(--muted-2);
+  }
+  .foot-chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .chip {
-    background: #17291e; border: 1px solid #244030;
-    color: #c9ddcf; border-radius: 999px;
-    padding: 4px 9px; font-size: 10.5px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--line);
+    color: #c9d0e0;
+    border-radius: 999px;
+    padding: 4px 9px;
+    font-size: 10.5px;
   }
+  .chip.ok { color: #b8f5d5; border-color: rgba(61, 214, 140, 0.28); background: var(--green-dim); }
+  .switch {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11.5px; color: var(--muted-2); cursor: pointer;
+  }
+  .switch input { accent-color: var(--teal); }
+
   .issue {
-    background: #17251c;
-    border: 1px solid var(--debug-line);
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--line);
     border-left: 3px solid var(--info);
-    border-radius: 8px;
+    border-radius: 10px;
     padding: 8px 10px;
     margin-bottom: 6px;
   }
   .issue.block { border-left-color: var(--block); }
   .issue.warn { border-left-color: var(--warn); }
-  .issue strong { display: block; font-size: 11px; color: #eef7f0; margin-bottom: 2px; }
-  .issue span { display: block; color: #b9cfc0; }
+  .issue strong { display: block; font-size: 11px; color: #eef1f8; margin-bottom: 2px; }
+  .issue span { display: block; color: #b7bfd2; }
   .issue code {
     display: inline-block; margin-top: 5px; padding: 2px 6px;
-    border-radius: 5px; background: #0b130e; color: #9fc7a9;
+    border-radius: 5px; background: rgba(0,0,0,0.35); color: #9fc7a9;
     font-size: 10.5px; overflow-wrap: anywhere;
   }
-  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; }
-  .kv dt { color: var(--debug-muted); }
-  .kv dd { margin: 0; color: #e2f0e6; overflow-wrap: anywhere; }
-  .chunks { display: flex; flex-direction: column; gap: 5px; }
-  .chunk {
-    background: #17251c; border: 1px solid var(--debug-line);
-    border-radius: 7px; padding: 7px 9px;
-  }
-  .chunk b { color: #dcebe0; font-weight: 600; }
-  .chunk span { color: var(--debug-muted); }
-  .debug-note { color: var(--debug-muted); font-size: 11px; margin: 0 0 4px; }
-  .who { display: block; color: var(--debug-muted); font-size: 10.5px; margin-bottom: 3px; }
-  .ask-line { margin: 0 0 4px; color: #c9ddcf; overflow-wrap: anywhere; }
-  .goal-line, .config-line { margin: 0 0 4px; overflow-wrap: anywhere; }
-  .goal-line b, .config-line b { color: #e2f0e6; font-weight: 600; }
-  .goal-line span, .config-line span { display: block; color: var(--debug-muted); }
-  .state-attested { color: #8fd6a8; }
-  .state-unknown_capability, .state-excluded { color: var(--warn); }
+  .who { display: block; color: var(--muted-2); font-size: 10.5px; margin-bottom: 3px; }
   .turn {
-    border: 1px solid var(--debug-line);
-    border-radius: 10px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
     padding: 10px;
     margin-bottom: 10px;
-    background: #122018;
+    background: rgba(0,0,0,0.18);
   }
-  .turn h4 { margin: 0 0 8px; font-size: 12.5px; color: #e7f3ec; font-weight: 650; }
+  .turn h4 { margin: 0 0 8px; font-size: 12.5px; color: #eef1f8; font-weight: 650; }
   .subhead {
     margin: 10px 0 6px;
     font-size: 10px; letter-spacing: .6px; text-transform: uppercase;
-    color: var(--debug-muted); font-weight: 600;
+    color: var(--muted-2); font-weight: 650;
   }
-  @media (max-width: 920px) {
+  .summary { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ask-line { margin: 0 0 4px; color: #c9d0e0; overflow-wrap: anywhere; font-size: 12.5px; }
+  .goal-line, .config-line { margin: 0 0 4px; overflow-wrap: anywhere; font-size: 12.5px; }
+  .goal-line b, .config-line b { color: #eef1f8; font-weight: 650; }
+  .goal-line span, .config-line span { display: block; color: var(--muted); }
+  .state-attested { color: #8fd6a8; }
+  .state-unknown_capability, .state-excluded { color: var(--amber); }
+  .chunk {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--line);
+    border-radius: 8px; padding: 7px 9px;
+    margin-bottom: 5px;
+    font-size: 12px;
+  }
+  .chunk b { color: #e8ecf7; font-weight: 600; }
+  .chunk span { color: var(--muted); }
+  .debug-note { color: var(--muted); font-size: 11px; margin: 0 0 8px; }
+
+  @media (max-width: 980px) {
     .layout { grid-template-columns: 1fr; height: auto; }
-    .chat-card { height: calc(100vh - 130px); min-height: 420px; }
-    .debug-card { max-height: 460px; }
+    .chat-card { height: calc(100vh - 140px); min-height: 420px; }
+    .side-panel { max-height: 560px; }
     .bubble { max-width: 88%; }
   }
   @media (max-width: 560px) {
-    .topbar { padding-top: 12px; }
-    .layout { padding: 10px 10px 14px; gap: 10px; }
+    .topbar, .layout { padding-left: 12px; padding-right: 12px; }
     .messages { padding: 16px 14px 8px; }
     .status .badge.muted { display: none; }
     .foot { flex-direction: column; gap: 2px; }
+    .quick-replies { padding-left: 0; }
+    .meta { padding-left: 4px; }
+    .req-row { grid-template-columns: 18px 68px 1fr; }
   }
 </style>
 </head>
@@ -307,13 +581,13 @@
     <div class="mark">P247</div>
     <div>
       <h1>Print247 chat</h1>
-      <p>Local bot test console</p>
+      <p>Bot test console.</p>
     </div>
   </div>
   <div class="status">
-    <span id="mode-badge" class="badge muted">loading</span>
+    <span id="mode-badge" class="badge muted"><span class="dot"></span><span class="label">loading</span></span>
     <span id="kb-badge" class="badge muted">KB</span>
-    <button id="new-chat" class="ghost" type="button">New chat</button>
+    <button id="new-chat" type="button">New chat</button>
   </div>
 </header>
 
@@ -331,34 +605,65 @@
       </div>
       <div class="composer-row">
         <input id="attach-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
-        <button id="attach-btn" class="icon-btn" type="button" title="Attach or paste (Ctrl+V) a reference image" aria-label="Attach or paste a reference image">📎</button>
-        <textarea id="input" rows="1" placeholder="Type a message, attach, or paste (Ctrl+V) a reference..." maxlength="4000" autocomplete="off"></textarea>
-        <button id="send" type="submit">Send</button>
+        <button id="attach-btn" class="icon-btn" type="button" title="Attach or paste (Ctrl+V) a reference image" aria-label="Attach or paste a reference image">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21.44 11.05l-8.49 8.49a5.5 5.5 0 01-7.78-7.78l8.49-8.49a3.5 3.5 0 014.95 4.95l-8.5 8.49a1.5 1.5 0 01-2.12-2.12l7.79-7.78"/>
+          </svg>
+        </button>
+        <textarea id="input" rows="1" placeholder="Message Max, or paste a reference image" maxlength="4000" autocomplete="off"></textarea>
+        <button id="send" type="submit" title="Send" aria-label="Send">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 19V5"/><path d="M5 12l7-7 7 7"/>
+          </svg>
+        </button>
       </div>
     </form>
     <div class="foot">
       <span id="mode-note">Checking mode...</span>
-      <span>Enter to send · Shift+Enter for a new line · Ctrl+V to paste an image</span>
+      <span>Enter to send · Shift+Enter for new line</span>
     </div>
   </section>
 
-  <aside class="debug-card" aria-label="Turn debug output">
-    <div class="debug-head">
-      <h2>Debug</h2>
-      <label class="switch"><input id="debug-toggle" type="checkbox" checked> Show</label>
+  <aside class="side-panel" aria-label="Conversation insights">
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab active" data-tab="brief" role="tab" aria-selected="true">Brief</button>
+      <button type="button" class="tab" data-tab="turns" role="tab" aria-selected="false">Turns · 0</button>
+      <button type="button" class="tab" data-tab="issues" role="tab" aria-selected="false">Issues · 0</button>
     </div>
-    <div id="debug-empty" class="empty">Send a message to see the pipeline output.</div>
-    <div id="debug-content" hidden></div>
+    <div id="debug-empty" class="empty side-scroll">Send a message to see the pipeline output.</div>
+    <div id="panel-brief" class="side-scroll" hidden></div>
+    <div id="panel-turns" class="side-scroll" hidden></div>
+    <div id="panel-issues" class="side-scroll" hidden></div>
+    <div class="side-foot">
+      <div class="side-foot-top">
+        <span id="foot-turn">Waiting for first turn</span>
+        <code id="foot-id"></code>
+      </div>
+      <div id="foot-chips" class="foot-chips"></div>
+      <label class="switch"><input id="debug-toggle" type="checkbox" checked> Show panel details</label>
+    </div>
   </aside>
 </main>
 
 <script>
 (() => {
   const FIELD_LABELS = {
-    product: "Product", style: "Style", sizes: "Size", finishes: "Finish",
-    quantity: "Quantity", skus: "Designs / SKUs", material: "Material",
-    extras: "Extras", name: "Name", email: "Email", phone: "Phone"
+    product: "Product",
+    use_case: "For",
+    style: "Style",
+    sizes: "Size",
+    finishes: "Finish",
+    quantity: "Quantity",
+    skus: "Designs",
+    material: "Material",
+    extras: "Extras",
+    name: "Name",
+    email: "Email",
+    phone: "Phone"
   };
+  const REQUIRED_KEYS = ["product", "sizes", "quantity"];
+  const OPTIONAL_KEYS = ["use_case", "style", "finishes", "skus", "material", "extras", "name", "email", "phone"];
+  const SETTLED = new Set(["visitor", "confirmed", "waived"]);
   const HANDOFF_TEXT = {
     human: "A packaging specialist will take over from here.",
     complex: "Several topics came up, so a specialist will cover the rest.",
@@ -379,7 +684,13 @@
     modeNote: document.getElementById("mode-note"),
     debugToggle: document.getElementById("debug-toggle"),
     debugEmpty: document.getElementById("debug-empty"),
-    debugContent: document.getElementById("debug-content"),
+    panelBrief: document.getElementById("panel-brief"),
+    panelTurns: document.getElementById("panel-turns"),
+    panelIssues: document.getElementById("panel-issues"),
+    footTurn: document.getElementById("foot-turn"),
+    footId: document.getElementById("foot-id"),
+    footChips: document.getElementById("foot-chips"),
+    tabs: Array.from(document.querySelectorAll(".tab")),
     attachInput: document.getElementById("attach-input"),
     attachBtn: document.getElementById("attach-btn"),
     attachPreview: document.getElementById("attach-preview"),
@@ -396,6 +707,8 @@
   let debugTurns = [];
   let typingElement = null;
   let pendingImage = null;
+  let activeTab = "brief";
+  let issueCount = 0;
 
   function newId() {
     if (window.crypto && typeof window.crypto.randomUUID === "function") {
@@ -411,8 +724,59 @@
     return element;
   }
 
-  function addMessage(role, text, meta, imageUrl) {
+  function personaLetter(persona) {
+    const value = String(persona || "Max").trim();
+    return (value[0] || "M").toUpperCase();
+  }
+
+  function fieldMap(turn) {
+    const map = {};
+    const fields = (turn && turn.goal && turn.goal.fields) || [];
+    fields.forEach((field) => {
+      if (field && field.key) map[field.key] = field;
+    });
+    if (!fields.length && turn && turn.known) {
+      Object.keys(turn.known).forEach((key) => {
+        map[key] = {
+          key,
+          label: FIELD_LABELS[key] || key,
+          value: turn.known[key],
+          status: turn.known[key] ? "visitor" : "unknown"
+        };
+      });
+    }
+    return map;
+  }
+
+  function isFilled(field) {
+    if (!field) return false;
+    if (field.status && SETTLED.has(field.status) && field.value) return true;
+    if (field.status === "suggested" && field.value) return true;
+    return Boolean(field.value);
+  }
+
+  function shortId(value) {
+    const text = String(value || "");
+    if (!text) return "";
+    return text.length > 8 ? text.slice(0, 8) : text;
+  }
+
+  function addMessage(role, text, meta, imageUrl, options) {
     const wrap = node("div", "msg " + role);
+    const opts = options || {};
+
+    if (role === "system") {
+      const bubble = node("div", "bubble", text);
+      wrap.appendChild(bubble);
+      els.messages.appendChild(wrap);
+      els.messages.scrollTop = els.messages.scrollHeight;
+      return wrap;
+    }
+
+    const row = node("div", "msg-row");
+    if (role === "bot") {
+      row.appendChild(node("div", "avatar", personaLetter(opts.persona)));
+    }
     const bubble = node("div", "bubble" + (imageUrl ? " with-image" : ""));
     if (imageUrl) {
       const img = node("img");
@@ -421,8 +785,33 @@
       bubble.appendChild(img);
     }
     if (text) bubble.appendChild(document.createTextNode(text));
-    wrap.appendChild(bubble);
+    row.appendChild(bubble);
+    wrap.appendChild(row);
     if (meta) wrap.appendChild(node("div", "meta", meta));
+
+    if (role === "bot" && opts.quickReplies && opts.quickReplies.length) {
+      const chips = node("div", "quick-replies");
+      opts.quickReplies.forEach((item) => {
+        const btn = node("button", "chip-btn" + (item.action === "attach" ? " accent" : ""), item.label);
+        btn.type = "button";
+        if (item.action === "attach") {
+          btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
+          btn.appendChild(document.createTextNode(item.label));
+          btn.addEventListener("click", () => {
+            if (!busy && !handoffLocked) els.attachInput.click();
+          });
+        } else {
+          btn.addEventListener("click", () => {
+            if (busy || handoffLocked) return;
+            els.input.value = item.label;
+            sendMessage();
+          });
+        }
+        chips.appendChild(btn);
+      });
+      wrap.appendChild(chips);
+    }
+
     els.messages.appendChild(wrap);
     els.messages.scrollTop = els.messages.scrollHeight;
     return wrap;
@@ -432,8 +821,55 @@
     addMessage("system", text);
   }
 
+  function extractQuickReplies(turn) {
+    const reply = String((turn && turn.reply) || "");
+    const lower = reply.toLowerCase();
+    const items = [];
+    const productMissing = (() => {
+      const map = fieldMap(turn);
+      return !isFilled(map.product);
+    })();
+
+    if (productMissing && /box|bag|label/.test(lower)) {
+      ["Boxes", "Bags", "Labels", "Something else"].forEach((label) => {
+        if (lower.includes(label.toLowerCase().replace(" something else", "something else").split(" ")[0]) || label === "Something else") {
+          items.push({ label, action: "send" });
+        }
+      });
+      const uniq = [];
+      const seen = new Set();
+      items.forEach((item) => {
+        if (seen.has(item.label)) return;
+        seen.add(item.label);
+        uniq.push(item);
+      });
+      if (uniq.length) {
+        uniq.push({ label: "Share a reference", action: "attach" });
+        return uniq;
+      }
+    }
+
+    const ask = (turn.goal && turn.goal.ask) || [];
+    if (ask[0] === "product" || productMissing && /looking to have made|what are you looking/.test(lower)) {
+      return [
+        { label: "Boxes", action: "send" },
+        { label: "Bags", action: "send" },
+        { label: "Labels", action: "send" },
+        { label: "Something else", action: "send" },
+        { label: "Share a reference", action: "attach" }
+      ];
+    }
+    return [];
+  }
+
   function addBot(turn) {
-    addMessage("bot", turn.reply, turn.persona + " · " + turn.source + " · " + turn.elapsed_ms + " ms");
+    addMessage(
+      "bot",
+      turn.reply,
+      turn.persona + " · " + turn.source + " · " + turn.elapsed_ms + " ms",
+      null,
+      { persona: turn.persona, quickReplies: extractQuickReplies(turn) }
+    );
   }
 
   function clearPendingImage() {
@@ -512,11 +948,14 @@
   function showTyping() {
     if (typingElement) return;
     typingElement = node("div", "msg bot");
+    const row = node("div", "msg-row");
+    row.appendChild(node("div", "avatar", "M"));
     const bubble = node("div", "bubble");
     const dots = node("span", "typing");
     for (let i = 0; i < 3; i++) dots.appendChild(node("i"));
     bubble.appendChild(dots);
-    typingElement.appendChild(bubble);
+    row.appendChild(bubble);
+    typingElement.appendChild(row);
     els.messages.appendChild(typingElement);
     els.messages.scrollTop = els.messages.scrollHeight;
   }
@@ -560,19 +999,26 @@
     return response.json();
   }
 
+  function setModeBadge(mode) {
+    const label = mode === "live" ? "Live LLM" : mode;
+    els.modeBadge.className = "badge " + mode;
+    els.modeBadge.replaceChildren();
+    els.modeBadge.appendChild(node("span", "dot"));
+    els.modeBadge.appendChild(node("span", "label", label));
+  }
+
   async function loadHealth() {
     try {
       const response = await fetch("/health");
       const data = await response.json();
       const mode = data.mode || "unknown";
-      els.modeBadge.textContent = mode;
-      els.modeBadge.className = "badge " + mode;
-      els.kbBadge.textContent = "KB " + (data.kb && data.kb.chunks ? data.kb.chunks : 0) + " chunks";
+      setModeBadge(mode);
+      els.kbBadge.textContent = (data.kb && data.kb.chunks ? data.kb.chunks : 0) + " chunks";
       els.modeNote.textContent = data.real_llm_enabled
-        ? "Live LLM enabled: replies can cost money."
+        ? "Live model: replies cost money"
         : "Fake mode: heuristic replies, no API calls.";
     } catch (error) {
-      els.modeBadge.textContent = "offline";
+      setModeBadge("offline");
       els.modeNote.textContent = "Could not read /health.";
     }
   }
@@ -603,7 +1049,7 @@
     const image = pendingImage;
     if ((!text && !image) || busy || handoffLocked) return;
     els.input.value = "";
-    els.input.style.height = "auto";
+    fitInput();
     clearPendingImage();
     addMessage("visitor", text || "Shared a reference image", null, image ? image.dataUrl : null);
     setBusy(true);
@@ -625,8 +1071,8 @@
     }
   }
 
-  function clear(node) {
-    while (node.firstChild) node.removeChild(node.firstChild);
+  function clear(target) {
+    while (target.firstChild) target.removeChild(target.firstChild);
   }
 
   function clip(text, limit) {
@@ -683,11 +1129,116 @@
     });
   }
 
-  function recordTurn(turn, visitorText) {
-    debugTurns.push(Object.assign({}, turn, {
-      visitor: (turn && turn.visitor) || visitorText || ""
-    }));
-    renderDebug();
+  function collectAllIssues() {
+    const all = [];
+    debugTurns.forEach((turn, index) => {
+      const label = "Turn " + (index + 1) + " · " + turnLabel(turn, index);
+      (turn.issues || []).forEach((issue) => all.push({ label: label + " · sent", issue, severity: issue.severity }));
+      draftGroups(turn).forEach((draft) => {
+        const stage = draft.stage || "draft";
+        (draft.issues || []).forEach((issue) => all.push({ label: label + " · " + stage, issue, severity: "block" }));
+      });
+    });
+    return all;
+  }
+
+  function updateTabs() {
+    els.tabs.forEach((tab) => {
+      const name = tab.dataset.tab;
+      const active = name === activeTab;
+      tab.classList.toggle("active", active);
+      tab.setAttribute("aria-selected", active ? "true" : "false");
+      if (name === "turns") tab.textContent = "Turns · " + debugTurns.length;
+      if (name === "issues") tab.textContent = "Issues · " + issueCount;
+      if (name === "brief") tab.textContent = "Brief";
+    });
+  }
+
+  function showActivePanel() {
+    const hasTurns = debugTurns.length > 0 && debugEnabled;
+    els.debugEmpty.hidden = hasTurns;
+    els.panelBrief.hidden = !(hasTurns && activeTab === "brief");
+    els.panelTurns.hidden = !(hasTurns && activeTab === "turns");
+    els.panelIssues.hidden = !(hasTurns && activeTab === "issues");
+    if (!debugEnabled) {
+      els.debugEmpty.hidden = false;
+      els.debugEmpty.textContent = "Debug panel hidden.";
+      els.panelBrief.hidden = true;
+      els.panelTurns.hidden = true;
+      els.panelIssues.hidden = true;
+    } else if (!debugTurns.length) {
+      els.debugEmpty.textContent = "Send a message to see the pipeline output.";
+    }
+  }
+
+  function nextAskHint(goal, map) {
+    const ask = (goal && goal.ask) || [];
+    if (!ask.length) {
+      const missing = REQUIRED_KEYS.filter((key) => !isFilled(map[key]));
+      if (!missing.length) return "All quote-blocking fields are filled.";
+      return "Ask for " + missing.map((key) => (FIELD_LABELS[key] || key).toLowerCase()).join(", then ");
+    }
+    const labels = ask.slice(0, 2).map((key) => (FIELD_LABELS[key] || key).toLowerCase());
+    if (labels.length === 1) return "Ask for " + labels[0] + " next.";
+    return "Ask for " + labels[0] + ", then " + labels[1] + ".";
+  }
+
+  function renderBrief(latest) {
+    clear(els.panelBrief);
+    const goal = latest.goal || {};
+    const map = fieldMap(latest);
+    const filledRequired = REQUIRED_KEYS.filter((key) => isFilled(map[key])).length;
+    const ready = filledRequired >= REQUIRED_KEYS.length;
+    const pct = Math.round((filledRequired / REQUIRED_KEYS.length) * 100);
+
+    const card = node("div", "status-card" + (ready ? " ready" : ""));
+    const ring = node("div", "ring");
+    ring.style.setProperty("--pct", String(pct));
+    ring.appendChild(node("span", null, filledRequired + "/" + REQUIRED_KEYS.length));
+    card.appendChild(ring);
+    const copy = node("div");
+    copy.appendChild(node("h3", null, ready ? "Quote-ready" : "Not quote-ready"));
+    const family = goal.family && goal.family !== "unknown" ? String(goal.family).replace(/_/g, " ") : "product";
+    const blurb = (ready
+      ? family + " — blocking fields are complete."
+      : (map.product && map.product.value ? map.product.value : family) + " — " + nextAskHint(goal, map));
+    copy.appendChild(node("p", null, blurb));
+    card.appendChild(copy);
+    els.panelBrief.appendChild(card);
+
+    els.panelBrief.appendChild(node("div", "section-label", "Required"));
+    const list = node("div", "req-list");
+    REQUIRED_KEYS.forEach((key) => {
+      const field = map[key] || { key, value: "", status: "unknown" };
+      const filled = isFilled(field);
+      const row = node("div", "req-row " + (filled ? "ok" : "miss"));
+      row.appendChild(node("div", "ico", filled ? "✓" : "!"));
+      row.appendChild(node("div", "label", FIELD_LABELS[key] || key));
+      row.appendChild(node("div", "value", filled ? (field.value || "Set") : "Missing"));
+      list.appendChild(row);
+    });
+    els.panelBrief.appendChild(list);
+
+    els.panelBrief.appendChild(node("div", "section-label", "Captured and optional"));
+    const tags = node("div", "tag-cloud");
+    OPTIONAL_KEYS.forEach((key) => {
+      const field = map[key];
+      const label = FIELD_LABELS[key] || key;
+      if (field && field.value) {
+        const tag = node("span", "tag " + (field.status === "suggested" ? "suggested" : "filled"), label + ": " + field.value);
+        tags.appendChild(tag);
+      } else {
+        tags.appendChild(node("span", "tag", label));
+      }
+    });
+    els.panelBrief.appendChild(tags);
+
+    if (goal.do_not_ask && goal.do_not_ask.length) {
+      els.panelBrief.appendChild(node("div", "section-label", "Do not ask"));
+      goal.do_not_ask.forEach((item) => {
+        els.panelBrief.appendChild(node("div", "chunk", (FIELD_LABELS[item.key] || item.key) + ': "' + clip(item.words, 64) + '"'));
+      });
+    }
   }
 
   function renderTurn(turn, index) {
@@ -778,73 +1329,90 @@
     return card;
   }
 
+  function renderFoot(latest, allIssues) {
+    clear(els.footChips);
+    if (!latest) {
+      els.footTurn.textContent = "Waiting for first turn";
+      els.footId.textContent = shortId(conversationId);
+      return;
+    }
+    const index = debugTurns.length;
+    els.footTurn.textContent = "Turn " + index + " · " + turnLabel(latest, index - 1);
+    els.footId.textContent = shortId(latest.conversation_id || conversationId);
+    els.footChips.appendChild(node("span", "chip", latest.source || "unknown"));
+    els.footChips.appendChild(node("span", "chip", (latest.elapsed_ms || 0) + " ms"));
+    const guard = node("span", "chip" + (allIssues.length ? "" : " ok"), allIssues.length + " guard issue" + (allIssues.length === 1 ? "" : "s"));
+    els.footChips.appendChild(guard);
+    if (latest.move) els.footChips.appendChild(node("span", "chip", "move: " + latest.move));
+  }
+
+  function recordTurn(turn, visitorText) {
+    debugTurns.push(Object.assign({}, turn, {
+      visitor: (turn && turn.visitor) || visitorText || ""
+    }));
+    renderDebug();
+  }
+
   function renderDebug() {
-    if (!debugEnabled) {
-      els.debugContent.hidden = true;
-      els.debugEmpty.hidden = false;
-      els.debugEmpty.textContent = "Debug panel hidden.";
+    const allIssues = collectAllIssues();
+    issueCount = allIssues.length;
+    updateTabs();
+    renderFoot(debugTurns.length ? debugTurns[debugTurns.length - 1] : null, allIssues);
+
+    if (!debugEnabled || !debugTurns.length) {
+      clear(els.panelBrief);
+      clear(els.panelTurns);
+      clear(els.panelIssues);
+      showActivePanel();
       return;
     }
-    if (!debugTurns.length) {
-      els.debugContent.hidden = true;
-      els.debugEmpty.hidden = false;
-      els.debugEmpty.textContent = "Send a message to see the pipeline output.";
-      clear(els.debugContent);
-      return;
-    }
-    els.debugEmpty.hidden = true;
-    els.debugContent.hidden = false;
-    clear(els.debugContent);
 
     const latest = debugTurns[debugTurns.length - 1];
-    els.debugContent.appendChild(node("p", "debug-note", "Conversation " + (latest.conversation_id || "") + " · " + debugTurns.length + " turns"));
+    renderBrief(latest);
 
-    const all = [];
-    debugTurns.forEach((turn, index) => {
-      const label = "Turn " + (index + 1) + " · " + turnLabel(turn, index);
-      (turn.issues || []).forEach((issue) => all.push({ label: label + " · sent", issue, severity: issue.severity }));
-      draftGroups(turn).forEach((draft) => {
-        const stage = draft.stage || "draft";
-        (draft.issues || []).forEach((issue) => all.push({ label: label + " · " + stage, issue, severity: "block" }));
-      });
-    });
+    clear(els.panelTurns);
+    els.panelTurns.appendChild(node("p", "debug-note", "Conversation " + (latest.conversation_id || "") + " · " + debugTurns.length + " turns"));
+    debugTurns.forEach((turn, index) => els.panelTurns.appendChild(renderTurn(turn, index)));
 
-    els.debugContent.appendChild(node("h3", null, "All issues · " + all.length));
-    if (!all.length) {
-      els.debugContent.appendChild(node("p", "empty", "No guard issues in this chat."));
+    clear(els.panelIssues);
+    els.panelIssues.appendChild(node("div", "section-label", "All issues · " + allIssues.length));
+    if (!allIssues.length) {
+      els.panelIssues.appendChild(node("p", "empty", "No guard issues in this chat."));
     } else {
-      all.forEach((item) => {
+      allIssues.forEach((item) => {
         const row = issueRow(item.issue, item.severity);
         row.insertBefore(node("span", "who", item.label), row.firstChild);
-        els.debugContent.appendChild(row);
+        els.panelIssues.appendChild(row);
       });
     }
 
-    els.debugContent.appendChild(node("h3", null, "Goal checklist"));
+    // Keep the full goal checklist available under Turns for parity with the old debug panel.
+    const goalBlock = node("section", "turn");
+    goalBlock.appendChild(node("h4", null, "Goal checklist"));
     const goal = latest.goal || {};
-    els.debugContent.appendChild(node("p", "ask-line", "Family: " + (goal.family || "unknown")));
-    els.debugContent.appendChild(node("p", "ask-line", "Ask set: " + ((goal.ask && goal.ask.length) ? goal.ask.join(", ") : "(nothing)")));
-    els.debugContent.appendChild(node("p", "ask-line", "Missing: " + ((goal.missing && goal.missing.length) ? goal.missing.join(", ") : "none")));
+    goalBlock.appendChild(node("p", "ask-line", "Family: " + (goal.family || "unknown")));
+    goalBlock.appendChild(node("p", "ask-line", "Ask set: " + ((goal.ask && goal.ask.length) ? goal.ask.join(", ") : "(nothing)")));
+    goalBlock.appendChild(node("p", "ask-line", "Missing: " + ((goal.missing && goal.missing.length) ? goal.missing.join(", ") : "none")));
     const denied = (goal.do_not_ask || []).map((item) => item.key + ' ("' + clip(item.words, 48) + '")');
-    els.debugContent.appendChild(node("p", "ask-line", "Do not ask: " + (denied.length ? denied.join(", ") : "(nothing yet)")));
+    goalBlock.appendChild(node("p", "ask-line", "Do not ask: " + (denied.length ? denied.join(", ") : "(nothing yet)")));
     (goal.fields || []).forEach((field) => {
       const line = node("div", "goal-line");
       line.appendChild(node("b", null, (field.label || field.key) + ": " + (field.value || "—")));
       const meta = [field.status || "unknown", field.basis, field.attempts ? field.attempts + " tries" : ""].filter(Boolean);
       line.appendChild(node("span", null, meta.join(" · ")));
-      els.debugContent.appendChild(line);
+      goalBlock.appendChild(line);
     });
     if (!goal.fields) {
       const known = latest.known || {};
       const keys = Object.keys(known);
-      if (!keys.length) els.debugContent.appendChild(node("p", "empty", "No fields collected yet."));
+      if (!keys.length) goalBlock.appendChild(node("p", "empty", "No fields collected yet."));
       keys.forEach((key) => {
-        els.debugContent.appendChild(node("div", "goal-line", (FIELD_LABELS[key] || key) + ": " + known[key]));
+        goalBlock.appendChild(node("div", "goal-line", (FIELD_LABELS[key] || key) + ": " + known[key]));
       });
     }
+    els.panelTurns.insertBefore(goalBlock, els.panelTurns.children[1] || null);
 
-    els.debugContent.appendChild(node("h3", null, "Every turn"));
-    debugTurns.forEach((turn, index) => els.debugContent.appendChild(renderTurn(turn, index)));
+    showActivePanel();
   }
 
   els.composer.addEventListener("submit", (event) => {
@@ -870,10 +1438,19 @@
   els.input.addEventListener("paste", handleImagePaste);
   els.composer.addEventListener("paste", handleImagePaste);
 
-  els.input.addEventListener("input", () => {
-    els.input.style.height = "auto";
-    els.input.style.height = Math.min(els.input.scrollHeight, 140) + "px";
-  });
+  const INPUT_LINE = 22;
+
+  function fitInput() {
+    const el = els.input;
+    const row = el.closest(".composer-row");
+    el.style.height = INPUT_LINE + "px";
+    const next = Math.min(Math.max(el.scrollHeight, INPUT_LINE), 140);
+    el.style.height = next + "px";
+    el.style.overflowY = next >= 140 ? "auto" : "hidden";
+    if (row) row.classList.toggle("multiline", next > INPUT_LINE + 2);
+  }
+
+  els.input.addEventListener("input", fitInput);
 
   els.input.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -890,6 +1467,14 @@
   els.debugToggle.addEventListener("change", () => {
     debugEnabled = els.debugToggle.checked;
     renderDebug();
+  });
+
+  els.tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      activeTab = tab.dataset.tab;
+      updateTabs();
+      showActivePanel();
+    });
   });
 
   loadHealth();
