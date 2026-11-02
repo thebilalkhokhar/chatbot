@@ -89,7 +89,7 @@ def test_an_explicit_minimum_question_keeps_the_moq_sentence():
 
 def test_a_contact_question_keeps_the_canon_line_and_the_next_field():
     exact = "You can reach the team at Support@print247.us or +1 (832) 807-3429."
-    sku = "How many total designs or SKUs do you have?"
+    sku = "How many total designs do you have?"
     cleaned = guards.prepare_reply(
         "Sure, just email us whenever. What is the best email to send the quote to?",
         "what is your phone number?",
@@ -150,6 +150,25 @@ def test_multiple_questions_blocked():
         "What size do you need, and how many units?", state, visitor_text="I need boxes"
     )
     assert "multiple_questions" in result.codes()
+
+
+def test_compound_size_and_quantity_collapsed_to_one_field():
+    draft = (
+        "For coffee beans in a stand-up pouch, what size (width x height x gusset) "
+        "and quantity would you like to start with?"
+    )
+    assert guards.all_asked_fields(draft) == ["sizes", "quantity"]
+    polished = guards.prepare_reply(
+        draft,
+        "coffee beans",
+        priority_key="sizes",
+        priority_text="What bag size are you looking for?",
+    )
+    assert guards.all_asked_fields(polished) == ["sizes"]
+    assert "quantity" not in polished.lower()
+    assert "?" in polished
+    result = guards.check_reply(draft, make_state("bags"), visitor_text="coffee beans")
+    assert "compound_ask" in result.codes()
 
 
 def test_price_and_check_promise_blocked():
@@ -387,7 +406,8 @@ def test_your_address_is_a_question_and_not_a_style():
     accepted, rejected = apply_field_updates(state, updates, "your address")
     assert accepted.get("style") is None
     assert state.fields["style"].value == ""
-    assert rejected.get("style") == "your address"
+    # Non-catalogue wording is not stored as style (options / re-ask path).
+    assert updates.get("style") in (None, "") or rejected.get("style") == "your address"
 
 
 def test_wrong_minimum_figures_use_canon():

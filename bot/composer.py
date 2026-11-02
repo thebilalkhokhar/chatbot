@@ -15,6 +15,7 @@ from .state import (
     is_goodbye,
     is_job_pitch,
     is_meta_question,
+    CATALOGUE_OPTION_FIELDS,
     is_option_request,
     refuses_contact,
     is_price_objection,
@@ -26,9 +27,10 @@ from .state import (
 )
 
 SINGLE_QUESTION_RULE = (
-    "You MUST ask ONLY ONE single question per message. NEVER combine multiple asks "
-    "(e.g., do not ask for quantity and style in the same turn). Pick the highest "
-    "priority missing field and ask only about that."
+    "You MUST ask ONLY ONE single question per message about ONLY ONE checklist field. "
+    "NEVER combine fields in one sentence (forbidden: size and quantity together, "
+    "style and finish together, material and SKUs together). Pick the highest-priority "
+    "missing field from the ASK SET and ask only about that."
 )
 
 HANDOFF_LINES = {
@@ -106,13 +108,13 @@ the catalogue row itself says which.
 
 When you answer, mark where it came from: FACTS, CATALOGUE, YOUR_JUDGEMENT, or THEM.
 
-If you are asking for contact details, shipping info, or design counts (SKUs), focus ONLY on that ask. Do NOT re-assert or re-emit proposed_configs for styles/materials/finishes that were discussed in previous turns unless you are actively presenting a new recommendation.
+If you are asking for contact details, shipping info, or how many designs they have, focus ONLY on that ask. Do NOT re-assert or re-emit proposed_configs for styles/materials/finishes that were discussed in previous turns unless you are actively presenting a new recommendation. When that field is open, ask about designs in plain language (for example "How many total designs do you have?"). Never say "SKU" or "SKUs" to the visitor — they may not know that word.
 
 If the user is just saying hello, asking off-topic questions, or providing impossible specs (like a size with any zero dimension: 0x0, 0x15, 10x0x5, or 0), answer naturally using your own reasoning. In these cases, you MUST leave proposed_configs completely EMPTY. End with the one allowed question so the conversation comes back to the order.
 
 Do not open a later message with Good Morning or Hello on your own. If they just said good morning or hello, answer that greeting in a few words, then ask the one open question. A greeting is not their product.
 
-When a user asks for examples, options, or style suggestions (for example "suggest me the styles"), you MUST immediately list valid catalogue styles for the ACTIVE product family from the CATALOGUE PRIMER / FAMILY DETAIL / FACTS style lines. Do not stall, do not refuse, and do not skip to an unrelated checklist question before naming styles. Emit proposed_configs for each style you name. NEVER invent or hallucinate options like Square Boxes if they are not explicitly in the primer.
+When a user asks for examples, options, or suggestions (including "give me options", "show me options", "what do you have"), answer the OPEN ASK SET field first. If Material is open, list the family's material options from FACTS / CATALOGUE (for labels: PP white vinyl is the standard — say that and ask whether to proceed). If Style is open, list styles. If Finish is open, list finishes for this family only. Do not stall, do not jump to designs/email, and do not mix finish names into a material answer. Emit proposed_configs only for options you actually name. NEVER invent names that are not in the primer.
 
 When listing finish options for custom boxes, use ONLY these official box finishes: matte lamination, gloss lamination, soft touch lamination, spot UV, and foil printing. Do not volunteer drip off, embossing, varnish, AQ coating, or finishes that belong to bags, pouches, or labels. If the visitor already named another boxes-primer finish by name, you may confirm it; otherwise stay inside that official list.
 
@@ -120,11 +122,18 @@ If the user asks for alternative materials when only one standard material exist
 
 Stay inside the active product family from the GOAL. If the order is labels, never mention bag or box styles or materials. If it is boxes, never mention bag or label details. Recommendations and catalogue lists use only that family's vocabulary.
 
-You MUST exhaust ALL missing mandatory product fields (Product, Use Case, Size, Quantity, Finish, Material, Designs/SKUs where the family asks for them) before you are allowed to ask for contact information (Email/Phone) or initiate a handoff. Never skip ahead to email or phone while Material, Finish, Designs/SKUs, or any other open product-spec field is still unresolved.
+You MUST exhaust ALL missing mandatory product fields (Product, Use Case, Size, Quantity, Finish, Material, Designs where the family asks for them) before you are allowed to ask for contact information (Email/Phone) or initiate a handoff. Never skip ahead to email or phone while Material, Finish, Designs, or any other open product-spec field is still unresolved.
 
 Once a style or finish is accepted, it is locked. Do not ask for it again, and do not put it in fields_proposed or proposed_configs.
 
-When they ask how to reach you, the first sentence must be exactly: "You can reach the team at Support@print247.us or +1 (832) 807-3429." Then ask the next missing checklist field in the same message. Do not ask for their email until Designs/SKUs, Material, and Finish are filled.
+When the visitor is unsure, undecided, deferring, or asking you/the team to decide later about the
+open checklist field — judge that from their meaning, not from a fixed phrase list — set that one
+field in `fields` to exactly "to be confirmed", acknowledge briefly that the team will confirm it,
+and ask the next ASK SET field. Never re-ask the same field on that turn. Use "to be confirmed"
+only for sizes, style, finishes, material, designs, extras, use case, or quantity — never for
+product, email, phone, or name.
+
+When they ask how to reach you, the first sentence must be exactly: "You can reach the team at Support@print247.us or +1 (832) 807-3429." Then ask the next missing checklist field in the same message. Do not ask for their email until Designs, Material, and Finish are filled.
 
 If they say they do not have an email, refuse to share one, or otherwise decline contact details, treat that as a waiver: acknowledge it, you may share the support contact from FACTS once, do not ask for their email or phone again, and do not trap them in an email loop.
 
@@ -205,7 +214,10 @@ def _topic_answer(key: str, family: str, overrides: dict[str, str] | None) -> st
     if key == "materials":
         scoped = {
             "bags": "For bags and pouches we use PET, PE, kraft and foil films.",
-            "labels": "Our labels are printed on vinyl.",
+            "labels": (
+                "For labels we use PP white vinyl as the standard stock "
+                "for best print results."
+            ),
             "boxes": "Our boxes are board, never film.",
             "banners": "Banners use vinyl, polyester, foamcore or corrugated plastic.",
             "business_cards": (
@@ -386,34 +398,58 @@ def heuristic_turn(
     finish_suggest = (
         wants_recommendation(visitor) or is_option_request(visitor)
     ) and re.search(r"\bfinishes?\b", visitor, re.I)
+    # Dynamic: open catalogue field + no concrete pick (any wording, not just
+    # "give me options") → show that field's menu.
+    offer_for = str(state.flags.get("offer_options_for") or "").strip()
+    if offer_for not in CATALOGUE_OPTION_FIELDS:
+        offer_for = ""
 
-    if is_option_request(visitor) or style_suggest or finish_suggest:
-        # "For example?" / "suggest me the styles" names the catalogue, then one ask.
-        # Prefer the topic they asked about over a mis-detected last_question, and
-        # keep the catalogue inside the active product family.
-        asked_key = state.last_question
+    if (
+        offer_for
+        or is_option_request(visitor)
+        or style_suggest
+        or finish_suggest
+    ):
+        asked_key = offer_for or state.last_question
         catalogue = ""
-        if "materials" in topics or (
-            asked_key == "material" and not style_suggest and not finish_suggest
-        ):
+        if (
+            asked_key == "material"
+            or "materials" in topics
+        ) and not style_suggest and not finish_suggest:
             catalogue = _topic_answer("materials", family, overrides)
         elif asked_key == "quantity" and not style_suggest and not finish_suggest:
             catalogue = ""
-        elif finish_suggest or asked_key == "finishes":
+        elif asked_key == "finishes" or finish_suggest:
             catalogue = _topic_answer(
                 "finishes", family if family != "unknown" else "boxes", overrides
             )
-        elif style_suggest or "styles" in topics or asked_key == "style":
+        elif asked_key == "style" or style_suggest or "styles" in topics:
             catalogue = _topic_answer(
                 "styles", family if family != "unknown" else "boxes", overrides
             )
         elif family != "unknown":
-            # Known family, open field: stay inside that family's vocabulary only.
             catalogue = _topic_answer("styles", family, overrides)
         else:
             catalogue = _topic_answer("styles", "boxes", overrides)
         if catalogue and catalogue not in parts:
             parts.append(catalogue)
+        if (
+            catalogue
+            and asked_key in CATALOGUE_OPTION_FIELDS
+            and (not expected or expected[0] != asked_key)
+        ):
+            expected = (asked_key, state.question_for(asked_key) or "")
+        if catalogue and asked_key == "material" and family == "labels":
+            parts.append("Would you like to proceed with PP white vinyl?")
+            return Composed(reply=" ".join(parts).strip(), asked="material", source="heuristic")
+        if catalogue and asked_key == "style":
+            follow = state.question_for("style") or "Which of those styles do you want?"
+            parts.append(follow)
+            return Composed(reply=" ".join(parts).strip(), asked="style", source="heuristic")
+        if catalogue and asked_key == "finishes":
+            follow = state.question_for("finishes") or "Which finish do you prefer?"
+            parts.append(follow)
+            return Composed(reply=" ".join(parts).strip(), asked="finishes", source="heuristic")
 
     if (
         family == "boxes"
@@ -667,27 +703,45 @@ def build_user(
             "1,000 per size, or smaller runs."
         ),
         (
-            "They asked for examples, options, or style suggestions. Immediately list ONLY the "
-            "exact styles (and materials if they asked for those) from the CATALOGUE PRIMER / "
-            "FAMILY DETAIL for the ACTIVE product family. Emit proposed_configs for each named "
-            "style. Do not invent a name such as Square Boxes. Then ask one field from the ASK SET."
+            "GOAL flag offer_options_for / open Style with no concrete pick: list ONLY exact "
+            "styles from CATALOGUE PRIMER / FAMILY DETAIL for the ACTIVE family. Emit "
+            "proposed_configs for each named style. Do not invent names, do not store their "
+            "message as the style, ask which style they want (asked=style). No finish/SKU/email."
             if (
-                (is_option_request(visitor) or "styles" in topics)
-                and not (
-                    wants_recommendation(visitor)
-                    and "materials" in topics
-                    and "styles" not in topics
+                str(state.flags.get("offer_options_for") or "") == "style"
+                or (
+                    (is_option_request(visitor) or "styles" in topics)
+                    and state.last_question == "style"
                 )
             )
             else ""
         ),
         (
-            "They asked for alternative or other materials. If FACTS names a single standard "
-            "material for this family (e.g. labels → PP white vinyl), explain in your own words "
-            "that this product uses that standard high-grade material for best results, ask "
-            "whether to proceed with it, keep proposed_configs empty or name only that material, "
-            "and do not ask for email or phone on this turn."
-            if ("materials" in topics and (wants_recommendation(visitor) or is_option_request(visitor)))
+            "GOAL flag offer_options_for=material / open Material with no concrete pick: list "
+            "family materials from FACTS (labels → PP white vinyl standard). Ask whether to "
+            "proceed, keep proposed_configs empty or that material only, asked=material. "
+            "No finishes, designs, or email on this turn."
+            if (
+                str(state.flags.get("offer_options_for") or "") == "material"
+                or (
+                    state.last_question == "material"
+                    and (is_option_request(visitor) or "materials" in topics or wants_recommendation(visitor))
+                )
+                or ("materials" in topics and (wants_recommendation(visitor) or is_option_request(visitor)))
+            )
+            else ""
+        ),
+        (
+            "GOAL flag offer_options_for=finishes / open Finish with no concrete pick: list ONLY "
+            "this family's finishes from FACTS / CATALOGUE. Emit proposed_configs, asked=finishes."
+            if (
+                str(state.flags.get("offer_options_for") or "") == "finishes"
+                or (
+                    state.last_question == "finishes"
+                    and (is_option_request(visitor) or wants_recommendation(visitor)
+                         or re.search(r"\bfinishes?\b", visitor, re.I))
+                )
+            )
             else ""
         ),
         (
@@ -707,7 +761,8 @@ def build_user(
             "They asked how to reach you. The first sentence must be exactly: "
             '"You can reach the team at Support@print247.us or +1 (832) 807-3429." '
             "Then ask the single highest-priority field still in the ASK SET. "
-            "Do not ask for their email or phone while Designs/SKUs, Material, or Finish are still open."
+            "Do not ask for their email or phone while Designs, Material, or Finish are still open. "
+            "Ask designs in plain language; never say SKU to the visitor."
             if canon.asks_for_our_contact(visitor)
             else ""
         ),
@@ -760,8 +815,11 @@ def build_user(
         "off-topic, or correcting an impossible spec such as a zero dimension. Copy style, "
         "material, finish, insert and extras character for character from the "
         "CATALOGUE PRIMER; leave a field empty when the reply does not name it. Do not invent a "
-        "point size, a gauge, or a style name. If you are asking for contact details, shipping "
-        "info, or design counts (SKUs), focus ONLY on that ask. Do NOT re-assert or re-emit "
+        "point size, a gauge, or a style name. If the visitor is unsure about the open ASK SET "
+        "field (any wording), put exactly \"to be confirmed\" in `fields` for that field, do not "
+        "re-ask it, and ask the next ASK SET field. If you are asking for contact details, shipping "
+        "info, or how many designs they have, focus ONLY on that ask. Never say SKU to the visitor. "
+        "Do NOT re-assert or re-emit "
         "proposed_configs for styles/materials/finishes that were discussed in previous turns "
         "unless you are actively presenting a new recommendation. `fields_proposed` repeats only "
         "details the visitor stated, or a catalogue size, each with its basis. Leave everything else empty.",

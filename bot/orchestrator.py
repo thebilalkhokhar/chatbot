@@ -28,6 +28,7 @@ from .llm import LLMClient, LLMError
 from .personas import persona_for
 from .state import (
     BASIS_MODEL,
+    CATALOGUE_OPTION_FIELDS,
     FAMILY_PRODUCT,
     FIELD_LABELS,
     PRODUCT_QUESTION,
@@ -38,10 +39,13 @@ from .state import (
     asks_if_bot,
     asks_to_share_reference,
     continue_ask,
+    defer_unanswered_open_field,
     extract_fields,
     family_candidates,
     field_clarify_phrase,
+    field_shaped_attempt,
     family_of,
+    needs_catalogue_options,
     greeting_ack,
     is_context_question,
     is_meta_question,
@@ -826,6 +830,15 @@ class Orchestrator:
             rejected.update(vision_rejected)
             if vision.summary:
                 state.flags["reference_summary"] = vision.summary[:300]
+        # Size/qty/SKUs with no concrete answer → to be confirmed.
+        # Style/material/finish with no concrete pick → flag options (any wording).
+        for deferred in defer_unanswered_open_field(state, visitor, accepted):
+            rejected.pop(deferred, None)
+        offer_for = needs_catalogue_options(state, visitor, accepted)
+        if offer_for:
+            state.flags["offer_options_for"] = offer_for
+        else:
+            state.flags.pop("offer_options_for", None)
         # The unit follow-up gets exactly one turn. If it is not answered with a
         # unit, keep the size as unconfirmed and move on instead of asking again.
         state.finalize_stalled()
@@ -1068,20 +1081,32 @@ class Orchestrator:
         if composed.fields:
             # The live model repeats every detail it knows in `fields`. Only let
             # it fill an open field, or the field it was just asked about, so an
-            # echo cannot overwrite an answer already on file.
+            # echo cannot overwrite an answer already on file. Waived / settled
+            # values (e.g. SKUs → to be confirmed) must not be rewritten.
+            focus = str(composed.asked or "").strip()
+            if not focus and expected:
+                focus = expected[0]
             llm_fields = {
                 key: value
                 for key, value in composed.fields.items()
                 if key not in accepted
+                and not (key in state.fields and state.fields[key].done)
                 and (
                     key not in state.fields
-                    or (
-                        not state.fields[key].stated
-                        and not state.fields[key].done
-                    )
+                    or not state.fields[key].stated
                     or key == state.last_question
                 )
             }
+            # Never silently lock style/material/finish from a catalogue echo while
+            # the visitor is answering a different field (qty "300", SKUs "not sure").
+            for key in list(llm_fields):
+                if key not in CATALOGUE_OPTION_FIELDS:
+                    continue
+                if field_shaped_attempt(key, visitor):
+                    continue
+                if key == focus or key == state.last_question:
+                    continue
+                llm_fields.pop(key, None)
             llm_accepted, llm_rejected = apply_field_updates(
                 state, llm_fields, visitor, source="model", bases=composed.bases
             )

@@ -219,6 +219,110 @@ def test_use_case_phrases_and_channels_are_read_from_the_message():
     }
 
 
+def test_no_preference_on_size_becomes_to_be_confirmed():
+    """Size unsure: 'no preference' (UNSPECIFIED) must waive like 'not sure'."""
+    from chatbot.bot.state import TO_BE_CONFIRMED, STATUS_WAIVED
+
+    state = make_state("no preference")
+    state.fields["product"].value = "labels"
+    state.fields["product"].status = STATUS_VISITOR
+    state.last_question = "sizes"
+    updates = extract_fields("no preference", "sizes", state)
+    assert updates.get("sizes") == TO_BE_CONFIRMED
+    accepted, _ = apply_field_updates(state, updates, "no preference")
+    assert accepted.get("sizes") == TO_BE_CONFIRMED
+    assert state.fields["sizes"].status == STATUS_WAIVED
+    assert "sizes" not in state.ask_set()
+
+
+def test_i_dont_know_on_use_case_becomes_to_be_confirmed():
+    from chatbot.bot.state import TO_BE_CONFIRMED, STATUS_WAIVED
+
+    state = make_state("i dont know")
+    state.fields["product"].value = "labels"
+    state.fields["product"].status = STATUS_VISITOR
+    state.last_question = "use_case"
+    updates = extract_fields("i dont know", "use_case", state)
+    assert updates.get("use_case") == TO_BE_CONFIRMED
+    accepted, _ = apply_field_updates(state, updates, "i dont know")
+    assert accepted.get("use_case") == TO_BE_CONFIRMED
+    assert state.fields["use_case"].status == STATUS_WAIVED
+
+
+def test_to_be_confirmed_waives_finish_without_phrase_matching():
+    """LLM (or extract) may write 'to be confirmed'; apply must waive, not re-ask."""
+    from chatbot.bot.state import TO_BE_CONFIRMED, STATUS_WAIVED
+
+    state = make_state("hmm leave that for later")
+    state.last_question = "finishes"
+    accepted, rejected = apply_field_updates(
+        state,
+        {"finishes": TO_BE_CONFIRMED},
+        "hmm leave that for later",
+        source="model",
+    )
+    assert accepted.get("finishes") == TO_BE_CONFIRMED
+    assert rejected == {}
+    assert state.fields["finishes"].status == STATUS_WAIVED
+    assert state.fields["finishes"].value == TO_BE_CONFIRMED
+    assert "finishes" not in state.ask_set()
+
+
+def test_catalogue_material_from_model_stays_suggested_not_visitor():
+    """PP white vinyl must not lock as visitor fact with raw text stolen from '300'."""
+    from chatbot.bot.state import BASIS_CATALOGUE, BASIS_MODEL, STATUS_SUGGESTED
+
+    state = make_state("300")
+    state.last_question = "quantity"
+    accepted, _rejected = apply_field_updates(
+        state,
+        {"material": "PP white vinyl", "quantity": "300"},
+        "300",
+        source="model",
+        bases={"material": BASIS_CATALOGUE},
+    )
+    assert accepted.get("material") == "PP white vinyl"
+    assert state.fields["material"].status == STATUS_SUGGESTED
+    assert state.fields["material"].basis == BASIS_MODEL
+    assert state.fields["material"].raw_visitor_text == ""
+
+
+def test_model_cannot_tbc_size_while_use_case_is_open():
+    """Regression: 'coffee beans' use-case turn must not waive size via model fields."""
+    from chatbot.bot.state import TO_BE_CONFIRMED, STATUS_UNKNOWN, STATUS_VISITOR
+
+    state = make_state("coffee beans")
+    state.fields["product"].value = "bags"
+    state.fields["product"].status = STATUS_VISITOR
+    state.last_question = "use_case"
+    accepted, rejected = apply_field_updates(
+        state,
+        {"use_case": "coffee beans", "sizes": TO_BE_CONFIRMED},
+        "coffee beans",
+        source="model",
+    )
+    assert accepted.get("use_case") == "coffee beans"
+    assert "sizes" in rejected
+    assert state.fields["sizes"].status == STATUS_UNKNOWN
+    assert not state.fields["sizes"].value
+    assert "sizes" in state.ask_set()
+
+
+def test_not_sure_on_finish_question_waives_finish():
+    from chatbot.bot.state import TO_BE_CONFIRMED, STATUS_WAIVED
+
+    state = make_state("not sure")
+    state.fields["product"].value = "labels"
+    state.fields["product"].status = STATUS_VISITOR
+    state.last_question = "finishes"
+    updates = extract_fields("not sure", "finishes", state)
+    assert updates.get("finishes") == TO_BE_CONFIRMED
+    accepted, _ = apply_field_updates(state, updates, "not sure")
+    assert accepted.get("finishes") == TO_BE_CONFIRMED
+    assert state.fields["finishes"].status == STATUS_WAIVED
+    assert "finishes" not in state.ask_set()
+
+
 def test_labels_for_pizza_box_locks_labels_not_boxes():
     """Head product wins when purpose names another family (attachment ambiguity)."""
     from chatbot.bot.state import family_of, headed_product_family
@@ -570,11 +674,11 @@ def test_refusing_contact_waives_email_and_phone():
     assert "Do NOT re-assert or re-emit proposed_configs" in RULE_TEXT
     assert "leave proposed_configs completely EMPTY" in RULE_TEXT
     assert "ONLY ONE single question" in RULE_TEXT
-    assert "NEVER combine multiple asks" in RULE_TEXT
+    assert "NEVER combine fields in one sentence" in RULE_TEXT
     assert "State that minimum ONLY when" in RULE_TEXT
     assert RULE_TEXT.startswith("You MUST ask ONLY ONE single question")
     assert "If they just said good morning or hello" in RULE_TEXT
-    assert "NEVER invent or hallucinate options like Square Boxes" in RULE_TEXT
+    assert "NEVER invent names that are not in the primer" in RULE_TEXT
     assert "You MUST exhaust ALL missing mandatory product fields" in RULE_TEXT
     assert "Once a style or finish is accepted, it is locked" in RULE_TEXT
     assert "You can reach the team at Support@print247.us or +1 (832) 807-3429." in RULE_TEXT

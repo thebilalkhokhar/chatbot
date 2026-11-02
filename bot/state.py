@@ -23,7 +23,7 @@ FIELD_LABELS = {
     "sizes": "Size",
     "finishes": "Finish",
     "quantity": "Quantity",
-    "skus": "Designs / SKUs",
+    "skus": "Designs",
     "material": "Material / special features",
     "extras": "Extras",
     "name": "Name",
@@ -38,6 +38,11 @@ CUSTOMER_ONLY_FIELDS = ("sizes", "email", "phone", "name", "quantity", "skus")
 # A contact detail typed into one of these is a misplaced answer, not a
 # description of the job, and must not settle the field.
 PROSE_FIELDS = ("product", "style", "material", "finishes", "extras", "use_case", "name")
+# Open checklist slots the visitor (or live model) may leave for the team.
+TO_BE_CONFIRMED = "to be confirmed"
+UNCERTAIN_WAIVE_FIELDS = frozenset(
+    {"sizes", "style", "finishes", "material", "skus", "extras", "use_case", "quantity"}
+)
 
 # PLAN_V2 Section 3.1: status says how far a value travelled, basis (Section 4.8)
 # says where it came from. v1's single "answered" flag could not tell a customer's
@@ -107,7 +112,7 @@ SCRIPTS: dict[str, list[tuple[str, str]]] = {
         ("style", "What style of bag do you need: flat, stand-up or flat-bottom?"),
         ("finishes", "What finish do you prefer: matte, gloss or soft touch?"),
         ("quantity", "What quantity are you looking to order for your first run?"),
-        ("skus", "How many total designs or SKUs do you have?"),
+        ("skus", "How many total designs do you have?"),
         ("extras", "Do you want me to add a zipper and tear notch?"),
         ("material", "Do you have any specific material or special features in mind?"),
     ],
@@ -120,14 +125,14 @@ SCRIPTS: dict[str, list[tuple[str, str]]] = {
             "soft touch lamination, spot UV, or foil printing?",
         ),
         ("quantity", "What quantity are you looking to order for your first run?"),
-        ("skus", "How many total designs or SKUs do you have?"),
+        ("skus", "How many total designs do you have?"),
         ("material", "Do you have any specific material or special features in mind?"),
     ],
     "labels": [
         ("sizes", "What label size are you looking for?"),
         ("finishes", "What finish do you prefer: matte, gloss or soft touch?"),
         ("quantity", "What quantity are you looking to order for your first run?"),
-        ("skus", "How many total designs or SKUs do you have?"),
+        ("skus", "How many total designs do you have?"),
         ("material", "Do you have any specific material or special features in mind?"),
     ],
     "banners": [
@@ -160,7 +165,7 @@ FALLBACK_QUESTIONS = {
         "What finish do you prefer: matte lamination, gloss lamination, "
         "soft touch lamination, spot UV, or foil printing?"
     ),
-    "skus": "How many total designs or SKUs do you have?",
+    "skus": "How many total designs do you have?",
     "material": "Do you have any specific material or special features in mind?",
     "extras": "Do you want any extras on this order?",
     "name": "Who am I speaking with?",
@@ -541,6 +546,171 @@ def size_is_unknown(text: str) -> bool:
     return bool(SIZE_UNKNOWN_RE.search(str(text or "")))
 
 
+def is_to_be_confirmed(value: str) -> bool:
+    """True when a field is explicitly left for the team (LLM or size-unknown path)."""
+    folded = re.sub(r"\s+", " ", str(value or "").strip().lower())
+    return folded in {
+        TO_BE_CONFIRMED,
+        "tbc",
+        "needs confirmation",
+        "to-be-confirmed",
+        "needs_confirmation",
+    }
+
+
+# Numeric / freeform fields: no catalogue menu — non-answers defer to the team.
+SHAPED_DEFER_FIELDS = frozenset({"sizes", "quantity", "skus"})
+# Catalogue fields: non-answers get an options list (not phrase matching, not TBC).
+CATALOGUE_OPTION_FIELDS = frozenset({"style", "material", "finishes"})
+
+
+def field_shaped_attempt(key: str, visitor: str) -> bool:
+    """True when the message looks like a real attempt to answer this field."""
+    value = str(visitor or "").strip()
+    if not value:
+        return False
+    if key == "sizes":
+        # Concrete size only. "not sure" / "no preference" are waivers handled by
+        # extract or defer — they must not look like a finished size answer.
+        size_text = normalise_dimension_separators(value)
+        return bool(
+            SIZE_DIM_RE.search(size_text)
+            or SINGLE_SIZE_RE.search(value)
+            or UNIT_ONLY_RE.match(value)
+        )
+    if key == "quantity":
+        return parse_quantity(value) is not None or bool(BARE_QTY_RE.match(value))
+    if key == "finishes":
+        return normalize_finish(value) is not None
+    if key == "material":
+        return bool(MATERIAL_HINTS.search(value))
+    if key == "style":
+        return bool(normalize_style(value) or STYLE_HINTS.search(value))
+    if key == "skus":
+        return bool(re.search(r"\d+", value))
+    return False
+
+
+def fields_asked_in_bot_text(text: str) -> list[str]:
+    """Checklist fields a bot message appears to ask about (may be more than one)."""
+    from .guards import all_asked_fields
+
+    return [key for key in all_asked_fields(text) if key in SHAPED_DEFER_FIELDS]
+
+
+def _visitor_side_turn(text: str) -> bool:
+    """True for greetings, meta, bare acks — not a field answer or options ask."""
+    value = str(text or "").strip()
+    if not value:
+        return True
+    if is_visitor_greeting(value) or is_goodbye(value):
+        return True
+    if is_context_question(value) or is_meta_question(value) or wants_human(value):
+        return True
+    if asks_to_share_reference(value) or asks_if_bot(value):
+        return True
+    if AFFIRMATION_RE.fullmatch(value) or re.fullmatch(
+        r"\s*(?:hm+|h+m+|ok(?:ay)?|alright|right|got it|cool|thanks?)\s*[.!]?\s*",
+        value,
+        re.I,
+    ):
+        return True
+    return False
+
+
+def needs_catalogue_options(
+    state: "ConversationState",
+    visitor: str,
+    accepted: dict[str, str],
+) -> str:
+    """Open style/material/finish + no concrete pick → list options (any wording).
+
+    Dynamic: does not require \"give me options\" / \"choices\". A catalogue
+    question that was not answered with a named option gets the menu.
+    """
+    key = str(state.last_question or "").strip()
+    if key not in CATALOGUE_OPTION_FIELDS:
+        return ""
+    if key in accepted or state.fields[key].done:
+        return ""
+    text = str(visitor or "").strip()
+    if not text or _visitor_side_turn(text):
+        return ""
+    if UNSPECIFIED_RE.match(text):
+        # "not sure" / "no preference" → waiver path, not a catalogue dump.
+        return ""
+    if field_shaped_attempt(key, text):
+        return ""
+    from . import canon
+    from .guards import question_as_answer
+
+    if question_as_answer(text, key) or canon.topics_to_answer(text):
+        return ""
+    if is_question(text) and not is_option_request(text) and not wants_recommendation(text):
+        # Real question for us (MOQ, address, …) — answer that path instead.
+        return ""
+    return key
+
+
+def defer_unanswered_open_field(
+    state: "ConversationState",
+    visitor: str,
+    accepted: dict[str, str],
+) -> list[str]:
+    """If they were asked size/qty/SKUs and did not answer, waive as to-be-confirmed.
+
+    Catalogue fields (style/material/finish) are not deferred here — those use
+    needs_catalogue_options so any non-pick wording gets a menu, not a hardcode list.
+    """
+    text = str(visitor or "").strip()
+    if not text or _visitor_side_turn(text):
+        return []
+    if is_question(text):
+        return []
+    if is_option_request(text) or wants_recommendation(text):
+        return []
+    if needs_catalogue_options(state, text, accepted):
+        return []
+
+    primary = str(state.last_question or "").strip()
+    candidates: list[str] = []
+    if primary in SHAPED_DEFER_FIELDS:
+        candidates.append(primary)
+    for key in fields_asked_in_bot_text(state.last_bot()):
+        if key in SHAPED_DEFER_FIELDS and key not in candidates:
+            candidates.append(key)
+    if not candidates:
+        return []
+
+    from . import canon
+    from .guards import question_as_answer
+
+    if any(question_as_answer(text, key) for key in candidates) or canon.topics_to_answer(text):
+        return []
+    if any(field_shaped_attempt(key, text) for key in candidates):
+        return []
+    if any(other not in candidates for other in accepted):
+        return []
+
+    deferred: list[str] = []
+    for key in candidates:
+        if key in accepted or state.fields[key].done:
+            continue
+        state.set_field(
+            key,
+            TO_BE_CONFIRMED,
+            BASIS_VISITOR,
+            raw=text,
+            status=STATUS_WAIVED,
+        )
+        if key == "sizes":
+            state.flags.pop("size_pending_unit", None)
+            state.flags.pop("unit_asked", None)
+        accepted[key] = TO_BE_CONFIRMED
+        deferred.append(key)
+    return deferred
+
+
 def size_has_zero_dimension(text: str) -> bool:
     """True when width, length, or depth is zero.
 
@@ -865,15 +1035,22 @@ CONTEXT_QUESTION_RE = re.compile(
 )
 OPTION_REQUEST_RE = re.compile(
     r"\bfor example\b|\bwhat do you have\b|\bwhich ones?\b"
-    r"|\b(?:which|what)\s+options?\b"
+    r"|\b(?:which|what)\s+(?:options?|choices?)\b"
+    r"|\bgive\s+(?:me\s+)?(?:the\s+|some\s+|your\s+|a\s+few\s+)?(?:options?|choices?)\b"
+    r"|\bshow\s+(?:me\s+)?(?:the\s+|some\s+|your\s+)?(?:options?|choices?)\b"
+    r"|\blist\s+(?:the\s+|some\s+|your\s+)?(?:options?|choices?)\b"
+    r"|\b(?:options?|choices?)\s+please\b"
+    r"|^\s*(?:options?|choices?)\s*[?!.]*\s*$"
+    r"|\b(?:any|some|the)\s+(?:options?|choices?)\b"
+    r"|\bwhat\s+(?:are\s+)?(?:my|the|our)\s+(?:options?|choices?)\b"
     r"|\b(?:other|alternative)\s+materials?\b"
     r"|\bmaterials?\s+other\s+than\b"
     r"|\bsuggest\s+(?:me\s+)?(?:other\s+|alternative\s+)?materials?\b"
     r"|\b(?:suggest|recommend)\s+(?:me\s+)?(?:the\s+|some\s+|a\s+few\s+)?"
-    r"(?:styles?|kinds?|types?|finishes?|options?)\b"
+    r"(?:styles?|kinds?|types?|finishes?|options?|choices?)\b"
     r"|\b(?:styles?|kinds?|types?|finishes?)\s+(?:you\s+)?(?:suggest|recommend|offer|have)\b"
-    r"|\blist\s+(?:the\s+|some\s+)?(?:styles?|finishes?|options?)\b"
-    r"|\bshow\s+(?:me\s+)?(?:the\s+|some\s+)?(?:styles?|finishes?)\b",
+    r"|\blist\s+(?:the\s+|some\s+)?(?:styles?|finishes?|options?|choices?)\b"
+    r"|\bshow\s+(?:me\s+)?(?:the\s+|some\s+)?(?:styles?|finishes?|options?|choices?)\b",
     re.I,
 )
 # "Can I add a reference image?" is not an answer and not an artwork-format ask.
@@ -1444,7 +1621,13 @@ class ConversationState:
         if self.flags.get("size_no_standard_explained"):
             lines.append("Already explained there is no standard size: do not explain again.")
         if self.flags.get("plain"):
-            lines.append("Plain/unprinted order: do not ask for designs or SKUs.")
+            lines.append("Plain/unprinted order: do not ask for designs.")
+        offer_for = str(self.flags.get("offer_options_for") or "").strip()
+        if offer_for in CATALOGUE_OPTION_FIELDS:
+            lines.append(
+                f"offer_options_for={offer_for}: visitor did not pick a concrete "
+                f"{offer_for}; list that field's catalogue options now and keep asking it."
+            )
         if self.flags.get("reference_image"):
             note = str(self.flags.get("reference_summary") or "").strip()
             if note:
@@ -1575,6 +1758,16 @@ def apply_field_updates(
             basis = stated_basis
         if key == "sizes" and stated_basis == BASIS_CATALOGUE and not echoed:
             basis = BASIS_CATALOGUE
+        # Catalogue style/material/finish named by the model is a proposal, not a
+        # settled customer fact — otherwise "PP white vinyl" locks in on a qty/SKU
+        # turn with raw_visitor_text stolen from "300" / "not sure".
+        if (
+            source == "model"
+            and key in CATALOGUE_OPTION_FIELDS
+            and not echoed
+            and basis != BASIS_VISITOR
+        ):
+            basis = BASIS_MODEL
         # `raw_visitor_text` is the customer's own wording. A model proposal they
         # have not agreed to has no wording of theirs to carry yet.
         raw_text = incoming if echoed else ("" if basis == BASIS_MODEL else str(visitor_text or "").strip())
@@ -1583,6 +1776,25 @@ def apply_field_updates(
         if key in {"email", "phone"} and incoming == "declined" and refuses_contact(visitor_text):
             state.set_field(key, "declined", BASIS_VISITOR, raw=visitor_text, status=STATUS_WAIVED)
             accepted[key] = "declined"
+            continue
+        # Uncertainty waiver: only for the field we just asked. A live model that
+        # stamps sizes="to be confirmed" while the visitor answered use case
+        # ("coffee beans") must not close size early.
+        if key in UNCERTAIN_WAIVE_FIELDS and is_to_be_confirmed(value):
+            if key != state.last_question:
+                rejected[key] = value
+                continue
+            state.set_field(
+                key,
+                TO_BE_CONFIRMED,
+                BASIS_VISITOR,
+                raw=str(visitor_text or "").strip(),
+                status=STATUS_WAIVED,
+            )
+            if key == "sizes":
+                state.flags.pop("size_pending_unit", None)
+                state.flags.pop("unit_asked", None)
+            accepted[key] = TO_BE_CONFIRMED
             continue
         if key in PROSE_FIELDS and looks_like_contact(value):
             rejected[key] = value
@@ -1839,23 +2051,31 @@ def extract_fields(
                 updates["skus"] = str(number)
 
     if last_question == "style":
-        # A finish or material answer is not a style. Keep it as a note and let
-        # the style question stand, instead of filling the field with "gloss".
-        # A question ("what style of boxes do you have") is answered, not stored.
-        if is_question(value):
-            pass
-        elif STYLE_HINTS.search(value) or (not finish and not MATERIAL_HINTS.search(value)):
-            updates.setdefault("style", normalize_style(value) or value.strip()[:80])
-    elif last_question in {"material", "extras", "use_case"} and not is_question(value):
-        # Asking for alternatives ("suggest me materials other than…") is not a
-        # material choice. Keep the field open so contact is not asked early.
-        if last_question == "material" and (
+        # Only a named catalogue style counts. Freeform / "batao kya hai" /
+        # "give me options" stays open so needs_catalogue_options can list the menu.
+        if not (
+            is_question(value)
+            or is_option_request(value)
+            or wants_recommendation(value)
+            or finish
+            or MATERIAL_HINTS.search(value)
+        ):
+            shaped = normalize_style(value)
+            if shaped:
+                updates.setdefault("style", shaped)
+            elif STYLE_HINTS.search(value):
+                updates.setdefault("style", value.strip()[:80])
+    elif last_question in {"extras", "use_case"} and not is_question(value):
+        # material/finishes: only via MATERIAL_HINTS / normalize_finish above —
+        # never store arbitrary wording as the pick.
+        if last_question == "extras" and (
             wants_recommendation(value) or is_option_request(value)
         ):
             pass
         # "Yes" confirms a proposal; it does not describe what they are packing.
         elif last_question != "use_case" or not AFFIRMATION_RE.fullmatch(value):
-            updates.setdefault(last_question, value.strip()[:80])
+            if not (last_question == "use_case" and is_option_request(value)):
+                updates.setdefault(last_question, value.strip()[:80])
 
     if (
         registry is not None
@@ -1876,11 +2096,16 @@ def extract_fields(
             if raw_style.lower() == value.strip().lower():
                 updates.pop("style", None)
 
-    if last_question in {"style", "material", "finishes", "extras"} and UNSPECIFIED_RE.match(value):
-        # "no preference" is a substring of "no preferences", so the finish
-        # matcher must not steal this and leave the open question unanswered.
+    if last_question in UNCERTAIN_WAIVE_FIELDS and UNSPECIFIED_RE.match(value):
+        # Unsure / no preference / whatever — on the open field, including size.
+        # Style/material keep the legacy "no preference" token; everything else
+        # (sizes, finishes, use_case, …) is "to be confirmed" for the team.
+        # "no preference" must not be stolen as a finish while size is open.
         updates.pop("finishes", None)
-        updates[last_question] = "no preference"
+        if last_question in {"style", "material"}:
+            updates[last_question] = "no preference"
+        else:
+            updates[last_question] = TO_BE_CONFIRMED
 
     if contact_fields_refused(value, last_question):
         for key in ("email", "phone"):

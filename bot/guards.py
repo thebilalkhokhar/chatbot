@@ -272,63 +272,86 @@ def count_questions(text: str) -> int:
     return marks + inferred
 
 
-def asked_field(text: str) -> str | None:
+# Ask-shaped probes only (not loose mentions like "stand-up" in a lead-in).
+ASK_FOCUS_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("use_case", re.compile(
+        r"\buse case\b"
+        r"|\bwhat (?:is|are) (?:this|these|it|they|the \w+)\s+for\b"
+        r"|\bwhat (?:will|goes|is going)\s+(?:be\s+)?inside\b"
+        r"|\bwhat are you (?:packing|putting|selling|shipping|sending)\b"
+        r"|\bwho is it going to\b",
+        re.I,
+    )),
+    ("material", re.compile(
+        r"\b(?:what|which)\s+(?:\w+\s+){0,4}material\b"
+        r"|\bmaterial\s+(?:would|do|should|are|you want)\b",
+        re.I,
+    )),
+    ("finishes", re.compile(
+        r"\b(?:what|which)\s+finish\b|\bfinish\s+(?:would|do|should)\b",
+        re.I,
+    )),
+    ("skus", re.compile(
+        r"\b(?:how many).{0,40}\b(?:designs?|skus?)\b"
+        r"|\b(?:what|which)\s+(?:design|sku)\b",
+        re.I,
+    )),
+    ("quantity", re.compile(
+        r"\b(?:what|which)\s+quantity\b"
+        r"|\bhow many\s+(?:units|pieces|bags?|boxes?|labels?|stickers?|pouches?|banners?|cards?)\b"
+        r"|\bquantity\s+(?:are|do|would|should|you)\b"
+        r"|\band quantity\b",
+        re.I,
+    )),
+    ("style", re.compile(r"\b(?:what|which)\s+style\b", re.I)),
+    ("sizes", re.compile(
+        r"\b(?:what|which)\s+size\b|\bsize\s+(?:are|do|would|should|targeting)\b"
+        r"|\blabel size\b|\bbag size\b|\bbox size\b"
+        r"|\band size\b",
+        re.I,
+    )),
+)
+
+
+def _question_scope(text: str) -> str | None:
     value = str(text or "")
     question_sentences = [sentence for sentence in _sentences(value) if "?" in sentence]
     if question_sentences:
-        scope = " ".join(question_sentences)
-    elif re.search(r"\b(?:let me know|tell me|share|send over)\b", value, re.I):
-        scope = value
-    else:
-        return None
-    # "Is 15x19 in inches, cm, or mm?" is the size question and never says "size".
+        return " ".join(question_sentences)
+    if re.search(r"\b(?:let me know|tell me|share|send over)\b", value, re.I):
+        return value
+    return None
+
+
+def all_asked_fields(text: str) -> list[str]:
+    """Every checklist field a reply asks about (catches size+quantity in one ?)."""
+    scope = _question_scope(text)
+    if not scope:
+        return []
+    found: list[str] = []
     if re.search(r"\binches\b", scope, re.I) and re.search(r"\b(?:cm|mm)\b", scope, re.I):
-        return "sizes"
-    # Prefer the field the question is actually about when earlier probes only
-    # match restated specs ("…besides soft touch and the oval size… material?").
-    # use_case before material: "What use case … finish and material?" is use case.
-    focused = (
-        ("use_case", re.compile(
-            r"\buse case\b"
-            r"|\bwhat (?:is|are) (?:this|these|it|they|the \w+)\s+for\b"
-            r"|\bwhat (?:will|goes|is going)\s+(?:be\s+)?inside\b"
-            r"|\bwhat are you (?:packing|putting|selling|shipping|sending)\b"
-            r"|\bwho is it going to\b",
-            re.I,
-        )),
-        ("material", re.compile(
-            r"\b(?:what|which)\s+(?:\w+\s+){0,4}material\b"
-            r"|\bmaterial\s+(?:would|do|should|are|you want)\b",
-            re.I,
-        )),
-        ("finishes", re.compile(
-            r"\b(?:what|which)\s+finish\b|\bfinish\s+(?:would|do|should)\b",
-            re.I,
-        )),
-        ("skus", re.compile(
-            r"\b(?:how many).{0,40}\b(?:designs?|skus?)\b"
-            r"|\b(?:what|which)\s+(?:design|sku)\b",
-            re.I,
-        )),
-        ("quantity", re.compile(
-            r"\b(?:what|which)\s+quantity\b"
-            r"|\bhow many\s+(?:units|pieces|bags?|boxes?|labels?|stickers?|pouches?|banners?|cards?)\b"
-            r"|\bquantity\s+(?:are|do|would|should|you)\b",
-            re.I,
-        )),
-        ("style", re.compile(r"\b(?:what|which)\s+style\b", re.I)),
-        ("sizes", re.compile(
-            r"\b(?:what|which)\s+size\b|\bsize\s+(?:are|do|would|should|targeting)\b"
-            r"|\blabel size\b|\bbag size\b|\bbox size\b",
-            re.I,
-        )),
-    )
-    for key, pattern in focused:
-        if pattern.search(scope):
-            return key
-    for key, pattern in FIELD_PROBES:
-        if pattern.search(scope):
-            return key
+        found.append("sizes")
+    for key, pattern in ASK_FOCUS_PATTERNS:
+        if key not in found and pattern.search(scope):
+            found.append(key)
+    if not found:
+        for key, pattern in FIELD_PROBES:
+            if pattern.search(scope):
+                found.append(key)
+                break
+    order = {name: index for index, name in enumerate(ASK_PRIORITY)}
+    return sorted(found, key=lambda name: order.get(name, 99))
+
+
+def asked_field(text: str) -> str | None:
+    value = str(text or "")
+    scope = _question_scope(value)
+    if scope is None:
+        return None
+    # Ask-priority first when a draft names two fields ("size and quantity?").
+    focused = all_asked_fields(value)
+    if focused:
+        return focused[0]
     # Vision / propose-and-confirm: "Are you looking for print products…?"
     if re.search(
         r"\bare you looking for\b|\bdoes (?:that|this|[a-z][\w-]*) look(?: like)?(?: the)? right\b"
@@ -437,6 +460,15 @@ def _check_questions(reply: str, result: GuardResult) -> None:
             "multiple_questions",
             WARN,
             f"{count} questions in one message; the rule is one question per message.",
+            reply[:120],
+        )
+    fields = all_asked_fields(reply)
+    if len(fields) > 1:
+        result.add(
+            "compound_ask",
+            WARN,
+            "One message asks about more than one checklist field "
+            f"({', '.join(fields)}); ask only one.",
             reply[:120],
         )
 
@@ -797,9 +829,38 @@ def strip_unsolicited_moq(reply: str, visitor: str) -> str:
     return re.sub(r"\s+", " ", " ".join(kept)).strip()
 
 
+def enforce_one_field_ask(reply: str, priority_key: str = "", priority_text: str = "") -> str:
+    """Collapse 'what size and quantity…?' into a single checklist ask."""
+    text = str(reply or "").strip()
+    fields = all_asked_fields(text)
+    if len(fields) <= 1:
+        return text
+    keep = priority_key if priority_key in fields else fields[0]
+    ask = priority_text if (not priority_key or priority_key == keep) and priority_text else ""
+    if not ask:
+        labels = {
+            "sizes": "What size are you looking for?",
+            "quantity": "What quantity are you looking to order?",
+            "style": "What style do you need?",
+            "finishes": "What finish do you prefer?",
+            "material": "Do you have a material in mind?",
+            "skus": "How many total designs do you have?",
+            "use_case": "What is this for?",
+            "product": "What are you looking to have made?",
+            "email": "What email should we use for the quote?",
+            "phone": "What number is best if the team needs to reach you?",
+        }
+        ask = labels.get(keep, "What would you like to do next?")
+    lead = [sentence for sentence in _sentences(text) if "?" not in sentence]
+    prefix = re.sub(r"\s+", " ", " ".join(lead)).strip()
+    if prefix and prefix[-1] not in ".!":
+        prefix += "."
+    return f"{prefix} {ask}".strip() if prefix else ask
+
+
 def enforce_single_question(reply: str, priority_key: str = "", priority_text: str = "") -> str:
     """Keep one question: the highest-priority missing field, then stop."""
-    text = str(reply or "").strip()
+    text = enforce_one_field_ask(reply, priority_key, priority_text)
     if count_questions(text) <= 1:
         return text
     clauses = _ask_clauses(text)
@@ -1535,7 +1596,8 @@ def describe(issues: list[Issue] | GuardResult) -> str:
     if any(item.code in {"reply_config_mismatch", "unknown_capability_unhedged", "unsupported_configuration"} for item in items):
         text += (
             ". REWRITE RULE: If you are asking for contact details, shipping info, or design "
-            "counts (SKUs), focus ONLY on that ask. Do NOT re-assert or re-emit proposed_configs "
+            "how many designs they have, focus ONLY on that ask. Never say SKU to the visitor. "
+            "Do NOT re-assert or re-emit proposed_configs "
             "for styles/materials/finishes that were discussed in previous turns unless you are "
             "actively presenting a new recommendation."
         )

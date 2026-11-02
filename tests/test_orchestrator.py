@@ -450,6 +450,271 @@ def test_unknown_size_is_explained_not_stored_verbatim(orchestrator):
     assert state.last_question != "sizes"
 
 
+def test_let_team_decide_defers_size_without_phrase_list(orchestrator):
+    """Any non-size reply to the size ask → to be confirmed (not phrase hardcoding)."""
+    from chatbot.bot.state import STATUS_WAIVED, TO_BE_CONFIRMED
+
+    orchestrator.start("c-defer-size")
+    orchestrator.handle("c-defer-size", "boxes for water bottle")
+    result = orchestrator.handle("c-defer-size", "let team decide it")
+    state = orchestrator.store.get_or_create("c-defer-size")
+    assert state.fields["sizes"].value == TO_BE_CONFIRMED
+    assert state.fields["sizes"].status == STATUS_WAIVED
+    assert result.accepted.get("sizes") == TO_BE_CONFIRMED
+    assert "sizes" not in state.ask_set()
+    assert result.handoff == ""
+    # Next ask should not be size again.
+    assert "what size" not in result.reply.lower() or "quantity" in result.reply.lower()
+
+
+def test_coffee_beans_use_case_does_not_waive_size(orchestrator):
+    orchestrator.start("c-coffee")
+    orchestrator.handle("c-coffee", "bags")
+    result = orchestrator.handle("c-coffee", "coffee beans")
+    state = orchestrator.store.get_or_create("c-coffee")
+    assert state.fields["use_case"].value == "coffee beans"
+    assert not state.fields["sizes"].done
+    assert state.fields["sizes"].value in {"", None} or state.fields["sizes"].status == STATUS_UNKNOWN
+    assert "sizes" in state.ask_set()
+    assert "size" in result.reply.lower()
+
+
+def test_give_me_options_on_style_lists_box_styles(orchestrator):
+    from chatbot.bot.state import STATUS_VISITOR, STATUS_WAIVED, TO_BE_CONFIRMED
+
+    orchestrator.start("c-style-opts")
+    state = orchestrator.store.get_or_create("c-style-opts")
+    state.set_field("product", "boxes", status=STATUS_VISITOR)
+    state.set_field("use_case", "pizza", status=STATUS_VISITOR)
+    state.set_field("sizes", TO_BE_CONFIRMED, status=STATUS_WAIVED)
+    state.set_field("quantity", "1000", status=STATUS_VISITOR)
+    state.last_question = "style"
+    orchestrator.store.save(state)
+    result = orchestrator.handle("c-style-opts", "give me options")
+    state = orchestrator.store.get_or_create("c-style-opts")
+    lowered = result.reply.lower()
+    assert "mailer" in lowered or "gift" in lowered or "display" in lowered
+    assert state.fields["style"].value != "give me options"
+    assert not state.fields["style"].done
+    assert "finish" not in lowered or "style" in lowered
+    assert result.handoff == ""
+
+
+def test_any_non_style_wording_lists_styles_dynamically(orchestrator):
+    """No phrase hardcode: open style + non-pick wording → style menu."""
+    from chatbot.bot.state import STATUS_VISITOR, STATUS_WAIVED, TO_BE_CONFIRMED
+
+    orchestrator.start("c-style-dyn")
+    state = orchestrator.store.get_or_create("c-style-dyn")
+    state.set_field("product", "boxes", status=STATUS_VISITOR)
+    state.set_field("use_case", "pizza", status=STATUS_VISITOR)
+    state.set_field("sizes", TO_BE_CONFIRMED, status=STATUS_WAIVED)
+    state.set_field("quantity", "1000", status=STATUS_VISITOR)
+    state.last_question = "style"
+    orchestrator.store.save(state)
+    result = orchestrator.handle("c-style-dyn", "batao kya kya hai")
+    state = orchestrator.store.get_or_create("c-style-dyn")
+    lowered = result.reply.lower()
+    assert "mailer" in lowered or "gift" in lowered or "kraft" in lowered or "display" in lowered
+    assert state.fields["style"].value != "batao kya kya hai"
+    assert not state.fields["style"].done
+    assert state.flags.get("offer_options_for") == "style" or "style" in lowered
+
+
+def test_not_sure_on_size_waives_even_if_live_skips_field(orchestrator):
+    from chatbot.bot.state import STATUS_VISITOR, STATUS_WAIVED, TO_BE_CONFIRMED
+
+    orchestrator.start("c-size-ns")
+    orchestrator.handle("c-size-ns", "boxes for pizza")
+    result = orchestrator.handle("c-size-ns", "not sure")
+    state = orchestrator.store.get_or_create("c-size-ns")
+    assert state.fields["sizes"].value == TO_BE_CONFIRMED
+    assert state.fields["sizes"].status == STATUS_WAIVED
+    assert "sizes" not in state.ask_set()
+    assert result.handoff == ""
+
+
+def test_give_me_options_on_material_lists_label_stock(orchestrator):
+    from chatbot.bot.state import STATUS_VISITOR, STATUS_WAIVED, TO_BE_CONFIRMED
+
+    orchestrator.start("c-mat-opts")
+    state = orchestrator.store.get_or_create("c-mat-opts")
+    for key, value, status in (
+        ("product", "labels", STATUS_VISITOR),
+        ("use_case", "pizza box", STATUS_VISITOR),
+        ("sizes", TO_BE_CONFIRMED, STATUS_WAIVED),
+        ("quantity", "300", STATUS_VISITOR),
+        ("finishes", TO_BE_CONFIRMED, STATUS_WAIVED),
+    ):
+        state.set_field(key, value, status=status)
+    state.last_question = "material"
+    orchestrator.store.save(state)
+    result = orchestrator.handle("c-mat-opts", "give me options")
+    lowered = result.reply.lower()
+    assert "pp white vinyl" in lowered or "vinyl" in lowered
+    assert "sku" not in lowered
+    assert "email" not in lowered
+    assert result.handoff == ""
+
+
+def test_you_pick_defers_size_and_quantity_when_bot_asked_both(orchestrator):
+    """Dual ask + 'you pick' → both shaped fields to be confirmed, not only quantity."""
+    from chatbot.bot.state import STATUS_VISITOR, STATUS_WAIVED, TO_BE_CONFIRMED
+
+    orchestrator.start("c-you-pick")
+    state = orchestrator.store.get_or_create("c-you-pick")
+    state.fields["product"].value = "bags"
+    state.fields["product"].status = STATUS_VISITOR
+    state.fields["use_case"].value = "coffee beans"
+    state.fields["use_case"].status = STATUS_VISITOR
+    state.last_question = "quantity"
+    state.add(
+        "ai",
+        "For coffee beans in a stand-up pouch, what size (width x height x gusset) "
+        "and quantity would you like to start with?",
+    )
+    orchestrator.store.save(state)
+    result = orchestrator.handle("c-you-pick", "you pick")
+    state = orchestrator.store.get_or_create("c-you-pick")
+    assert state.fields["sizes"].value == TO_BE_CONFIRMED
+    assert state.fields["sizes"].status == STATUS_WAIVED
+    assert state.fields["quantity"].value == TO_BE_CONFIRMED
+    assert state.fields["quantity"].status == STATUS_WAIVED
+    assert result.handoff == ""
+    assert "sizes" not in state.ask_set()
+    assert "quantity" not in state.ask_set()
+
+
+def test_bare_ok_on_size_does_not_auto_defer(orchestrator):
+    from chatbot.bot.state import STATUS_WAIVED, TO_BE_CONFIRMED
+
+    orchestrator.start("c-ok-size")
+    orchestrator.handle("c-ok-size", "boxes for water bottle")
+    result = orchestrator.handle("c-ok-size", "ok")
+    state = orchestrator.store.get_or_create("c-ok-size")
+    assert not (
+        state.fields["sizes"].status == STATUS_WAIVED
+        and state.fields["sizes"].value == TO_BE_CONFIRMED
+    )
+    assert "size" in result.reply.lower() or state.last_question == "sizes"
+
+
+def test_live_model_uncertainty_sets_finish_to_be_confirmed(
+    config, kb_index, tmp_path, monkeypatch
+):
+    """Any unsure wording: live fields write 'to be confirmed' → finish waived, next ask."""
+    from dataclasses import replace
+
+    from chatbot.bot.composer import Composed
+    from chatbot.bot.orchestrator import Orchestrator as Engine
+    from chatbot.bot.state import STATUS_VISITOR, STATUS_WAIVED, TO_BE_CONFIRMED
+
+    live_config = replace(config, mode="live", allow_live=True, api_key="test-key")
+    engine = Engine(
+        live_config,
+        store_path=tmp_path / "live-finish-tbc.sqlite3",
+        index=kb_index,
+        examples=[],
+    )
+    try:
+        state = engine.store.get_or_create("c-finish-tbc")
+        state.fields["product"].value = "labels"
+        state.fields["product"].status = STATUS_VISITOR
+        state.fields["use_case"].value = "pizza box"
+        state.fields["use_case"].status = STATUS_VISITOR
+        state.fields["sizes"].value = TO_BE_CONFIRMED
+        state.fields["sizes"].status = STATUS_WAIVED
+        state.fields["quantity"].value = "300"
+        state.fields["quantity"].status = STATUS_VISITOR
+        state.fields["material"].value = "PP white vinyl"
+        state.fields["material"].status = STATUS_VISITOR
+        state.last_question = "finishes"
+        engine.store.save(state)
+
+        monkeypatch.setattr(
+            "chatbot.bot.orchestrator.live_turn",
+            lambda *args, **kwargs: Composed(
+                reply=(
+                    "No problem — the team can confirm the finish. "
+                    "How many total designs do you have?"
+                ),
+                asked="skus",
+                fields={"finishes": TO_BE_CONFIRMED},
+                source="live",
+            ),
+        )
+        result = engine.handle("c-finish-tbc", "hmm leave the finish for later")
+        state = engine.store.get_or_create("c-finish-tbc")
+        assert result.handoff == ""
+        assert state.fields["finishes"].value == TO_BE_CONFIRMED
+        assert state.fields["finishes"].status == STATUS_WAIVED
+        assert "finishes" not in state.ask_set()
+        assert "gloss" not in result.reply.lower() or "skus" in result.reply.lower() or "design" in result.reply.lower()
+    finally:
+        engine.close()
+
+
+def test_live_sku_uncertainty_does_not_lock_pp_white_vinyl(
+    config, kb_index, tmp_path, monkeypatch
+):
+    """SKU 'not sure' must waive designs and must not settle material from catalogue."""
+    from dataclasses import replace
+
+    from chatbot.bot.composer import Composed
+    from chatbot.bot.orchestrator import Orchestrator as Engine
+    from chatbot.bot.state import (
+        BASIS_CATALOGUE,
+        STATUS_UNKNOWN,
+        STATUS_VISITOR,
+        STATUS_WAIVED,
+        TO_BE_CONFIRMED,
+    )
+
+    live_config = replace(config, mode="live", allow_live=True, api_key="test-key")
+    engine = Engine(
+        live_config,
+        store_path=tmp_path / "live-sku-mat.sqlite3",
+        index=kb_index,
+        examples=[],
+    )
+    try:
+        state = engine.store.get_or_create("c-sku-mat")
+        for key, value, status in (
+            ("product", "labels", STATUS_VISITOR),
+            ("use_case", "whisky bottles", STATUS_VISITOR),
+            ("sizes", TO_BE_CONFIRMED, STATUS_WAIVED),
+            ("quantity", "300", STATUS_VISITOR),
+            ("finishes", "soft touch", STATUS_VISITOR),
+        ):
+            state.set_field(key, value, status=status)
+        state.last_question = "skus"
+        engine.store.save(state)
+
+        monkeypatch.setattr(
+            "chatbot.bot.orchestrator.live_turn",
+            lambda *args, **kwargs: Composed(
+                reply="Great, I can send the quote to your email. What is the best email?",
+                asked="email",
+                fields={
+                    "skus": "no preference",
+                    "material": "PP white vinyl",
+                },
+                source="live",
+                bases={"material": BASIS_CATALOGUE},
+            ),
+        )
+        result = engine.handle("c-sku-mat", "not sure")
+        state = engine.store.get_or_create("c-sku-mat")
+        assert result.handoff == ""
+        assert state.fields["skus"].value == TO_BE_CONFIRMED
+        assert state.fields["skus"].status == STATUS_WAIVED
+        assert state.fields["material"].value != "PP white vinyl"
+        assert state.fields["material"].status == STATUS_UNKNOWN
+        assert "material" in state.ask_set()
+    finally:
+        engine.close()
+
+
 def test_local_ui_resumes_after_handoff(orchestrator):
     orchestrator.start("c-ui-human")
     first = orchestrator.handle("c-ui-human", "I want to talk to a human", channel="ui")
@@ -1067,7 +1332,7 @@ def test_a_sentence_stuffed_into_a_config_is_not_noted(orchestrator):
     )
     reply = orchestrator._safe_fallback(
         state,
-        ("skus", "How many total designs or SKUs do you have?"),
+        ("skus", "How many total designs do you have?"),
         "",
         guard=guard,
         configs=[
