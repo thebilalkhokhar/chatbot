@@ -425,7 +425,13 @@ def test_i_have_no_preferences_waives_the_style():
 
 
 def test_refusing_contact_waives_email_and_phone():
-    phrases = ("i don't want to share", "i have not any", "I don't have an email")
+    phrases = (
+        "i don't want to share",
+        "i have not any",
+        "I don't have an email",
+        "i dont have any email",
+        "I don't have any email",
+    )
     for text in phrases:
         state = make_state(text)
         _fill(state, "product", "boxes")
@@ -449,6 +455,41 @@ def test_refusing_contact_waives_email_and_phone():
     assert "You MUST exhaust ALL missing mandatory product fields" in RULE_TEXT
     assert "Once a style or finish is accepted, it is locked" in RULE_TEXT
     assert "You can reach the team at Support@print247.us or +1 (832) 807-3429." in RULE_TEXT
+    assert "alternative materials when only one standard material exists" in RULE_TEXT
+    assert "do not have an email" in RULE_TEXT
+    assert "Stay inside the active product family" in RULE_TEXT
+
+
+def test_alternative_material_ask_does_not_fill_material_or_open_email():
+    from chatbot.bot.state import is_option_request, wants_recommendation
+
+    text = "suggest me materials other than PP white vinyl"
+    assert wants_recommendation(text)
+    assert is_option_request(text)
+    assert "contact" not in canon.detect_topics("i dont have any email")
+
+    state = make_state(text)
+    _fill(state, "product", "labels")
+    _fill(state, "use_case", "honey jars")
+    _fill(state, "sizes", "to be confirmed", status=STATUS_WAIVED)
+    _fill(state, "quantity", "200")
+    _fill(state, "finishes", "spot uv")
+    _fill(state, "skus", "2")
+    state.last_question = "material"
+    apply_field_updates(state, extract_fields(text, "material", state), text)
+    assert not state.fields["material"].done
+    assert state.fields["material"].value == ""
+    assert "material" in state.ask_set()
+    assert "email" not in state.ask_set()
+    assert state.next_question() is not None
+    assert state.next_question()[0] == "material"
+
+    # A stale alternatives ask stored as the material value is repaired open.
+    state.fields["material"].value = text
+    state.fields["material"].status = STATUS_VISITOR
+    assert "material" in state.repair_fields()
+    assert not state.fields["material"].done
+    assert "email" not in state.ask_set()
 
 
 def test_unknown_design_count_uses_the_single_design_minimum():

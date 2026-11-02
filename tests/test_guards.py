@@ -198,6 +198,7 @@ def test_answer_first_blocks_script_question_only():
 
 def test_a_contact_refusal_is_not_a_question_about_ours():
     assert "contact" not in canon.detect_topics("I don't have an email")
+    assert "contact" not in canon.detect_topics("i dont have any email")
     assert "contact" not in canon.detect_topics("i don't want to share")
     assert "contact" in canon.detect_topics("what is your email?")
     state = make_state("I don't have an email")
@@ -207,6 +208,31 @@ def test_a_contact_refusal_is_not_a_question_about_ours():
         [guards.Issue("reply_config_mismatch", guards.BLOCK, "The configuration names kraft, and the reply never does.", "kraft")]
     )
     assert "Do NOT re-assert or re-emit proposed_configs" in note
+
+
+def test_alternative_material_ask_blocks_without_forcing_written_injection():
+    text = "suggest me materials other than PP white vinyl"
+    state = make_state("I need custom labels for honey jars", text)
+    state.fields["product"].value = "labels"
+    state.fields["product"].status = "visitor"
+    blocked = guards.check_reply(
+        "Where should the quote go — which email works best?",
+        state,
+        visitor_text=text,
+    )
+    assert "unanswered_question" in blocked.codes()
+    detail = " ".join(issue.detail for issue in blocked.issues if issue.code == "unanswered_question")
+    assert "Use the written answer:" not in detail
+    assert "standard material" in detail.lower()
+    assert "email" in detail.lower()
+
+    good = guards.check_reply(
+        "For honey jar labels we use PP white vinyl as our standard high-grade stock "
+        "for best results. Would you like to proceed with that?",
+        state,
+        visitor_text=text,
+    )
+    assert "unanswered_question" not in good.codes()
 
 
 def test_international_shipping_question_is_detected_and_answered():

@@ -188,7 +188,7 @@ CONTACT_REFUSAL_RE = re.compile(
     r"|\b(?:no|nope)\b[^.?!]{0,40}\b(?:want|need|give|share|provide|interested)\b"
     r"|\bdon[’'`;]?t\s+(?:want|email|call|contact)\b|\bdo\s+not\s+want\b"
     r"|\b(?:don[’'`;]?t|do\s+not|dont)\s+want\s+to\s+share\b"
-    r"|\b(?:don[’'`;]?t|do\s+not|dont)\s+have\s+(?:an?\s+)?(?:e-?mail|phone|number|contact)\b"
+    r"|\b(?:don[’'`;]?t|do\s+not|dont)\s+have\s+(?:an?\s+|any\s+)?(?:e-?mail|phone|number|contact)\b"
     r"|\bi\s+have\s+not\s+any\b"
     r"|\bhave\s+not\s+(?:any|an?\s+e-?mail|a\s+phone|a\s+number)\b"
     r"|\bnot\s+interested\b|\bno\s+thanks?(?:\s+you)?\b|\bi'?ll\s+pass\b"
@@ -590,7 +590,10 @@ CONTEXT_QUESTION_RE = re.compile(
 )
 OPTION_REQUEST_RE = re.compile(
     r"\bfor example\b|\bwhat do you have\b|\bwhich ones?\b"
-    r"|\b(?:which|what)\s+options?\b",
+    r"|\b(?:which|what)\s+options?\b"
+    r"|\b(?:other|alternative)\s+materials?\b"
+    r"|\bmaterials?\s+other\s+than\b"
+    r"|\bsuggest\s+(?:me\s+)?(?:other\s+|alternative\s+)?materials?\b",
     re.I,
 )
 
@@ -962,17 +965,25 @@ class ConversationState:
         return FALLBACK_QUESTIONS.get(key, "")
 
     def repair_fields(self) -> list[str]:
-        # Older turns could store the visitor's question in a free-text field
-        # (style, material, extras). Clear those so the field can be asked again.
+        # Older turns could store the visitor's question or a material-options
+        # ask in a free-text field. Clear those so the field can be asked again.
         repaired: list[str] = []
         for key in ("style", "material", "extras"):
             field_value = self.fields[key]
-            if field_value.value and is_question(field_value.value):
-                field_value.value = ""
-                field_value.raw_visitor_text = ""
-                field_value.status = STATUS_UNKNOWN
-                field_value.attempts = min(field_value.attempts, 1)
-                repaired.append(key)
+            stored = str(field_value.value or "")
+            if not stored:
+                continue
+            bad = is_question(stored) or (
+                key == "material"
+                and (wants_recommendation(stored) or is_option_request(stored))
+            )
+            if not bad:
+                continue
+            field_value.value = ""
+            field_value.raw_visitor_text = ""
+            field_value.status = STATUS_UNKNOWN
+            field_value.attempts = min(field_value.attempts, 1)
+            repaired.append(key)
         return repaired
 
     def confirm_suggested(self, visitor_text: str) -> list[str]:
@@ -1232,9 +1243,19 @@ def apply_field_updates(
                 continue
             if normalized_style:
                 value = normalized_style
-        if key == "material" and is_question(visitor_text) and basis == BASIS_VISITOR:
+        if key == "material" and basis == BASIS_VISITOR and (
+            is_question(visitor_text)
+            or wants_recommendation(visitor_text)
+            or is_option_request(visitor_text)
+        ):
+            # An alternatives ask is not a material choice — even when it names
+            # vinyl while asking for something other than vinyl.
             material_match = MATERIAL_HINTS.search(value)
-            if not material_match:
+            if (
+                not material_match
+                or wants_recommendation(visitor_text)
+                or is_option_request(visitor_text)
+            ):
                 rejected[key] = value
                 continue
             value = material_match.group(0)
@@ -1393,7 +1414,13 @@ def extract_fields(
 
     material = MATERIAL_HINTS.search(value)
     # A material said while we were asking for a style is still the material.
-    if material and len(value.split()) <= 6:
+    # An alternatives ask that happens to name vinyl is not choosing vinyl.
+    if (
+        material
+        and len(value.split()) <= 6
+        and not wants_recommendation(value)
+        and not is_option_request(value)
+    ):
         word = material.group(0).lower()
         if word == "metallized":
             word = "metalized"
@@ -1421,11 +1448,23 @@ def extract_fields(
         elif STYLE_HINTS.search(value) or (not finish and not MATERIAL_HINTS.search(value)):
             updates.setdefault("style", normalize_style(value) or value.strip()[:80])
     elif last_question in {"material", "extras", "use_case"} and not is_question(value):
+        # Asking for alternatives ("suggest me materials other than…") is not a
+        # material choice. Keep the field open so contact is not asked early.
+        if last_question == "material" and (
+            wants_recommendation(value) or is_option_request(value)
+        ):
+            pass
         # "Yes" confirms a proposal; it does not describe what they are packing.
-        if last_question != "use_case" or not AFFIRMATION_RE.fullmatch(value):
+        elif last_question != "use_case" or not AFFIRMATION_RE.fullmatch(value):
             updates.setdefault(last_question, value.strip()[:80])
 
-    if registry is not None and not is_question(value) and len(value.split()) <= 8:
+    if (
+        registry is not None
+        and not is_question(value)
+        and not wants_recommendation(value)
+        and not is_option_request(value)
+        and len(value.split()) <= 8
+    ):
         for field_name, canonical in registry.vocabulary_hits(value, state.family()):
             # Naming the product ("mylar bags") is not choosing a style. A style
             # hit counts only while that question is the one on the table.

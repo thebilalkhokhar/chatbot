@@ -13,6 +13,7 @@ from .composer import (
     Composed,
     HANDOFF_LINES,
     REPHRASES,
+    _topic_answer,
     clarify_reply,
     disclosure_line,
     heuristic_turn,
@@ -373,7 +374,10 @@ class Orchestrator:
         parts: list[str] = []
         topics = canon.topics_to_answer(visitor)
         if topics:
-            parts.append(canon.effective_answer(topics[0], self.overrides))
+            # Scope materials/styles to the active family so a labels chat never
+            # dumps bag or box catalogue lines.
+            scoped = _topic_answer(topics[0], state.family(), self.overrides)
+            parts.append(scoped or canon.effective_answer(topics[0], self.overrides))
         if urgent:
             parts.append(urgent)
         elif expected:

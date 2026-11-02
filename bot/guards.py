@@ -22,6 +22,7 @@ from .state import (
     asks_if_bot,
     family_of,
     is_meta_question,
+    is_option_request,
     is_question,
     is_visitor_greeting,
     normalize_finish,
@@ -281,6 +282,38 @@ def asked_field(text: str) -> str | None:
     # "Is 15x19 in inches, cm, or mm?" is the size question and never says "size".
     if re.search(r"\binches\b", scope, re.I) and re.search(r"\b(?:cm|mm)\b", scope, re.I):
         return "sizes"
+    # Prefer the field the question is actually about when earlier probes only
+    # match restated specs ("…besides soft touch and the oval size… material?").
+    focused = (
+        ("material", re.compile(
+            r"\b(?:what|which)\s+(?:\w+\s+){0,4}material\b"
+            r"|\bmaterial\s+(?:would|do|should|are|you want)\b",
+            re.I,
+        )),
+        ("finishes", re.compile(
+            r"\b(?:what|which)\s+finish\b|\bfinish\s+(?:would|do|should)\b",
+            re.I,
+        )),
+        ("skus", re.compile(
+            r"\b(?:how many).{0,40}\b(?:designs?|skus?)\b"
+            r"|\b(?:what|which)\s+(?:design|sku)\b",
+            re.I,
+        )),
+        ("quantity", re.compile(
+            r"\b(?:what|which)\s+quantity\b"
+            r"|\bhow many\s+(?:units|pieces|bags?|boxes?|labels?|stickers?|pouches?|banners?|cards?)\b"
+            r"|\bquantity\s+(?:are|do|would|should|you)\b",
+            re.I,
+        )),
+        ("style", re.compile(r"\b(?:what|which)\s+style\b", re.I)),
+        ("sizes", re.compile(
+            r"\b(?:what|which)\s+size\b|\bsize\s+(?:are|do|would|should)\b",
+            re.I,
+        )),
+    )
+    for key, pattern in focused:
+        if pattern.search(scope):
+            return key
     for key, pattern in FIELD_PROBES:
         if pattern.search(scope):
             return key
@@ -877,6 +910,22 @@ def _check_answer_first(
         if covered:
             continue
         item = canon.CANON[topic]
+        # Alternative-material asks are answered by reasoning from FACTS/primer,
+        # not by pasting the multi-family materials sentence into the rewrite.
+        if topic == "materials" and (
+            wants_recommendation(visitor_text) or is_option_request(visitor_text)
+        ):
+            result.add(
+                "unanswered_question",
+                BLOCK,
+                "They asked about alternative or available materials. Explain the "
+                "standard material for this product family from FACTS and the "
+                "CATALOGUE PRIMER, ask whether to proceed with it, name that material "
+                "in the reply, keep proposed_configs empty or limited to it, and do "
+                "not ask for email yet.",
+                visitor_text[:120],
+            )
+            continue
         result.add(
             "unanswered_question",
             BLOCK,

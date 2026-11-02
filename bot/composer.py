@@ -97,11 +97,17 @@ Do not open a later message with Good Morning or Hello on your own. If they just
 
 When a user asks for examples or options, you MUST strictly list ONLY the exact styles/materials found in the CATALOGUE PRIMER vocabulary. NEVER invent or hallucinate options like Square Boxes if they are not explicitly in the primer.
 
-You MUST exhaust ALL missing mandatory product fields (especially Designs/SKUs, Material, and Finish) before you are allowed to ask for contact information (Email/Phone) or initiate a handoff.
+If the user asks for alternative materials when only one standard material exists for a product family (for example PP white vinyl for labels, as stated in FACTS), politely explain that this product specifically uses our standard high-grade material for best results, and ask if they would like to proceed with it. Reason in your own words from FACTS and the CATALOGUE PRIMER — do not invent a second stock, do not emit a fake style such as N/A, do not restate locked finishes in proposed_configs, do not crash into a fallback pattern, and NEVER jump to asking for an email on that turn. Leave proposed_configs empty, or name only that single standard material.
+
+Stay inside the active product family from the GOAL. If the order is labels, never mention bag or box styles or materials. If it is boxes, never mention bag or label details. Recommendations and catalogue lists use only that family's vocabulary.
+
+You MUST exhaust ALL missing mandatory product fields (Product, Use Case, Size, Quantity, Finish, Material, Designs/SKUs where the family asks for them) before you are allowed to ask for contact information (Email/Phone) or initiate a handoff. Never skip ahead to email or phone while Material, Finish, Designs/SKUs, or any other open product-spec field is still unresolved.
 
 Once a style or finish is accepted, it is locked. Do not ask for it again, and do not put it in fields_proposed or proposed_configs.
 
 When they ask how to reach you, the first sentence must be exactly: "You can reach the team at Support@print247.us or +1 (832) 807-3429." Then ask the next missing checklist field in the same message. Do not ask for their email until Designs/SKUs, Material, and Finish are filled.
+
+If they say they do not have an email, refuse to share one, or otherwise decline contact details, treat that as a waiver: acknowledge it, you may share the support contact from FACTS once, do not ask for their email or phone again, and do not trap them in an email loop.
 
 Never ask about something they already told you. You may only ask about fields in the ASK SET;
 anything in the DO NOT ASK SET is off limits even as a confirmation.
@@ -132,20 +138,49 @@ class Composed:
 
 
 def _topic_answer(key: str, family: str, overrides: dict[str, str] | None) -> str:
+    """Family-scoped catalogue lines for fallbacks and option requests.
+
+    When the goal already has a product family, never leak another family's
+    styles or materials into the reply.
+    """
     if key == "moq" and family == "banners":
         return "Banners have no minimum — you can order any quantity."
     if key == "styles":
-        if family == "bags":
-            return "Bag styles include stand-up, flat, flat-bottom, side gusset and pinch bottom."
-        if family == "boxes":
-            return "Box styles include display, mailer, gift and kraft boxes."
+        scoped = {
+            "bags": "Bag styles include stand-up, flat, flat-bottom, side gusset and pinch bottom.",
+            "boxes": "Box styles include display, mailer, gift and kraft boxes.",
+            "labels": (
+                "Label styles include bottle labels, product labels, die-cut stickers "
+                "and vinyl labels."
+            ),
+            "banners": (
+                "Banner styles include vinyl banners, pull-up banners, flags and window decals."
+            ),
+            "business_cards": (
+                "Business card styles include standard, folded, foil accent and matte cards."
+            ),
+            "print": "Print styles include flyers, brochures, posters, booklets and postcards.",
+        }
+        if family in scoped:
+            return scoped[family]
+        if family != "unknown":
+            return ""
     if key == "materials":
-        if family == "bags":
-            return "For bags and pouches we use PET, PE, kraft and foil films."
-        if family == "labels":
-            return "Our labels are printed on vinyl."
-        if family == "boxes":
-            return "Our boxes are board, never film."
+        scoped = {
+            "bags": "For bags and pouches we use PET, PE, kraft and foil films.",
+            "labels": "Our labels are printed on vinyl.",
+            "boxes": "Our boxes are board, never film.",
+            "banners": "Banners use vinyl, polyester, foamcore or corrugated plastic.",
+            "business_cards": (
+                "Business cards use cardstock and specialty stocks such as kraft or acrylic."
+            ),
+            "print": "Print products use cardstock and gloss or uncoated paper stocks.",
+        }
+        if family in scoped:
+            return scoped[family]
+        if family != "unknown":
+            return ""
+    # Multi-family canon lines are only for early turns before a family is known.
     return canon.effective_answer(key, overrides)
 
 
@@ -256,9 +291,16 @@ def heuristic_turn(
         topics = topics[:2]
     asked_family = family_of(visitor)
     for key in topics:
-        answer_family = asked_family if key == "styles" and asked_family in {"bags", "boxes"} else family
+        # Only switch family for an explicit styles ask about bags/boxes. Never
+        # dump bag/box styles while the order is labels (or any other family).
+        if key == "styles" and asked_family in {"bags", "boxes"} and (
+            family in {"unknown", asked_family}
+        ):
+            answer_family = asked_family
+        else:
+            answer_family = family
         answer = _topic_answer(key, answer_family, overrides)
-        if answer not in parts:
+        if answer and answer not in parts:
             parts.append(answer)
 
     if handoff_reason:
@@ -267,15 +309,25 @@ def heuristic_turn(
 
     if is_option_request(visitor):
         # "For example?" / "which one do you have?" names the catalogue, then one ask.
+        # Prefer the topic they asked about over a mis-detected last_question, and
+        # keep the catalogue inside the active product family.
         asked_key = state.last_question
-        if asked_key == "quantity":
-            catalogue = ""
-        elif asked_key == "material":
+        catalogue = ""
+        if "materials" in topics or asked_key == "material":
             catalogue = _topic_answer("materials", family, overrides)
+        elif asked_key == "quantity":
+            catalogue = ""
         elif asked_key == "finishes":
             catalogue = "Finishes include matte, gloss and soft touch."
+        elif "styles" in topics or asked_key == "style":
+            catalogue = _topic_answer(
+                "styles", family if family != "unknown" else "boxes", overrides
+            )
+        elif family != "unknown":
+            # Known family, open field: stay inside that family's vocabulary only.
+            catalogue = _topic_answer("styles", family, overrides)
         else:
-            catalogue = _topic_answer("styles", family if family != "unknown" else "boxes", overrides)
+            catalogue = _topic_answer("styles", "boxes", overrides)
         if catalogue and catalogue not in parts:
             parts.append(catalogue)
 
@@ -517,6 +569,19 @@ def build_user(
             "They asked for examples or options. List ONLY the exact styles and materials "
             "in the CATALOGUE PRIMER vocabulary. Do not invent a name such as Square Boxes."
             if is_option_request(visitor)
+            and not (
+                wants_recommendation(visitor)
+                and "materials" in topics
+            )
+            else ""
+        ),
+        (
+            "They asked for alternative or other materials. If FACTS names a single standard "
+            "material for this family (e.g. labels → PP white vinyl), explain in your own words "
+            "that this product uses that standard high-grade material for best results, ask "
+            "whether to proceed with it, keep proposed_configs empty or name only that material, "
+            "and do not ask for email or phone on this turn."
+            if ("materials" in topics and (wants_recommendation(visitor) or is_option_request(visitor)))
             else ""
         ),
         (
@@ -528,9 +593,16 @@ def build_user(
             else ""
         ),
         (
+            "They declined to share contact details or said they have no email. Acknowledge it, "
+            "you may share the support contact from FACTS once, do not ask for their email or "
+            "phone again, and do not keep looping on contact."
+            if refuses_contact(visitor)
+            else ""
+        ),
+        (
             "They are asking for a recommendation: name one specific option from the catalogue, "
             "say in one short clause why it fits, then ask one field from the ASK SET."
-            if wants_recommendation(visitor)
+            if wants_recommendation(visitor) and "materials" not in topics
             else ""
         ),
         (

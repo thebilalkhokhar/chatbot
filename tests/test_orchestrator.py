@@ -691,6 +691,49 @@ def test_for_example_names_the_box_styles(orchestrator):
     assert blockers(result) == []
 
 
+def test_label_material_fallback_stays_inside_labels(orchestrator):
+    from chatbot.bot.composer import heuristic_turn
+    from chatbot.bot.guards import asked_field
+
+    material_ask = (
+        "Got it. To finalize the label build for the honey jars, what material would "
+        "you like us to use besides the finish you chose (soft touch) and the "
+        "standard oval size with 200 units and 2 SKUs?"
+    )
+    assert asked_field(material_ask) == "material"
+
+    orchestrator.start("c-label-mat")
+    state = orchestrator.store.get_or_create("c-label-mat")
+    for key, value, status in (
+        ("product", "labels", STATUS_VISITOR),
+        ("use_case", "honey jars", STATUS_VISITOR),
+        ("sizes", "to be confirmed", STATUS_WAIVED),
+        ("quantity", "200", STATUS_VISITOR),
+        ("finishes", "soft touch", STATUS_VISITOR),
+        ("skus", "2", STATUS_VISITOR),
+    ):
+        state.set_field(key, value, raw=value, status=status)
+    state.last_question = "material"
+    visitor = "suggest me materials then i will select one"
+    state.add("visitor", visitor)
+    orchestrator.store.save(state)
+
+    expected = state.next_question()
+    reply = heuristic_turn(state, visitor, expected).reply.lower()
+    assert "vinyl" in reply
+    assert "stand-up" not in reply
+    assert "mailer" not in reply
+    assert "flat-bottom" not in reply
+    assert "kraft boxes" not in reply
+
+    fallback = orchestrator._safe_fallback(state, expected, "").lower()
+    assert "vinyl" in fallback
+    assert "stand-up" not in fallback
+    assert "mailer" not in fallback
+    assert "bag styles" not in fallback
+    assert "box styles" not in fallback
+
+
 def test_which_one_uses_the_catalogue_instead_of_the_clarifier(orchestrator):
     from chatbot.bot.state import is_context_question, is_option_request
 
