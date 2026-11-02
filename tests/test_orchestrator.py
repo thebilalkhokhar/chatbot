@@ -852,6 +852,34 @@ def test_soft_email_then_continue_whether_given_or_skipped(orchestrator):
     assert got.handoff == ""
 
 
+def test_soft_email_no_continues_quote_not_handoff(orchestrator):
+    """Bare 'no' on the soft early email ask must keep size/qty flowing."""
+    from chatbot.bot.state import STATUS_VISITOR
+
+    orchestrator.start("c-soft-no")
+    state = orchestrator.store.get_or_create("c-soft-no")
+    state.set_field("product", "boxes", status=STATUS_VISITOR)
+    state.set_field("use_case", "for biscuits", status=STATUS_VISITOR)
+    state.last_question = "use_case"
+    orchestrator.store.save(state)
+    # Fire the soft email ask.
+    ask = orchestrator.handle("c-soft-no", "ok")
+    state = orchestrator.store.get_or_create("c-soft-no")
+    assert state.last_question == "email" or "email" in ask.reply.lower()
+    state.last_question = "email"
+    state.flags["soft_email_asked"] = True
+    orchestrator.store.save(state)
+
+    result = orchestrator.handle("c-soft-no", "no")
+    state = orchestrator.store.get_or_create("c-soft-no")
+    assert result.handoff == "", result.reply
+    assert state.fields["email"].value != "declined"
+    assert state.fields["phone"].value != "declined"
+    assert state.ask_set()[0] in {"sizes", "quantity"}
+    assert "specialist" not in result.reply.lower()
+    assert "?" in result.reply
+
+
 def test_you_pick_on_finish_waives_to_be_confirmed(orchestrator):
     from chatbot.bot.state import STATUS_VISITOR, STATUS_WAIVED, TO_BE_CONFIRMED
 
@@ -1225,6 +1253,40 @@ def test_box_finish_options_stay_on_official_list(orchestrator):
     assert "foil printing" in reply
     assert "drip" not in reply
     assert BOX_PRIMARY_FINISHES_TEXT.split(",")[0].lower() in reply
+
+
+def test_suggest_other_materials_lists_options_not_finish(orchestrator):
+    """After a kraft proposal, 'suggest me other materials' must list materials."""
+    from chatbot.bot.state import STATUS_SUGGESTED, STATUS_VISITOR, STATUS_WAIVED
+
+    orchestrator.start("c-other-mat")
+    state = orchestrator.store.get_or_create("c-other-mat")
+    for key, value, status in (
+        ("product", "boxes", STATUS_VISITOR),
+        ("use_case", "for pizza", STATUS_VISITOR),
+        ("sizes", "to be confirmed", STATUS_WAIVED),
+        ("quantity", "500", STATUS_VISITOR),
+        ("style", "no preference", STATUS_WAIVED),
+    ):
+        state.set_field(key, value, raw=value, status=status)
+    state.set_field("material", "kraft", status=STATUS_SUGGESTED)
+    state.flags["soft_email_asked"] = True
+    state.last_question = "material"
+    orchestrator.store.save(state)
+
+    result = orchestrator.handle("c-other-mat", "suggest me other materials")
+    state = orchestrator.store.get_or_create("c-other-mat")
+    lowered = result.reply.lower()
+    assert result.handoff == ""
+    assert state.fields["material"].status != STATUS_WAIVED
+    assert state.fields["material"].value != "no preference"
+    assert "material" in state.ask_set() or state.last_question == "material"
+    assert "finish" not in lowered or "material" in lowered
+    assert any(
+        token in lowered
+        for token in ("kraft", "board", "cardboard", "corrugated", "material")
+    ), result.reply
+    assert "matte lamination" not in lowered
 
 
 def test_label_material_fallback_stays_inside_labels(orchestrator):

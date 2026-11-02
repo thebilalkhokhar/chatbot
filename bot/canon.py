@@ -94,7 +94,8 @@ CANON: dict[str, CanonFact] = {
             r"\blocated\b",
             r"\blocation\b",
             r"\bbased\b",
-            r"(?<!email )(?<!e-mail )\baddress\b",
+            # "adress" is a common typo; spelling also rewrites it to address.
+            r"(?<!email )(?<!e-mail )\badd?ress\b",
         ),
         answer_tokens=(r"rosenberg",),
         note="Signed off 2026-10-30: use Rosenberg (footer facility); Houston and Sylmar are mentions, not confirmed facilities.",

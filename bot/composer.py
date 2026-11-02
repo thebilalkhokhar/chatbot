@@ -73,6 +73,14 @@ REPHRASES = {
     "phone": "What number is best if the team needs to reach you?",
 }
 
+# Rotate product asks so side-question turns do not keep the same script line.
+PRODUCT_ASK_VARIANTS = (
+    "What are you looking to have made — boxes, bags, labels, or something else?",
+    "Which product are you looking to have made: boxes, bags, labels or something else?",
+    "Just to lock this in — boxes, bags, labels, or something else?",
+    "What should we quote first — boxes, bags, or labels?",
+)
+
 RULE_TEXT = f"""{SINGLE_QUESTION_RULE}
 
 You decide what to do next. You may: answer what they asked; ask the one thing that most blocks
@@ -291,6 +299,17 @@ def _question_text(state: ConversationState, expected: tuple[str, str] | None) -
     if key == "sizes" and state.size_needs_unit():
         return state.question_for("sizes")
     attempts = state.fields[key].attempts if key in state.fields else 0
+    if key == "product":
+        # Side answers (address, USA?) still need the product ask — rotate by
+        # how many times we already offered the menu, not only field attempts.
+        prior = sum(
+            1
+            for text in state.bot_texts()
+            if re.search(r"\bboxes\b", text, re.I)
+            and re.search(r"\bbags?\b", text, re.I)
+            and re.search(r"\blabels?\b", text, re.I)
+        )
+        return PRODUCT_ASK_VARIANTS[min(prior, len(PRODUCT_ASK_VARIANTS) - 1)]
     if attempts >= 1 and key in REPHRASES:
         return REPHRASES[key]
     return base
@@ -444,6 +463,12 @@ def heuristic_turn(
             expected = (asked_key, state.question_for(asked_key) or "")
         if catalogue and asked_key == "material" and family == "labels":
             parts.append("Would you like to proceed with PP white vinyl?")
+            return Composed(reply=" ".join(parts).strip(), asked="material", source="heuristic")
+        if catalogue and asked_key == "material":
+            follow = state.question_for("material") or (
+                "Which of those materials do you want for this order?"
+            )
+            parts.append(follow)
             return Composed(reply=" ".join(parts).strip(), asked="material", source="heuristic")
         if catalogue and asked_key == "style":
             follow = state.question_for("style") or "Which of those styles do you want?"

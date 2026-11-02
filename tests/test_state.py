@@ -125,6 +125,7 @@ def test_a_refused_size_is_waived_not_answered():
 
 def test_no_preference_is_a_waiver_too():
     state = make_state("no preference")
+    state.last_question = "style"
     apply_field_updates(state, {"style": "no preference"}, "no preference")
     assert state.fields["style"].status == STATUS_WAIVED
     assert state.fields["style"].raw_visitor_text == "no preference"
@@ -745,6 +746,25 @@ def test_refusing_contact_waives_email_and_phone():
     assert "alternative materials when only one standard material exists" in RULE_TEXT
     assert "do not have an email" in RULE_TEXT
     assert "Stay inside the active product family" in RULE_TEXT
+
+
+def test_size_not_sure_does_not_waive_material_on_the_side():
+    state = make_state("not sure")
+    _fill(state, "product", "boxes")
+    _fill(state, "use_case", "for pizza")
+    _fill(state, "quantity", "500")
+    _fill(state, "style", "no preference", status=STATUS_WAIVED)
+    state.last_question = "sizes"
+    accepted, rejected = apply_field_updates(
+        state,
+        {"sizes": "not sure", "material": "not sure"},
+        "not sure",
+        source="model",
+    )
+    assert accepted.get("sizes") == "to be confirmed"
+    assert "material" in rejected or not state.fields["material"].done
+    assert state.fields["material"].value in {"", "not sure"}
+    assert state.fields["material"].status != STATUS_WAIVED
 
 
 def test_alternative_material_ask_does_not_fill_material_or_open_email():

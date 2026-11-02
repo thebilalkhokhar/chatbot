@@ -36,6 +36,7 @@ from .state import (
     PRODUCT_QUESTION,
     STATUS_SUGGESTED,
     STATUS_UNKNOWN,
+    STATUS_WAIVED,
     UNIT_ONLY_RE,
     ConversationState,
     apply_field_updates,
@@ -62,6 +63,7 @@ from .state import (
     product_disambiguation_question,
     refuses_contact,
     wants_human,
+    wants_recommendation,
 )
 from .store import open_state_store
 from .vision import VisionResult, analyze_image
@@ -806,6 +808,16 @@ class Orchestrator:
         state.add("visitor", visitor)
         asked_before = state.last_question
         was_reachable = state.reachable()
+        # English/catalogue spelling once for this turn so topics + extract agree
+        # ("adress" → "address" while quantity is open still answers location).
+        from .spelling import prepare_visitor_text
+
+        visitor, _catalogue_fuzzy = prepare_visitor_text(
+            visitor,
+            asked_before,
+            family=state.family(),
+            registry=self.registry,
+        )
         confirmed = state.confirm_suggested(visitor)
         extracted = extract_fields(visitor, state.last_question, state, registry=self.registry)
         accepted, rejected = apply_field_updates(state, extracted, visitor)
@@ -840,6 +852,22 @@ class Orchestrator:
         for deferred in defer_unanswered_open_field(state, visitor, accepted):
             rejected.pop(deferred, None)
         offer_for = needs_catalogue_options(state, visitor, accepted)
+        # Alternatives ask while a material/style/finish is only suggested (or
+        # was wrongly waived): clear it and force the catalogue menu.
+        if (
+            (is_option_request(visitor) or wants_recommendation(visitor))
+            and re.search(r"\bmaterials?\b", visitor, re.I)
+        ):
+            material = state.fields["material"]
+            if material.status == STATUS_SUGGESTED or (
+                material.status == STATUS_WAIVED and material.value == "no preference"
+            ):
+                material.value = ""
+                material.status = STATUS_UNKNOWN
+                material.raw_visitor_text = ""
+                material.basis = ""
+            offer_for = offer_for or "material"
+            state.last_question = "material"
         if offer_for:
             state.flags["offer_options_for"] = offer_for
         else:
@@ -886,7 +914,16 @@ class Orchestrator:
             and state.last_question in {"email", "phone", "name"}
             and refuses_contact(visitor)
         )
-        if refused_contact:
+        # Soft early email (size/qty still open): "no" skips the ask and
+        # continues the quote — do not burn contact attempts or hand off.
+        soft_email_skip = (
+            refused_contact
+            and asked_before == "email"
+            and state.blocking_open()
+        )
+        if soft_email_skip:
+            state.flags["soft_email_asked"] = True
+        elif refused_contact:
             state.fields["email"].attempts = max(state.fields["email"].attempts, 2)
             state.fields["phone"].attempts = max(state.fields["phone"].attempts, 2)
 
@@ -907,14 +944,16 @@ class Orchestrator:
         if asks_to_share_reference(visitor) or vision is not None:
             expected = continue_ask(state) or expected
         handoff_reason = self._handoff_reason(state, visitor, progressed=bool(accepted))
-        # Declining *their* email is a waiver. A bare refusal can hand off; a refusal
-        # that also asks for OUR contact/address must answer those facts first and
-        # must not claim "we'll email your quote" or dump straight to a specialist.
+        # Declining *their* email is a waiver. Soft early skip keeps quoting.
+        # Closing refuse can hand off; a refuse that also asks for OUR contact/
+        # address must answer those facts first.
         asking_our_details = (
             canon.asks_for_our_contact(visitor)
             or canon.asks_for_location(visitor)
         )
-        if refused_contact and not asking_our_details and not canon.topics_to_answer(visitor):
+        if soft_email_skip:
+            handoff_reason = ""
+        elif refused_contact and not asking_our_details and not canon.topics_to_answer(visitor):
             handoff_reason = "declined"
         elif refused_contact and asking_our_details and handoff_reason in {"quote", "declined"}:
             handoff_reason = ""

@@ -647,6 +647,18 @@ def needs_catalogue_options(
         return ""
     if field_shaped_attempt(key, text):
         return ""
+    # "suggest me other materials" is exactly the catalogue-menu ask — do not
+    # treat the materials topic as a reason to skip the menu.
+    if is_option_request(text) or wants_recommendation(text):
+        if key == "material" and re.search(r"\bmaterials?\b", text, re.I):
+            return key
+        if key == "finishes" and re.search(r"\bfinishes?\b", text, re.I):
+            return key
+        if key == "style" and re.search(r"\b(?:styles?|kinds?|types?)\b", text, re.I):
+            return key
+        # Open catalogue field + generic "options" ask.
+        if is_option_request(text):
+            return key
     from . import canon
     from .guards import question_as_answer
 
@@ -1821,7 +1833,19 @@ def traceable(key: str, value: str, visitor_text: str, state: ConversationState)
         if key == "extras" and candidate.lower() in {"yes", "no", "none", "both", "neither"}:
             return True
         tokens = [token for token in re.findall(r"[a-z0-9]+", candidate.lower()) if len(token) > 2]
-        return any(token in visitor for token in tokens)
+        if any(token in visitor for token in tokens):
+            return True
+        # Fuzzy catalogue picks: "mail box" → mailer, "kraftt" → kraft. The
+        # settled token need not appear verbatim in the visitor text.
+        if key in {"style", "material"}:
+            visitor_tokens = [
+                token for token in re.findall(r"[a-z0-9]+", visitor) if len(token) >= 3
+            ]
+            for token in tokens:
+                for vt in visitor_tokens:
+                    if token.startswith(vt) or vt.startswith(token):
+                        return True
+        return False
     return True
 
 
@@ -1935,18 +1959,19 @@ def apply_field_updates(
                 continue
             if normalized_style:
                 value = normalized_style
-        if key == "material" and basis == BASIS_VISITOR and (
+        if key == "material" and (
             is_question(visitor_text)
             or wants_recommendation(visitor_text)
             or is_option_request(visitor_text)
         ):
-            # An alternatives ask is not a material choice — even when it names
-            # vinyl while asking for something other than vinyl.
+            # An alternatives ask is not a material choice — visitor or model.
+            # "suggest me other materials" must not settle kraft / no preference.
             material_match = MATERIAL_HINTS.search(value)
             if (
                 not material_match
                 or wants_recommendation(visitor_text)
                 or is_option_request(visitor_text)
+                or basis != BASIS_VISITOR
             ):
                 rejected[key] = value
                 continue
@@ -2019,9 +2044,22 @@ def apply_field_updates(
         ):
             rejected[key] = value
             continue
-        if key in {"style", "material"} and UNSPECIFIED_RE.search(visitor_text):
-            state.set_field(key, "no preference", BASIS_VISITOR, raw=visitor_text, status=STATUS_WAIVED)
-            accepted[key] = "no preference"
+        # "not sure" / "no preference" only waives the field we asked. A model
+        # echo of the size waiver must not settle material/style on the side.
+        if key in {"style", "material"} and (
+            UNSPECIFIED_RE.search(visitor_text) or UNSPECIFIED_RE.match(str(value or ""))
+        ):
+            if (
+                key == state.last_question
+                and not wants_recommendation(visitor_text)
+                and not is_option_request(visitor_text)
+            ):
+                state.set_field(
+                    key, "no preference", BASIS_VISITOR, raw=visitor_text, status=STATUS_WAIVED
+                )
+                accepted[key] = "no preference"
+            else:
+                rejected[key] = value
             continue
         if basis == BASIS_VISITOR and not traceable(key, value, visitor_text, state):
             # A customer answer must be the customer's own words. A model proposal
@@ -2055,13 +2093,22 @@ def extract_fields(
     state: ConversationState,
     registry=None,
 ) -> dict[str, str]:
-    value = str(text or "")
+    raw = str(text or "")
+    if is_visitor_greeting(raw):
+        return {}
+    # Catalogue open-field typos → rapidfuzz; free English → pyspellchecker.
+    from .spelling import prepare_visitor_text
+
+    value, catalogue_fuzzy = prepare_visitor_text(
+        raw,
+        last_question,
+        family=state.family(),
+        registry=registry,
+    )
     lowered = value.lower()
     # Size probes fold *, ×, and "by" to x so 2*2 / 2 by 2 match like 2x2.
     size_text = normalise_dimension_separators(value)
     updates: dict[str, str] = {}
-    if is_visitor_greeting(value):
-        return updates
 
     email = EMAIL_RE.search(value)
     if email and valid_email(email.group(0)):
@@ -2213,9 +2260,23 @@ def extract_fields(
             updates[last_question] = TO_BE_CONFIRMED
 
     if contact_fields_refused(value, last_question):
-        for key in ("email", "phone"):
-            if not state.fields[key].done:
-                updates[key] = "declined"
+        # Soft early email "no" = skip this ask while size/qty still open.
+        # Closing refuse (order blockers settled) still waives email + phone.
+        soft_email_skip = last_question == "email" and state.blocking_open()
+        if soft_email_skip:
+            state.flags["soft_email_asked"] = True
+        else:
+            for key in ("email", "phone"):
+                if not state.fields[key].done:
+                    updates[key] = "declined"
+
+    if (
+        catalogue_fuzzy
+        and last_question in CATALOGUE_OPTION_FIELDS
+        and not wants_recommendation(raw)
+        and not is_option_request(raw)
+    ):
+        updates.setdefault(last_question, catalogue_fuzzy)
 
     if is_plain(value):
         state.flags["plain"] = True
