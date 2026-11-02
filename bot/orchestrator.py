@@ -844,6 +844,9 @@ class Orchestrator:
             state.flags["offer_options_for"] = offer_for
         else:
             state.flags.pop("offer_options_for", None)
+        if "email" in accepted:
+            # Volunteered or answered — soft early window is consumed.
+            state.flags["soft_email_asked"] = True
         # Bad email while we asked for one → tell them and keep the field open.
         state.flags.pop("invalid_email", None)
         if (
@@ -1166,6 +1169,9 @@ class Orchestrator:
             asked = "email"
         if asked:
             state.last_question = asked
+            if asked == "email":
+                # Soft early ask is one-shot whether they answer, skip, or refuse.
+                state.flags["soft_email_asked"] = True
             field_value = state.fields.get(asked)
             unit_question = (
                 asked == "sizes"

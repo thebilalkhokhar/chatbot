@@ -76,6 +76,9 @@ LEGACY_SOURCES = {"visitor": BASIS_VISITOR, "model": BASIS_MODEL, "llm": BASIS_M
 
 USE_CASE_QUESTION = "What will be inside it, or who is it going to?"
 EMAIL_QUESTION = "What is the best email to send the quote to?"
+SOFT_EMAIL_QUESTION = (
+    "I can send the quote by email when we're done — what address should we use?"
+)
 PHONE_QUESTION = "What is the best phone number to reach you on?"
 
 # Section 3.4. Highest decision impact first. The ask-set is this order, filtered
@@ -1362,7 +1365,8 @@ class ConversationState:
         return not self.size_needs_unit()
 
     def complete(self) -> bool:
-        return self.specs_done() and self.reachable()
+        # Soft email can land early; quote handoff waits until style/finish/etc. settle too.
+        return self.specs_done() and self.reachable() and not self.product_details_open()
 
     def script(self) -> list[tuple[str, str]]:
         """The family's wording catalogue. Order here is not the order we ask in."""
@@ -1385,6 +1389,28 @@ class ConversationState:
             return True
         return False
 
+    def ready_for_soft_email(self) -> bool:
+        """One early email ask right after product + use case — never a hard gate.
+
+        Skip, refuse, or answer something else → size/qty/style continue as usual.
+        Closing email ask still runs at quote-ready if the address is still empty.
+        """
+        if self.flags.get("soft_email_asked"):
+            return False
+        if self.family() == "unknown":
+            return False
+        if not self.fields["product"].done:
+            return False
+        use_case = self.fields["use_case"]
+        if not (use_case.done or use_case.attempts >= 2):
+            return False
+        email = self.fields["email"]
+        if email.done or self.reachable():
+            return False
+        if email.attempts >= 1:
+            return False
+        return True
+
     def blocking_open(self) -> bool:
         """A quote-blocking field is still empty. `use_case` is not one of them."""
         for key in BLOCKING_FIELDS:
@@ -1405,17 +1431,24 @@ class ConversationState:
             return False
         if key in ALWAYS_ASK_FIELDS:
             return True
+        if key == "email":
+            if self.reachable():
+                return False
+            # Soft early ask once; closing ask after product details are settled.
+            if self.ready_for_soft_email():
+                return True
+            if self.product_details_open() or blocking_open:
+                return False
+            return True
         if blocking_open or key not in AFTER_BLOCKING_FIELDS:
             return False
-        if key in {"email", "phone"}:
-            # Designs, material and finish come before anyone is asked for an email.
+        if key == "phone":
             if self.product_details_open():
                 return False
             if self.reachable():
                 return False
-            # Email twice, then phone — the same contact order as before, just no longer
-            # gated on walking the script to the end.
-            if key == "phone" and not self.fields["email"].done and self.fields["email"].attempts < 2:
+            # Email twice (soft + close), then phone.
+            if not self.fields["email"].done and self.fields["email"].attempts < 2:
                 return False
             return True
         if key == "skus" and self.is_plain():
@@ -1458,6 +1491,9 @@ class ConversationState:
                 and key not in keys
             ):
                 keys.insert(0, key)
+        # Soft email is the only ask for that one turn (then product questions resume).
+        if self.ready_for_soft_email():
+            return ["email"]
         return keys
 
     def do_not_ask(self) -> list[tuple[str, str]]:
@@ -1504,6 +1540,13 @@ class ConversationState:
             )
         if "sizes" in allowed and self.size_needs_unit():
             lines.append(f"Size unit question, verbatim: {self.question_for('sizes')}")
+        if self.ready_for_soft_email() and "email" in allowed:
+            lines.append(
+                "Soft email ask (once): product and use case are known — ask for their "
+                "email for the quote now. If they skip, refuse, or answer something else, "
+                "continue with size/quantity/style — do not stall on email. Re-ask email "
+                "only when the quote is ready if it is still empty."
+            )
         return "\n".join(lines)
 
     def question_for(self, key: str) -> str:
@@ -1513,6 +1556,8 @@ class ConversationState:
         if key == "product":
             return PRODUCT_QUESTION
         if key == "email":
+            if self.ready_for_soft_email():
+                return SOFT_EMAIL_QUESTION
             return EMAIL_QUESTION
         if key == "phone":
             return PHONE_QUESTION
@@ -1638,9 +1683,11 @@ class ConversationState:
             elif key == "use_case":
                 missing.append(f"{FIELD_LABELS[key]} (needed for a recommendation)")
             elif key in CONTACT_FIELDS:
-                if self.product_details_open():
+                if key == "email" and self.ready_for_soft_email():
+                    missing.append(FIELD_LABELS[key])
+                elif self.product_details_open():
                     continue
-                if not self.reachable() and key != "name":
+                elif not self.reachable() and key != "name":
                     missing.append(FIELD_LABELS[key])
             elif key in relevant:
                 if value.attempts >= 2 and key in AFTER_BLOCKING_FIELDS:

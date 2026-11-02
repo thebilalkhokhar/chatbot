@@ -305,6 +305,10 @@ def test_model_cannot_tbc_size_while_use_case_is_open():
     assert "sizes" in rejected
     assert state.fields["sizes"].status == STATUS_UNKNOWN
     assert not state.fields["sizes"].value
+    # Soft email is first; size stays missing behind it.
+    assert state.ask_set() == ["email"]
+    state.flags["soft_email_asked"] = True
+    state.fields["email"].attempts = 1
     assert "sizes" in state.ask_set()
 
 
@@ -485,14 +489,25 @@ def test_use_case_is_asked_and_does_not_stall_the_quote():
     assert state.ask_set()[0] == "use_case"
     state.fields["use_case"].attempts = 2
     assert "use_case" not in state.ask_set()
+    # Soft email comes once right after product + use case.
+    assert state.next_question()[0] == "email"
+    state.flags["soft_email_asked"] = True
+    state.fields["email"].attempts = 1
     assert state.next_question()[0] == "style"
     assert state.next_question() is not None
 
 
 def test_the_script_is_only_the_wording_once_a_field_is_selected():
+    from chatbot.bot.state import SOFT_EMAIL_QUESTION
+
     state = make_state("boxes")
     _fill(state, "product", "boxes")
     _fill(state, "use_case", "candles")
+    key, question = state.next_question()
+    assert key == "email"
+    assert question == SOFT_EMAIL_QUESTION
+    state.flags["soft_email_asked"] = True
+    state.fields["email"].attempts = 1
     _fill(state, "sizes", "4x6 in")
     _fill(state, "quantity", "1000")
     key, question = state.next_question()
@@ -524,15 +539,29 @@ def test_a_size_missing_its_unit_stays_askable_and_off_the_do_not_ask_list():
     _fill(state, "use_case", "candles")
     _fill(state, "sizes", "100x150")
     assert state.size_needs_unit()
+    state.flags["soft_email_asked"] = True
+    state.fields["email"].attempts = 1
     assert state.ask_set()[0] == "sizes"
     assert state.next_question()[1] == "Is 100x150 in inches, cm, or mm?"
     assert "sizes" not in dict(state.do_not_ask())
 
 
-def test_email_waits_until_designs_material_and_finish_are_known():
-    state = make_state("boxes")
+def test_soft_email_asks_once_after_product_and_use_case():
+    from chatbot.bot.state import SOFT_EMAIL_QUESTION
+
+    state = make_state("boxes for candles")
     _fill(state, "product", "boxes")
     _fill(state, "use_case", "candles")
+    assert state.ready_for_soft_email()
+    assert state.ask_set() == ["email"]
+    assert state.next_question() == ("email", SOFT_EMAIL_QUESTION)
+    assert "phone" not in state.ask_set()
+
+    # Soft ask consumed — size/qty continue even with no email.
+    state.flags["soft_email_asked"] = True
+    state.fields["email"].attempts = 1
+    assert state.ask_set()[0] == "sizes"
+
     _fill(state, "sizes", "4x6 in")
     _fill(state, "quantity", "1000")
     allowed = state.ask_set()
@@ -540,12 +569,23 @@ def test_email_waits_until_designs_material_and_finish_are_known():
     assert "phone" not in allowed
     assert allowed[0] == "style"
     assert "material" in allowed and "finishes" in allowed and "skus" in allowed
-    assert state.next_contact_question() is None
+
     _fill(state, "style", "mailer")
     _fill(state, "material", "kraft")
     _fill(state, "finishes", "matte")
     _fill(state, "skus", "1")
+    # Quote-ready and email still empty → closing ask.
     assert state.ask_set()[0] == "email"
+
+
+def test_soft_email_skip_keeps_product_questions_open():
+    state = make_state("boxes for candles")
+    _fill(state, "product", "boxes")
+    _fill(state, "use_case", "candles")
+    state.flags["soft_email_asked"] = True
+    state.fields["email"].attempts = 1
+    assert not state.fields["email"].done
+    assert state.ask_set()[0] == "sizes"
 
 
 def test_a_settled_style_is_not_overwritten_or_left_in_the_ask_set():
@@ -699,7 +739,7 @@ def test_refusing_contact_waives_email_and_phone():
     assert RULE_TEXT.startswith("You MUST ask ONLY ONE single question")
     assert "If they just said good morning or hello" in RULE_TEXT
     assert "NEVER invent names that are not in the primer" in RULE_TEXT
-    assert "You MUST exhaust ALL missing mandatory product fields" in RULE_TEXT
+    assert "ask ONCE for their email (soft ask" in RULE_TEXT
     assert "Once a style or finish is accepted, it is locked" in RULE_TEXT
     assert "You can reach the team at Support@print247.us or +1 (832) 807-3429." in RULE_TEXT
     assert "alternative materials when only one standard material exists" in RULE_TEXT
@@ -722,6 +762,8 @@ def test_alternative_material_ask_does_not_fill_material_or_open_email():
     _fill(state, "quantity", "200")
     _fill(state, "finishes", "spot uv")
     _fill(state, "skus", "2")
+    state.flags["soft_email_asked"] = True
+    state.fields["email"].attempts = 1
     state.last_question = "material"
     apply_field_updates(state, extract_fields(text, "material", state), text)
     assert not state.fields["material"].done

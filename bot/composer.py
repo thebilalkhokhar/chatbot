@@ -69,7 +69,7 @@ REPHRASES = {
     "extras": "Would you like a zipper or tear notch added?",
     "use_case": "What are you packing, or what is this order for?",
     "name": "Who am I speaking with?",
-    "email": "Where should the quote go — which email works best?",
+    "email": "I can send the quote by email when we're done — what address should we use?",
     "phone": "What number is best if the team needs to reach you?",
 }
 
@@ -123,7 +123,7 @@ If the user asks for alternative materials when only one standard material exist
 
 Stay inside the active product family from the GOAL. If the order is labels, never mention bag or box styles or materials. If it is boxes, never mention bag or label details. Recommendations and catalogue lists use only that family's vocabulary.
 
-You MUST exhaust ALL missing mandatory product fields (Product, Use Case, Size, Quantity, Finish, Material, Designs where the family asks for them) before you are allowed to ask for contact information (Email/Phone) or initiate a handoff. Never skip ahead to email or phone while Material, Finish, Designs, or any other open product-spec field is still unresolved.
+After Product and Use Case are known, ask ONCE for their email (soft ask for the quote) before size/quantity/style. If they give it, save it and continue. If they skip, refuse, or answer a product field instead, continue size and the rest — do not stall on email. Phone waits until product details are done. Re-ask email only when the quote is ready if it is still empty. Never jump to phone or handoff while Material, Finish, Designs, or other open product-spec fields are unresolved after the soft email turn.
 
 Once a style or finish is accepted, it is locked. Do not ask for it again, and do not put it in fields_proposed or proposed_configs.
 
@@ -134,7 +134,7 @@ and ask the next ASK SET field. Never re-ask the same field on that turn. Use "t
 only for sizes, style, finishes, material, designs, extras, use case, or quantity — never for
 product, email, phone, or name.
 
-When they ask how to reach you, the first sentence must be exactly: "You can reach the team at Support@print247.us or +1 (832) 807-3429." Then ask the next missing checklist field in the same message. Do not ask for their email until Designs, Material, and Finish are filled.
+When they ask how to reach you, the first sentence must be exactly: "You can reach the team at Support@print247.us or +1 (832) 807-3429." Then ask the next missing checklist field in the same message.
 
 If they say they do not have an email, refuse to share one, or otherwise decline contact details, treat that as a waiver: acknowledge it, you may share the support contact from FACTS once, do not ask for their email or phone again, and do not trap them in an email loop.
 
@@ -764,8 +764,9 @@ def build_user(
             "They asked how to reach you. The first sentence must be exactly: "
             '"You can reach the team at Support@print247.us or +1 (832) 807-3429." '
             "Then ask the single highest-priority field still in the ASK SET. "
-            "Do not ask for their email or phone while Designs, Material, or Finish are still open. "
-            "Ask designs in plain language; never say SKU to the visitor."
+            "After the one soft email ask, do not re-ask email while Designs, Material, or "
+            "Finish are still open — continue those fields. Ask designs in plain language; "
+            "never say SKU to the visitor."
             if canon.asks_for_our_contact(visitor)
             else ""
         ),

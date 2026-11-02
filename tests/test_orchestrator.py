@@ -8,6 +8,16 @@ def blockers(result) -> list[str]:
     return [issue["code"] for issue in result.issues if issue["severity"] == "block"]
 
 
+def skip_soft_email(orchestrator, conversation_id: str, *, next_ask: str = "sizes") -> None:
+    """Consume the one soft email ask so size/style tests stay focused."""
+    state = orchestrator.store.get_or_create(conversation_id)
+    state.flags["soft_email_asked"] = True
+    state.fields["email"].attempts = max(1, state.fields["email"].attempts)
+    if next_ask in state.fields and not state.fields[next_ask].done:
+        state.last_question = next_ask
+    orchestrator.store.save(state)
+
+
 def test_start_sets_persona_and_greeting(orchestrator):
     result = orchestrator.start("c-start")
     assert result.persona in {persona.name for persona in PERSONAS}
@@ -153,7 +163,11 @@ def test_pack_count_is_not_an_order_quantity(orchestrator):
     # "2 count" is pack size / use case, not an order of two pouches.
     assert "gummy" in str(state.fields["use_case"].value)
     assert not state.fields["quantity"].done
-    assert "size" in result.reply.lower()
+    # Soft email is next after product + use case.
+    assert "email" in result.reply.lower() or "address" in result.reply.lower()
+    skip_soft_email(orchestrator, "c-pouch")
+    follow = orchestrator.handle("c-pouch", "ok")
+    assert "size" in follow.reply.lower()
     assert blockers(result) == []
 
 
@@ -174,7 +188,8 @@ def test_sign_is_a_banner(orchestrator):
 
 def test_size_without_unit_asks_for_the_unit(orchestrator):
     orchestrator.start("c-unit")
-    orchestrator.handle("c-unit", "mylar bags")
+    orchestrator.handle("c-unit", "mylar bags for coffee")
+    skip_soft_email(orchestrator, "c-unit")
     result = orchestrator.handle("c-unit", "8x8x4")
     lowered = result.reply.lower()
     assert "inches" in lowered and "mm" in lowered
@@ -347,6 +362,11 @@ def test_food_box_question_gets_a_suggestion(orchestrator):
     result = orchestrator.handle("c-food", "suggest me best suite box for dry meat/")
     lowered = result.reply.lower()
     assert "sbs" in lowered or "food-grade" in lowered
+    # Soft email may be the ask after use case lands; size follows once skipped.
+    if "address" in lowered or "email" in lowered:
+        skip_soft_email(orchestrator, "c-food")
+        result = orchestrator.handle("c-food", "ok")
+        lowered = result.reply.lower()
     assert "size" in lowered
     assert result.reply.count("?") == 1
     assert blockers(result) == []
@@ -424,8 +444,16 @@ def test_saved_question_in_a_field_is_repaired(orchestrator):
 def test_no_style_preference_gets_style_options(orchestrator):
     orchestrator.start("c-style-none")
     orchestrator.handle("c-style-none", "I need custom boxes for shipping candles")
+    # Soft email lands right after product + use case; skip it first.
+    state = orchestrator.store.get_or_create("c-style-none")
+    state.flags["soft_email_asked"] = True
+    state.fields["email"].attempts = max(state.fields["email"].attempts, 1)
+    orchestrator.store.save(state)
     orchestrator.handle("c-style-none", "4 x 6 x 2 inches")
     orchestrator.handle("c-style-none", "1000")
+    state = orchestrator.store.get_or_create("c-style-none")
+    state.last_question = "style"
+    orchestrator.store.save(state)
     result = orchestrator.handle("c-style-none", "i dont have")
     lowered = result.reply.lower()
     assert "mailer" in lowered and "display boxes" in lowered
@@ -437,6 +465,7 @@ def test_no_style_preference_gets_style_options(orchestrator):
 def test_unknown_size_is_explained_not_stored_verbatim(orchestrator):
     orchestrator.start("c-size-unknown")
     orchestrator.handle("c-size-unknown", "I need custom boxes for shipping candles")
+    skip_soft_email(orchestrator, "c-size-unknown")
     result = orchestrator.handle("c-size-unknown", "not sure")
     lowered = result.reply.lower()
     assert "no standard size" in lowered
@@ -456,6 +485,7 @@ def test_let_team_decide_defers_size_without_phrase_list(orchestrator):
 
     orchestrator.start("c-defer-size")
     orchestrator.handle("c-defer-size", "boxes for water bottle")
+    skip_soft_email(orchestrator, "c-defer-size")
     result = orchestrator.handle("c-defer-size", "let team decide it")
     state = orchestrator.store.get_or_create("c-defer-size")
     assert state.fields["sizes"].value == TO_BE_CONFIRMED
@@ -475,8 +505,10 @@ def test_coffee_beans_use_case_does_not_waive_size(orchestrator):
     assert state.fields["use_case"].value == "coffee beans"
     assert not state.fields["sizes"].done
     assert state.fields["sizes"].value in {"", None} or state.fields["sizes"].status == STATUS_UNKNOWN
+    # Soft email is asked on this turn; size stays open for the next ask.
+    assert "address" in result.reply.lower() or "email" in result.reply.lower()
+    assert state.flags.get("soft_email_asked")
     assert "sizes" in state.ask_set()
-    assert "size" in result.reply.lower()
 
 
 def test_give_me_options_on_style_lists_box_styles(orchestrator):
@@ -488,6 +520,8 @@ def test_give_me_options_on_style_lists_box_styles(orchestrator):
     state.set_field("use_case", "pizza", status=STATUS_VISITOR)
     state.set_field("sizes", TO_BE_CONFIRMED, status=STATUS_WAIVED)
     state.set_field("quantity", "1000", status=STATUS_VISITOR)
+    state.flags["soft_email_asked"] = True
+    state.fields["email"].attempts = 1
     state.last_question = "style"
     orchestrator.store.save(state)
     result = orchestrator.handle("c-style-opts", "give me options")
@@ -510,6 +544,8 @@ def test_any_non_style_wording_lists_styles_dynamically(orchestrator):
     state.set_field("use_case", "pizza", status=STATUS_VISITOR)
     state.set_field("sizes", TO_BE_CONFIRMED, status=STATUS_WAIVED)
     state.set_field("quantity", "1000", status=STATUS_VISITOR)
+    state.flags["soft_email_asked"] = True
+    state.fields["email"].attempts = 1
     state.last_question = "style"
     orchestrator.store.save(state)
     result = orchestrator.handle("c-style-dyn", "batao kya kya hai")
@@ -522,10 +558,11 @@ def test_any_non_style_wording_lists_styles_dynamically(orchestrator):
 
 
 def test_not_sure_on_size_waives_even_if_live_skips_field(orchestrator):
-    from chatbot.bot.state import STATUS_VISITOR, STATUS_WAIVED, TO_BE_CONFIRMED
+    from chatbot.bot.state import STATUS_WAIVED, TO_BE_CONFIRMED
 
     orchestrator.start("c-size-ns")
     orchestrator.handle("c-size-ns", "boxes for pizza")
+    skip_soft_email(orchestrator, "c-size-ns")
     result = orchestrator.handle("c-size-ns", "not sure")
     state = orchestrator.store.get_or_create("c-size-ns")
     assert state.fields["sizes"].value == TO_BE_CONFIRMED
@@ -777,6 +814,42 @@ def test_contact_inquiry_answers_then_returns_to_the_checklist(orchestrator):
     state = orchestrator.store.get_or_create("c-contact-ask")
     assert "email" not in state.ask_set()
     assert state.fields["email"].value == ""
+
+
+def test_soft_email_then_continue_whether_given_or_skipped(orchestrator):
+    from chatbot.bot.state import SOFT_EMAIL_QUESTION, STATUS_VISITOR
+
+    orchestrator.start("c-soft-email")
+    state = orchestrator.store.get_or_create("c-soft-email")
+    state.set_field("product", "boxes", status=STATUS_VISITOR)
+    state.set_field("use_case", "biscuits", status=STATUS_VISITOR)
+    state.last_question = "use_case"
+    orchestrator.store.save(state)
+    assert state.ready_for_soft_email()
+    assert state.ask_set() == ["email"]
+    assert state.next_question()[1] == SOFT_EMAIL_QUESTION
+
+    soft = orchestrator.handle("c-soft-email", "later")
+    state = orchestrator.store.get_or_create("c-soft-email")
+    # Soft ask fired; skip without an address → size/qty continue.
+    assert state.flags.get("soft_email_asked")
+    assert not state.fields["email"].done
+    assert state.ask_set()[0] in {"sizes", "quantity"}
+    assert soft.handoff == ""
+
+    orchestrator.start("c-soft-email-ok")
+    state = orchestrator.store.get_or_create("c-soft-email-ok")
+    state.set_field("product", "boxes", status=STATUS_VISITOR)
+    state.set_field("use_case", "biscuits", status=STATUS_VISITOR)
+    state.last_question = "use_case"
+    orchestrator.store.save(state)
+    got = orchestrator.handle("c-soft-email-ok", "buyer@example.com")
+    state = orchestrator.store.get_or_create("c-soft-email-ok")
+    assert state.fields["email"].value == "buyer@example.com"
+    assert state.fields["email"].done
+    assert state.flags.get("soft_email_asked")
+    assert state.ask_set()[0] in {"sizes", "quantity"}
+    assert got.handoff == ""
 
 
 def test_you_pick_on_finish_waives_to_be_confirmed(orchestrator):
