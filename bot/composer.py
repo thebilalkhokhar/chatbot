@@ -9,6 +9,8 @@ from .personas import PERSONAS, persona_for
 from .state import (
     ConversationState,
     asks_if_bot,
+    asks_to_share_reference,
+    continue_ask,
     family_of,
     is_goodbye,
     is_job_pitch,
@@ -38,11 +40,26 @@ HANDOFF_LINES = {
     "declined": "No problem — let me bring a packaging specialist in to help with the rest.",
 }
 
+# Conversational finish set for custom boxes — do not volunteer other primer finishes.
+BOX_PRIMARY_FINISHES = (
+    "matte lamination",
+    "gloss lamination",
+    "soft touch lamination",
+    "spot UV",
+    "foil printing",
+)
+BOX_PRIMARY_FINISHES_TEXT = (
+    "matte lamination, gloss lamination, soft touch lamination, spot UV, and foil printing"
+)
+
 REPHRASES = {
     "product": "Which product are you looking to have made: boxes, bags, labels or something else?",
     "sizes": "Could you share the size you need — for example 3x6 ft, or in inches?",
     "style": "Which style are you leaning toward for this order?",
-    "finishes": "Which finish would you like: matte, gloss or soft touch?",
+    "finishes": (
+        "Which finish would you like: matte lamination, gloss lamination, "
+        "soft touch lamination, spot UV, or foil printing?"
+    ),
     "quantity": "Roughly how many units are you planning for the first run?",
     "skus": "How many separate designs are going on this order?",
     "material": "Is there a particular material or special feature you want included?",
@@ -95,7 +112,9 @@ If the user is just saying hello, asking off-topic questions, or providing impos
 
 Do not open a later message with Good Morning or Hello on your own. If they just said good morning or hello, answer that greeting in a few words, then ask the one open question. A greeting is not their product.
 
-When a user asks for examples or options, you MUST strictly list ONLY the exact styles/materials found in the CATALOGUE PRIMER vocabulary. NEVER invent or hallucinate options like Square Boxes if they are not explicitly in the primer.
+When a user asks for examples, options, or style suggestions (for example "suggest me the styles"), you MUST immediately list valid catalogue styles for the ACTIVE product family from the CATALOGUE PRIMER / FAMILY DETAIL / FACTS style lines. Do not stall, do not refuse, and do not skip to an unrelated checklist question before naming styles. Emit proposed_configs for each style you name. NEVER invent or hallucinate options like Square Boxes if they are not explicitly in the primer.
+
+When listing finish options for custom boxes, use ONLY these official box finishes: matte lamination, gloss lamination, soft touch lamination, spot UV, and foil printing. Do not volunteer drip off, embossing, varnish, AQ coating, or finishes that belong to bags, pouches, or labels. If the visitor already named another boxes-primer finish by name, you may confirm it; otherwise stay inside that official list.
 
 If the user asks for alternative materials when only one standard material exists for a product family (for example PP white vinyl for labels, as stated in FACTS), politely explain that this product specifically uses our standard high-grade material for best results, and ask if they would like to proceed with it. Reason in your own words from FACTS and the CATALOGUE PRIMER — do not invent a second stock, do not emit a fake style such as N/A, do not restate locked finishes in proposed_configs, do not crash into a fallback pattern, and NEVER jump to asking for an email on that turn. Leave proposed_configs empty, or name only that single standard material.
 
@@ -111,6 +130,24 @@ If they say they do not have an email, refuse to share one, or otherwise decline
 
 Never ask about something they already told you. You may only ask about fields in the ASK SET;
 anything in the DO NOT ASK SET is off limits even as a confirmation.
+
+Reference images: when they ask if they can add, attach, upload, or share a reference image,
+answer YES in the first sentence and invite them to use the chat attach control. Do not ignore
+that ask and do not only repeat the previous checklist question. After the invite, you may briefly
+keep the one open ASK SET question.
+
+When a reference image is already on this turn (GOAL says they shared one, or their message is
+"[shared a reference image]"), never silently accept it and never ignore it. Correlate what is
+visible STRICTLY with the highest-priority open ASK SET field only: size → look for printed
+dimensions only if clearly readable (never invent sizes); style → construction/shape using
+exact catalogue style names for this family; finish → sheen/texture using exact catalogue
+finish names for this family (for boxes: matte lamination, gloss lamination, soft touch
+lamination, spot UV, foil printing); material → substrate using catalogue material names.
+Ask them conversationally before locking anything, for example: "I see the reference image you
+shared! It looks like a [catalogue term for the open field]. Should I use this for your order?"
+— that is one yes/no question, not a promise to check later. If the open detail is not clearly
+readable, say so politely and ask them to clarify that one field — do not ignore the image, and
+leave proposed_configs empty unless you are naming a visible catalogue option for them to accept.
 
 NEVER append, quote, or paraphrase the standard MOQ sentence. For banners there is no minimum
 order. For everything else the standard minimum is 1,000 per size, or 500 each with multiple
@@ -180,6 +217,27 @@ def _topic_answer(key: str, family: str, overrides: dict[str, str] | None) -> st
             return scoped[family]
         if family != "unknown":
             return ""
+    if key == "finishes":
+        scoped = {
+            "boxes": (
+                "For custom boxes, finishes include "
+                f"{BOX_PRIMARY_FINISHES_TEXT}."
+            ),
+            "bags": (
+                "Bag and pouch finishes include matte, gloss, soft touch, spot UV "
+                "and foil printing."
+            ),
+            "labels": (
+                "Label finishes include matte, gloss, soft touch, spot UV and foil printing."
+            ),
+        }
+        if family in scoped:
+            return scoped[family]
+        if family != "unknown":
+            return (
+                "Finishes include matte lamination, gloss lamination, soft touch "
+                "lamination, spot UV and foil printing."
+            )
     # Multi-family canon lines are only for early turns before a family is known.
     return canon.effective_answer(key, overrides)
 
@@ -277,6 +335,19 @@ def heuristic_turn(
             source="heuristic",
         )
 
+    if asks_to_share_reference(visitor):
+        parts.append(
+            "Yes — please attach your reference image with the attach control in the chat. "
+            "When it arrives, we can match the visible details to your order together."
+        )
+        # Keep the same open question already on the table (do not jump fields).
+        focused = continue_ask(state) or expected
+        question = _question_text(state, focused)
+        if question:
+            parts.append(question)
+            asked = focused[0] if focused else ""
+        return Composed(reply=" ".join(parts).strip(), asked=asked, source="heuristic")
+
     topics = canon.topics_to_answer(visitor)
     if handoff_reason == "quote":
         # Closing the quote is not a request for the facility or the public phone line.
@@ -307,19 +378,32 @@ def heuristic_turn(
         parts.append(HANDOFF_LINES.get(handoff_reason, HANDOFF_LINES["stalled"]))
         return Composed(reply=" ".join(parts).strip(), asked="", source="heuristic")
 
-    if is_option_request(visitor):
-        # "For example?" / "which one do you have?" names the catalogue, then one ask.
+    style_suggest = (
+        "styles" in topics
+        or wants_recommendation(visitor)
+        and re.search(r"\bstyles?\b", visitor, re.I)
+    )
+    finish_suggest = (
+        wants_recommendation(visitor) or is_option_request(visitor)
+    ) and re.search(r"\bfinishes?\b", visitor, re.I)
+
+    if is_option_request(visitor) or style_suggest or finish_suggest:
+        # "For example?" / "suggest me the styles" names the catalogue, then one ask.
         # Prefer the topic they asked about over a mis-detected last_question, and
         # keep the catalogue inside the active product family.
         asked_key = state.last_question
         catalogue = ""
-        if "materials" in topics or asked_key == "material":
+        if "materials" in topics or (
+            asked_key == "material" and not style_suggest and not finish_suggest
+        ):
             catalogue = _topic_answer("materials", family, overrides)
-        elif asked_key == "quantity":
+        elif asked_key == "quantity" and not style_suggest and not finish_suggest:
             catalogue = ""
-        elif asked_key == "finishes":
-            catalogue = "Finishes include matte, gloss and soft touch."
-        elif "styles" in topics or asked_key == "style":
+        elif finish_suggest or asked_key == "finishes":
+            catalogue = _topic_answer(
+                "finishes", family if family != "unknown" else "boxes", overrides
+            )
+        elif style_suggest or "styles" in topics or asked_key == "style":
             catalogue = _topic_answer(
                 "styles", family if family != "unknown" else "boxes", overrides
             )
@@ -453,6 +537,8 @@ def _allowlist_block(registry) -> str:
 def _intent(visitor: str) -> str:
     if asks_if_bot(visitor):
         return "identity"
+    if asks_to_share_reference(visitor):
+        return "reference_share"
     if refuses_contact(visitor):
         return "refusal"
     if is_meta_question(visitor):
@@ -507,6 +593,12 @@ def _candidate_block(registry, state: ConversationState, chunks) -> str:
         "may use only a style, material, finish, insert, or extra from the rows below. "
         "Do not invent a gauge, a point size, or a name that is not on one of these rows.",
     ]
+    if family == "boxes":
+        lines.append(
+            "BOX FINISH LISTING — when you list finish options in the reply, use only: "
+            f"{BOX_PRIMARY_FINISHES_TEXT}. Other finish names on the rows stay available "
+            "only if the visitor already asked for that finish by name."
+        )
     for row in rows:
         parts = []
         if row.styles:
@@ -514,7 +606,16 @@ def _candidate_block(registry, state: ConversationState, chunks) -> str:
         if row.materials:
             parts.append("material: " + "; ".join(row.materials))
         if row.finishes:
-            parts.append("finish: " + "; ".join(row.finishes))
+            finishes = row.finishes
+            if family == "boxes":
+                primary = {
+                    f.casefold() for f in BOX_PRIMARY_FINISHES
+                }
+                preferred = tuple(
+                    f for f in finishes if f.casefold() in primary
+                )
+                finishes = preferred or BOX_PRIMARY_FINISHES
+            parts.append("finish: " + "; ".join(finishes))
         if row.inserts:
             parts.append("insert: " + "; ".join(row.inserts))
         if row.extras:
@@ -566,12 +667,17 @@ def build_user(
             "1,000 per size, or smaller runs."
         ),
         (
-            "They asked for examples or options. List ONLY the exact styles and materials "
-            "in the CATALOGUE PRIMER vocabulary. Do not invent a name such as Square Boxes."
-            if is_option_request(visitor)
-            and not (
-                wants_recommendation(visitor)
-                and "materials" in topics
+            "They asked for examples, options, or style suggestions. Immediately list ONLY the "
+            "exact styles (and materials if they asked for those) from the CATALOGUE PRIMER / "
+            "FAMILY DETAIL for the ACTIVE product family. Emit proposed_configs for each named "
+            "style. Do not invent a name such as Square Boxes. Then ask one field from the ASK SET."
+            if (
+                (is_option_request(visitor) or "styles" in topics)
+                and not (
+                    wants_recommendation(visitor)
+                    and "materials" in topics
+                    and "styles" not in topics
+                )
             )
             else ""
         ),
@@ -585,6 +691,19 @@ def build_user(
             else ""
         ),
         (
+            "They asked about finishes or finish options. For custom boxes, list ONLY: "
+            f"{BOX_PRIMARY_FINISHES_TEXT}. Do not mention drip off or finishes from other "
+            "product families. Emit proposed_configs using those exact finish strings, then ask "
+            "one ASK SET field."
+            if (
+                re.search(r"\bfinishes?\b", visitor, re.I)
+                and (wants_recommendation(visitor) or is_option_request(visitor)
+                     or state.last_question == "finishes")
+                and state.family() in {"boxes", "unknown"}
+            )
+            else ""
+        ),
+        (
             "They asked how to reach you. The first sentence must be exactly: "
             '"You can reach the team at Support@print247.us or +1 (832) 807-3429." '
             "Then ask the single highest-priority field still in the ASK SET. "
@@ -593,22 +712,47 @@ def build_user(
             else ""
         ),
         (
-            "They declined to share contact details or said they have no email. Acknowledge it, "
-            "you may share the support contact from FACTS once, do not ask for their email or "
-            "phone again, and do not keep looping on contact."
+            "They declined to share their email/phone. Acknowledge that, do not ask for their "
+            "email or phone again, and do not hand off just because they refused. If they also "
+            "asked for OUR contact or address, answer those from FACTS (support email/phone and "
+            "Rosenberg when they asked for the address), then continue with one ASK SET field."
             if refuses_contact(visitor)
             else ""
         ),
         (
             "They are asking for a recommendation: name one specific option from the catalogue, "
             "say in one short clause why it fits, then ask one field from the ASK SET."
-            if wants_recommendation(visitor) and "materials" not in topics
+            if (
+                wants_recommendation(visitor)
+                and "materials" not in topics
+                and "styles" not in topics
+                and not re.search(r"\b(?:styles?|finishes?)\b", visitor, re.I)
+            )
             else ""
         ),
         (
             "They asked whether you are a bot: use the one disclosure sentence, then continue "
             "with what they were asking about."
             if asked_if_bot
+            else ""
+        ),
+        (
+            "They asked if they can add/attach/upload a reference image. First sentence: yes, "
+            "invite them to use the chat attach control. Then repeat the SAME open question already "
+            "on the table (the last checklist ask), not a different field. Do not ignore their "
+            "image ask. Leave proposed_configs empty."
+            if asks_to_share_reference(visitor)
+            else ""
+        ),
+        (
+            "They shared a reference image this turn. Acknowledge it warmly, correlate visible "
+            "cues with the top open ASK SET field, and ask one confirmation or clarification "
+            "question. Never invent dimensions. If the open detail is unclear in the image, say "
+            "so and ask them to clarify that field."
+            if (
+                "[shared a reference image]" in visitor.lower()
+                or bool(state.flags.get("reference_image_this_turn"))
+            )
             else ""
         ),
         "Write the next message as JSON. `proposed_configs` has one object per option the reply "

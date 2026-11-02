@@ -262,6 +262,12 @@ CANON: dict[str, CanonFact] = {
             r"\b(?:bag|pouch|box)\s+styles?\b",
             r"\bstyles?\s+(?:of|for)\s+(?:bags?|pouches?|boxes?)\b",
             r"\b(?:what|which)\s+(?:styles?|kinds?|types?)\s+(?:do you|can you|are)\b",
+            r"\b(?:suggest|recommend)\s+(?:me\s+)?(?:the\s+|some\s+|a\s+few\s+)?"
+            r"(?:styles?|kinds?|types?)\b",
+            r"\b(?:styles?|kinds?|types?)\s+(?:you\s+)?(?:suggest|recommend|offer|have)\b",
+            r"\b(?:any|some)\s+styles?\b",
+            r"\bshow\s+(?:me\s+)?(?:the\s+|some\s+)?styles?\b",
+            r"\blist\s+(?:the\s+|some\s+)?styles?\b",
         ),
         answer_tokens=(r"stand-up", r"mailer"),
         note="Options come from the mylar pouch styles page and the boxes campaign style cards; offer only listed styles.",
@@ -404,11 +410,12 @@ def detect_topics(text: str) -> list[str]:
     value = str(text or "")
     topics = [key for key in TOPIC_PRIORITY if CANON[key].matches(value)]
     # "I don't have an email" names the word email. It is a refusal to give
-    # theirs, not a question about how to reach Print247.
+    # theirs, not a question about how to reach Print247 — unless the same
+    # message also asks for OUR contact ("please share your contact details").
     if "contact" in topics:
         from .state import refuses_contact
 
-        if refuses_contact(value):
+        if refuses_contact(value) and not _OUR_CONTACT_ASK.search(value):
             topics = [key for key in topics if key != "contact"]
     return dedupe_topics(topics)
 
@@ -459,7 +466,9 @@ _OUR_CONTACT_ASK = re.compile(
     r"|\b(?:can|could|may) (?:i|we) (?:get|have|call)\b[^?.!]{0,36}\b(?:e-?mail|phone|contact|number)\b"
     r"|\bdo you have\b[^?.!]{0,36}\b(?:an?\s+)?(?:e-?mail|phone|whatsapp|contact)\b"
     r"|\b(?:can|could|may) (?:i|we) call you\b"
-    r"|\b(?:reach|contact) (?:you|the team|support|someone)\b",
+    r"|\b(?:reach|contact) (?:you|the team|support|someone)\b"
+    r"|\b(?:share|give|send|provide)\s+(?:me\s+|us\s+)?(?:your|the)\s+"
+    r"(?:e-?mail|phone(?:\s+number)?|contact(?:\s+(?:info|information|details|number))?|whatsapp|number)\b",
     re.I,
 )
 
@@ -475,13 +484,13 @@ def asks_for_location(text: str) -> bool:
 
 
 def asks_for_our_contact(text: str) -> bool:
-    """They asked how to reach Print247, not for a place to send their own details."""
+    """They asked how to reach Print247, not for a place to send their own details.
+
+    A compound turn is allowed: refusing to share *their* email while asking for
+    *our* contact ("I don't want to share email — please share your contact").
+    """
     value = str(text or "").strip()
     if not value or not CANON["contact"].matches(value):
-        return False
-    from .state import refuses_contact
-
-    if refuses_contact(value):
         return False
     return bool(_OUR_CONTACT_ASK.search(value))
 

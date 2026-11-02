@@ -114,7 +114,11 @@ SCRIPTS: dict[str, list[tuple[str, str]]] = {
     "boxes": [
         ("sizes", "What box size are you looking for?"),
         ("style", "What style of box do you need, or can you share a reference image?"),
-        ("finishes", "What finish do you prefer: matte, gloss or soft touch?"),
+        (
+            "finishes",
+            "What finish do you prefer: matte lamination, gloss lamination, "
+            "soft touch lamination, spot UV, or foil printing?",
+        ),
         ("quantity", "What quantity are you looking to order for your first run?"),
         ("skus", "How many total designs or SKUs do you have?"),
         ("material", "Do you have any specific material or special features in mind?"),
@@ -152,7 +156,10 @@ FALLBACK_QUESTIONS = {
     "sizes": "What size are you looking for?",
     "quantity": "What quantity are you looking to order for your first run?",
     "style": "What style do you need?",
-    "finishes": "What finish do you prefer: matte, gloss or soft touch?",
+    "finishes": (
+        "What finish do you prefer: matte lamination, gloss lamination, "
+        "soft touch lamination, spot UV, or foil printing?"
+    ),
     "skus": "How many total designs or SKUs do you have?",
     "material": "Do you have any specific material or special features in mind?",
     "extras": "Do you want any extras on this order?",
@@ -211,8 +218,11 @@ SIZE_UNIT_RE = re.compile(
     r'(?:\d(?:\.\d+)?\s*(?:in|inch|inches|"|cm|mm|oz|ml|g|grams?|lb|ft)\b|\b(?:inches|centimet(?:er|re)s?|millimet(?:er|re)s?|cm|mm|oz|ml|grams?)\b)',
     re.I,
 )
+# Multipliers visitors type between numbers: 2x2, 2×2, 2*2, 2 by 2, 2 X 2.
+DIM_SEP = r"(?:x|×|\*|by)"
 SIZE_DIM_RE = re.compile(
-    r"(\d+(?:\.\d+)?)\s*(?:x|×|by)\s*(\d+(?:\.\d+)?)(?:\s*(?:x|×|by)\s*(\d+(?:\.\d+)?))?\s*(in(?:ch(?:es)?)?|\"|cm|mm|oz|ml|g|grams?|lb|ft)?",
+    rf"(\d+(?:\.\d+)?)\s*{DIM_SEP}\s*(\d+(?:\.\d+)?)(?:\s*{DIM_SEP}\s*(\d+(?:\.\d+)?))?"
+    rf"\s*(in(?:ch(?:es)?)?|\"|cm|mm|oz|ml|g|grams?|lb|ft)?",
     re.I,
 )
 SINGLE_SIZE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(in(?:ch(?:es)?)?|\"|cm|mm|oz|ml|g|grams?|lb|ft)\b", re.I)
@@ -234,10 +244,15 @@ BARE_QTY_RE = re.compile(
 EMAIL_RE = re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b")
 PHONE_RE = re.compile(r"(?<!\d)(?:\+?1[\s.\-]?)?(?:\(?\d{3}\)?[\s.\-]?)\d{3}[\s.\-]?\d{4}(?!\d)")
 FINISH_WORDS = {
+    # Longer catalogue forms first so "matte lamination" does not collapse to "matte".
+    "matte lamination": ("matte lamination",),
+    "gloss lamination": ("gloss lamination",),
+    "soft touch lamination": ("soft touch lamination", "soft-touch lamination"),
+    "foil printing": ("foil printing", "foil stamping"),
+    "spot uv": ("spot uv", "spot-uv"),
     "matte": ("matte", "matt"),
     "gloss": ("gloss", "glass", "glossy"),
     "soft touch": ("soft touch", "soft-touch", "suede"),
-    "spot uv": ("spot uv", "spot-uv"),
     "foil": ("foil", "gold foil", "silver foil"),
     "embossing": ("emboss", "embossing"),
     "none": ("none", "no finish", "no preference", "whatever", "standard"),
@@ -276,11 +291,66 @@ MATERIAL_HINTS = re.compile(
 # Section 3.1: `use_case` is the field v1 has no place for, which is the structural
 # reason the bot never asks what is being packed. Two shapes of answer: a sales
 # channel, or the thing that goes inside.
+USE_CASE_TAIL = (
+    r"([a-z0-9][a-z0-9 &'\-]{1,48}?)"
+    r"(?=\s*(?:[,.!?]|\band\b|\bbut\b|\bso\b|\bbecause\b|\bin\b|\bwith\b|\bthat\b|\bplease\b|\bthanks\b|$))"
+)
 USE_CASE_NOUN_RE = re.compile(
     r"\b(?:for my|for our|to pack|packing|packed with|holds|holding|filled with|going inside|goes inside|"
     r"use case|intended for|for shipping|for storing|for sending|for mailing|for selling|for wrapping|for gifting)\s+"
-    r"([a-z][a-z0-9 &'\-]{2,48}?)(?=\s*(?:[,.!?]|\band\b|\bbut\b|\bso\b|\bbecause\b|\bin\b|\bwith\b|\bthat\b|\bplease\b|\bthanks\b|$))",
+    + USE_CASE_TAIL,
     re.I,
+)
+# "{product} for {purpose}" — labels for whisky bottles, boxes for candles.
+# Excludes "for example" / "for instance"; product-family phrases are dropped later.
+USE_CASE_PRODUCT_FOR_RE = re.compile(
+    r"\b(?:(?:custom|plain|blank|printed|die[- ]?cut)\s+)*"
+    r"(?:labels?|stickers?|decals?|bags?|pouch(?:es)?|mylar|boxes?|cartons?|mailers?|"
+    r"banners?|signs?|business cards?|cards?)\s+for\s+"
+    r"(?!example\b|instance\b|now\b|sale\b|me\b|us\b|you\b)"
+    + USE_CASE_TAIL,
+    re.I,
+)
+# "{purpose} {product}" — whiskey bottle label, honey jar stickers.
+# Banners/signs omitted: "parking sign" is the product name, not a use case.
+USE_CASE_PURPOSE_PRODUCT_RE = re.compile(
+    r"\b([a-z][a-z0-9 &'\-]{1,40}?)\s+"
+    r"(?:labels?|stickers?|decals?|bags?|pouch(?:es)?|boxes?|cartons?|mailers?|"
+    r"business cards?)\b",
+    re.I,
+)
+USE_CASE_PURPOSE_BLOCKLIST = frozenset(
+    {
+        "custom",
+        "plain",
+        "blank",
+        "printed",
+        "die-cut",
+        "die cut",
+        "mylar",
+        "kraft",
+        "matte",
+        "gloss",
+        "soft touch",
+        "stand-up",
+        "stand up",
+        "flat",
+        "flat-bottom",
+        "flat bottom",
+        "mailer",
+        "rigid",
+        "need",
+        "want",
+        "looking",
+        "order",
+        "some",
+        "more",
+        "new",
+        "best",
+        "your",
+        "our",
+        "my",
+    }
 )
 USE_CASE_CHANNEL_RE = re.compile(
     r"\b(e[- ]?commerce|retail|wholesale|in[- ]store|brick[- ]and[- ]mortar|subscription|"
@@ -384,6 +454,7 @@ def size_has_zero_dimension(text: str) -> bool:
     value = re.sub(r"\s+", " ", str(text or "")).strip(" .,;")
     if not value:
         return False
+    value = normalise_dimension_separators(value)
     numbers: list[str] = []
     match = SIZE_DIM_RE.search(value)
     if match:
@@ -442,12 +513,23 @@ UNIT_FORMS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("ft", ("ft", "foot", "feet")),
 )
 DIM_SET_RE = re.compile(
-    r"^(\d+(?:\.\d+)?)"
-    r"(?:\s*(?:x|×|\*|by)\s*(\d+(?:\.\d+)?))?"
-    r"(?:\s*(?:x|×|\*|by)\s*(\d+(?:\.\d+)?))?"
-    r"(?:\s*(.+))?$",
+    rf"^(\d+(?:\.\d+)?)"
+    rf"(?:\s*{DIM_SEP}\s*(\d+(?:\.\d+)?))?"
+    rf"(?:\s*{DIM_SEP}\s*(\d+(?:\.\d+)?))?"
+    rf"(?:\s*(.+))?$",
     re.I,
 )
+# *, ×, and the word "by" between digits → a plain x, so extraction and
+# normalisation share one shape before the LxW regex runs.
+DIM_SEP_NORMALIZE_RE = re.compile(
+    rf"(?<=\d)\s*(?:×|\*|\bby\b)\s*(?=\d)",
+    re.I,
+)
+
+
+def normalise_dimension_separators(text: str) -> str:
+    """Fold *, ×, and 'by' between numbers into x (e.g. 2*2 → 2x2, 2 by 2 → 2x2)."""
+    return DIM_SEP_NORMALIZE_RE.sub("x", str(text or ""))
 
 
 def _canonical_unit(token: str) -> str:
@@ -473,6 +555,7 @@ def normalise_size(text: str) -> str:
     value = re.sub(r"\s+", " ", str(text or "")).strip(" .,;")
     if not value:
         return ""
+    value = normalise_dimension_separators(value)
     # An inch mark is a unit, but it belongs to the whole set: 24" x 36" is
     # "24x36 in", not "24 in x 36 in".
     quoted = '"' in value
@@ -512,19 +595,97 @@ def normalize_finish(text: str) -> str | None:
     return None
 
 
+def _use_case_phrase(raw: str) -> str:
+    phrase = re.sub(r"\s+", " ", str(raw or "")).strip(" .,;:")
+    words = [word for word in phrase.lower().split() if word not in USE_CASE_STOP_WORDS]
+    if not words:
+        return ""
+    cleaned = " ".join(words)
+    # A bare product family ("boxes", "coffee bags") is the product, not the use case.
+    if family_of(phrase) != "unknown" or family_of(cleaned) != "unknown":
+        return ""
+    return cleaned[:60]
+
+
 def use_case_from(text: str) -> str:
     """What it is for: the thing going inside, or the channel it sells through."""
     value = str(text or "")
-    match = USE_CASE_NOUN_RE.search(value)
-    if match:
-        phrase = re.sub(r"\s+", " ", match.group(1)).strip(" .,;:")
-        words = [word for word in phrase.lower().split() if word not in USE_CASE_STOP_WORDS]
-        if words and family_of(phrase) == "unknown":
-            return phrase.lower()[:60]
+    for pattern in (USE_CASE_NOUN_RE, USE_CASE_PRODUCT_FOR_RE):
+        match = pattern.search(value)
+        if match:
+            phrase = _use_case_phrase(match.group(1))
+            if phrase:
+                return phrase
+    purpose = USE_CASE_PURPOSE_PRODUCT_RE.search(value)
+    if purpose:
+        phrase = _use_case_phrase(purpose.group(1))
+        words = phrase.split() if phrase else []
+        lead_blocked = {
+            "i",
+            "we",
+            "you",
+            "looking",
+            "need",
+            "want",
+            "order",
+            "get",
+            "buy",
+            "make",
+            "print",
+            "custom",
+            "plain",
+            "blank",
+            "printed",
+        }
+        if (
+            phrase
+            and phrase not in USE_CASE_PURPOSE_BLOCKLIST
+            and words
+            and not any(word in lead_blocked for word in words)
+            and not all(word in USE_CASE_PURPOSE_BLOCKLIST for word in words)
+        ):
+            return phrase
     channel = USE_CASE_CHANNEL_RE.search(value)
     if channel:
         return re.sub(r"\s+", " ", channel.group(0).lower())[:60]
     return ""
+
+
+def field_ask_name(key: str) -> str:
+    """Prompt-facing field name: underscores become spaces so the model never says use_case."""
+    return str(key or "").replace("_", " ")
+
+
+def field_clarify_phrase(key: str) -> str:
+    """Natural phrase for 'I couldn't make out …' — never 'the What it is for'."""
+    phrases = {
+        "use_case": "what this is for",
+        "sizes": "the size",
+        "quantity": "the quantity",
+        "style": "the style",
+        "finishes": "the finish",
+        "material": "the material",
+        "skus": "how many designs",
+        "product": "which product",
+        "extras": "the extras",
+        "name": "the name",
+        "email": "the email",
+        "phone": "the phone number",
+    }
+    return phrases.get(key, f"the {field_ask_name(key)}")
+
+
+def continue_ask(state: "ConversationState") -> tuple[str, str] | None:
+    """Prefer the question already on the table when it is still askable."""
+    last = str(state.last_question or "").strip()
+    if last == "sizes" and state.size_needs_unit():
+        question = state.question_for("sizes")
+        return ("sizes", question) if question else None
+    if last and last in state.ask_set():
+        question = state.question_for(last)
+        if question:
+            return last, question
+    return state.next_question()
 
 
 def normalize_style(text: str) -> str | None:
@@ -594,7 +755,23 @@ OPTION_REQUEST_RE = re.compile(
     r"|\b(?:which|what)\s+options?\b"
     r"|\b(?:other|alternative)\s+materials?\b"
     r"|\bmaterials?\s+other\s+than\b"
-    r"|\bsuggest\s+(?:me\s+)?(?:other\s+|alternative\s+)?materials?\b",
+    r"|\bsuggest\s+(?:me\s+)?(?:other\s+|alternative\s+)?materials?\b"
+    r"|\b(?:suggest|recommend)\s+(?:me\s+)?(?:the\s+|some\s+|a\s+few\s+)?"
+    r"(?:styles?|kinds?|types?|finishes?|options?)\b"
+    r"|\b(?:styles?|kinds?|types?|finishes?)\s+(?:you\s+)?(?:suggest|recommend|offer|have)\b"
+    r"|\blist\s+(?:the\s+|some\s+)?(?:styles?|finishes?|options?)\b"
+    r"|\bshow\s+(?:me\s+)?(?:the\s+|some\s+)?(?:styles?|finishes?)\b",
+    re.I,
+)
+# "Can I add a reference image?" is not an answer and not an artwork-format ask.
+REFERENCE_SHARE_RE = re.compile(
+    r"\b(?:can i|can we|could i|may i|should i|want to|wanna|let me|"
+    r"i(?:'d| would)? like to|is it (?:ok|okay|possible) to)\b"
+    r".{0,48}\b(?:add|attach|send|share|upload|provide|include)\b"
+    r".{0,48}\b(?:reference|image|photo|picture|artwork|design|file|mockup)\b"
+    r"|\b(?:attach|upload|share|send)\b.{0,24}\b(?:a |an |my |the )?"
+    r"(?:reference|image|photo|picture|artwork|design|file|mockup)\b"
+    r"|\breference image\b",
     re.I,
 )
 
@@ -606,6 +783,11 @@ def is_context_question(text: str) -> bool:
 
 def is_option_request(text: str) -> bool:
     return bool(OPTION_REQUEST_RE.search(str(text or "")))
+
+
+def asks_to_share_reference(text: str) -> bool:
+    """Visitor wants to attach a reference image — invite them, do not ignore."""
+    return bool(REFERENCE_SHARE_RE.search(str(text or "")))
 
 
 def wants_human(text: str) -> bool:
@@ -949,7 +1131,11 @@ class ConversationState:
     def ask_constraint(self) -> str:
         """The hard prompt lines from Section 3.4: allowed asks, then their words."""
         allowed = self.ask_set()
-        ask = ", ".join(allowed) if allowed else "(nothing — do not ask a new question)"
+        ask = (
+            ", ".join(field_ask_name(key) for key in allowed)
+            if allowed
+            else "(nothing — do not ask a new question)"
+        )
         denied = self.do_not_ask()
         if denied:
             parts = []
@@ -957,7 +1143,7 @@ class ConversationState:
                 shown = words.replace('"', "'")
                 if len(shown) > 80:
                     shown = shown[:77] + "..."
-                parts.append(f'{key} (they said "{shown}")')
+                parts.append(f'{field_ask_name(key)} (they said "{shown}")')
             deny = ", ".join(parts)
         else:
             deny = "(nothing yet)"
@@ -966,7 +1152,7 @@ class ConversationState:
         if locked:
             lines.append(
                 "Locked, already accepted: "
-                + ", ".join(locked)
+                + ", ".join(field_ask_name(key) for key in locked)
                 + ". Do not ask about them again, and do not put them in fields_proposed or proposed_configs."
             )
         if "sizes" in allowed and self.size_needs_unit():
@@ -1097,6 +1283,9 @@ class ConversationState:
             value = self.fields[key]
             if value.done and not (key == "sizes" and self.size_needs_unit()):
                 continue
+            # Attempt budget spent and not settled: leave the ask-set, not the Missing noise.
+            if key == "use_case" and value.attempts >= 2 and not value.done:
+                continue
             if key in BLOCKING_FIELDS:
                 missing.append(f"{FIELD_LABELS[key]} (blocking)")
             elif key == "use_case":
@@ -1107,6 +1296,8 @@ class ConversationState:
                 if not self.reachable() and key != "name":
                     missing.append(FIELD_LABELS[key])
             elif key in relevant:
+                if value.attempts >= 2 and key in AFTER_BLOCKING_FIELDS:
+                    continue
                 missing.append(FIELD_LABELS[key])
         return missing
 
@@ -1355,7 +1546,9 @@ def apply_field_updates(
                 accepted[key] = "to be confirmed"
                 continue
         if key == "quantity":
-            looks_like_size = bool(SIZE_DIM_RE.search(visitor_text)) and not re.search(
+            looks_like_size = bool(
+                SIZE_DIM_RE.search(normalise_dimension_separators(visitor_text))
+            ) and not re.search(
                 r"\b(pcs|pieces|units|bags?|boxes?|labels?|pouch(?:es)?|banners?|cards?|k|thousand)\b",
                 visitor_text.lower(),
             )
@@ -1374,9 +1567,19 @@ def apply_field_updates(
             number = parse_quantity(value)
             if number is not None:
                 value = str(number)
-        if key in {"style", "finishes"} and state.fields[key].stated and state.last_question != key:
-            rejected[key] = value
-            continue
+        # Settled answers stay put. A later size/quantity turn (or a model echo)
+        # must not clear or rewrite product, use_case, or any other stated field.
+        # Refinement is allowed only while that field is the open question.
+        existing = state.fields[key]
+        if existing.stated and state.last_question != key:
+            refining_size_unit = (
+                key == "sizes"
+                and state.size_needs_unit()
+                and (size_has_unit(value) or size_has_unit(visitor_text))
+            )
+            if not refining_size_unit:
+                rejected[key] = value
+                continue
         if (
             key in {"style", "finishes"}
             and basis == BASIS_CATALOGUE
@@ -1424,6 +1627,8 @@ def extract_fields(
 ) -> dict[str, str]:
     value = str(text or "")
     lowered = value.lower()
+    # Size probes fold *, ×, and "by" to x so 2*2 / 2 by 2 match like 2x2.
+    size_text = normalise_dimension_separators(value)
     updates: dict[str, str] = {}
     if is_visitor_greeting(value):
         return updates
@@ -1451,9 +1656,9 @@ def extract_fields(
     if style and not is_question(value):
         updates["style"] = style
 
-    if last_question == "sizes" or SIZE_DIM_RE.search(value) or SINGLE_SIZE_RE.search(value):
+    if last_question == "sizes" or SIZE_DIM_RE.search(size_text) or SINGLE_SIZE_RE.search(value):
         pending_size = str(state.flags.get("size_pending_unit") or "").strip()
-        size_match = SIZE_DIM_RE.search(value) or SINGLE_SIZE_RE.search(value)
+        size_match = SIZE_DIM_RE.search(size_text) or SINGLE_SIZE_RE.search(value)
         if last_question == "sizes" and pending_size and UNIT_ONLY_RE.match(value):
             updates["sizes"] = f"{pending_size} {value.strip()}"
         elif (
@@ -1470,7 +1675,7 @@ def extract_fields(
                 state.fields["sizes"].attempts = min(state.fields["sizes"].attempts, 1)
         elif size_match and not size_has_zero_dimension(size_match.group(0)):
             updates["sizes"] = size_match.group(0)
-        elif size_match or (last_question == "sizes" and size_has_zero_dimension(value)):
+        elif size_match or (last_question == "sizes" and size_has_zero_dimension(size_text)):
             # A zero dimension is not a size. Leave the field empty so it is asked again.
             pass
         elif size_is_unknown(value):

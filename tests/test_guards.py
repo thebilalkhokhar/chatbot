@@ -344,6 +344,30 @@ def test_redundant_ask_blocks_a_field_they_already_stated():
     assert "question_already_answered" in result.codes()
 
 
+def test_use_case_question_is_not_misread_as_material():
+    reply = (
+        "What use case is this label for (e.g., product label, promo label, "
+        "barcode/warnings) so I can tailor the right finish and material?"
+    )
+    assert guards.asked_field(reply) == "use_case"
+    state = make_state("15*20")
+    state.set_field("product", "labels", raw="labels", status=STATUS_VISITOR)
+    state.set_field("use_case", "whisky bottle", raw="whisky bottle", status=STATUS_VISITOR)
+    state.set_field("sizes", "15x20", raw="15*20", status=STATUS_VISITOR)
+    result = guards.check_reply(reply, state, visitor_text="15*20")
+    assert "redundant_ask" in result.codes()
+    assert not result.ok
+    redirected = guards.prepare_reply(
+        reply,
+        "15*20",
+        priority_key="sizes",
+        priority_text="Is 15x20 in inches, cm, or mm?",
+        locked_fields=("product", "use_case"),
+    )
+    assert "use case" not in redirected.lower()
+    assert "inches" in redirected.lower()
+
+
 def test_a_size_missing_its_unit_is_not_a_redundant_ask():
     state = make_state("100 x 150")
     state.set_field("sizes", "100x150", raw="100 x 150", status=STATUS_VISITOR)

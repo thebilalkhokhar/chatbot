@@ -8,8 +8,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import canon, guards
-from .capability import Candidate, Registry, estimate_tokens
+from .capability import Candidate, Registry, estimate_tokens, fold
 from .composer import (
+    BOX_PRIMARY_FINISHES,
     Composed,
     HANDOFF_LINES,
     REPHRASES,
@@ -33,7 +34,10 @@ from .state import (
     ConversationState,
     apply_field_updates,
     asks_if_bot,
+    asks_to_share_reference,
+    continue_ask,
     extract_fields,
+    field_clarify_phrase,
     family_of,
     greeting_ack,
     is_context_question,
@@ -349,6 +353,118 @@ class Orchestrator:
             named = f"{', '.join(labels[:-1])} and {labels[-1]} are"
         return f"{named} noted. {state.question_for('style')}".strip()
 
+    def _vision_focus(
+        self,
+        state: ConversationState,
+        expected: tuple[str, str] | None,
+    ) -> tuple[str, str] | None:
+        """Image turns follow the question already on the table when it is still open."""
+        continued = continue_ask(state)
+        if continued:
+            return continued
+        return expected
+
+    def _vision_catalogue_terms(self, state: ConversationState, focus_field: str) -> str:
+        """Approved vocabulary for the open field, so vision can map onto catalogue wording."""
+        family = state.family()
+        if not focus_field or family == "unknown" or self.registry is None:
+            if focus_field == "finishes" and family in {"boxes", "unknown"}:
+                return ", ".join(BOX_PRIMARY_FINISHES)
+            return ""
+        slot = {
+            "style": "style",
+            "finishes": "finish",
+            "material": "material",
+            "product": "style",
+        }.get(focus_field, "")
+        if focus_field == "finishes" and family == "boxes":
+            return ", ".join(BOX_PRIMARY_FINISHES)
+        if not slot:
+            return ""
+        values = self.registry.values(family, slot)
+        if not values:
+            return ""
+        # Keep the prompt short: primary box styles / a sample of vocabulary.
+        sample = list(values[:24])
+        return ", ".join(sample)
+
+    def _canonicalize_vision_updates(
+        self,
+        state: ConversationState,
+        updates: dict[str, str],
+        *,
+        focus_field: str = "",
+    ) -> dict[str, str]:
+        """Keep vision proposals on the open field and map them to catalogue terms."""
+        family = state.family()
+        if focus_field == "sizes":
+            return {}
+        scoped = updates
+        if focus_field in {"style", "finishes", "material"}:
+            keep = {focus_field}
+            if not state.fields["product"].done:
+                keep.add("product")
+            scoped = {key: value for key, value in updates.items() if key in keep}
+        if self.registry is None or family == "unknown":
+            return scoped
+
+        slot_for = {"style": "style", "finishes": "finish", "material": "material"}
+        out: dict[str, str] = {}
+        for key, value in scoped.items():
+            text = str(value or "").strip()
+            if not text:
+                continue
+            if key == "product":
+                out[key] = text
+                continue
+            slot = slot_for.get(key)
+            if not slot:
+                out[key] = text
+                continue
+            if key == "finishes" and family == "boxes":
+                folded = fold(text)
+                mapped = ""
+                for primary in BOX_PRIMARY_FINISHES:
+                    if folded == fold(primary) or folded in fold(primary) or fold(primary) in folded:
+                        mapped = primary
+                        break
+                if not mapped:
+                    # Short forms like "matte" / "gloss" → official box finishes.
+                    shorts = {
+                        "matte": "matte lamination",
+                        "matt": "matte lamination",
+                        "gloss": "gloss lamination",
+                        "glossy": "gloss lamination",
+                        "soft touch": "soft touch lamination",
+                        "softtouch": "soft touch lamination",
+                        "spot uv": "spot UV",
+                        "foil": "foil printing",
+                    }
+                    for tip, primary in shorts.items():
+                        if tip in folded:
+                            mapped = primary
+                            break
+                if mapped:
+                    out[key] = mapped
+                continue
+            normalised = self.registry.normalise(family, slot, text)
+            if normalised.answers_nothing or not normalised.value:
+                continue
+            allowed = {fold(item) for item in self.registry.values(family, normalised.slot)}
+            candidate = normalised.value
+            if fold(candidate) in allowed:
+                out[key] = candidate
+                continue
+            # Partial / synonym match against vocabulary.
+            hit = ""
+            for item in self.registry.values(family, normalised.slot):
+                if fold(candidate) in fold(item) or fold(item) in fold(candidate):
+                    hit = item
+                    break
+            if hit:
+                out[key] = hit
+        return out
+
     def _vision_reply(
         self,
         state: ConversationState,
@@ -356,31 +472,69 @@ class Orchestrator:
         vision_accepted: dict[str, str],
         expected: tuple[str, str] | None,
     ) -> str:
-        """Ack a reference image and confirm the strongest suggested slot."""
+        """Ack a reference image, confirm visible cues, or ask when the open field is unclear."""
         summary = str(vision.summary or "").strip()
-        if not summary or summary.lower().startswith("reference image received"):
-            lead = "Thanks — I can see the reference."
+        stub = (not summary) or summary.lower().startswith("reference image received")
+        if stub:
+            lead = "I see the reference image you shared!"
         else:
             short = re.sub(r"\s+", " ", summary).strip()
             if len(short) > 140:
                 short = short[:137].rsplit(" ", 1)[0] + "…"
-            lead = f"Thanks — I can see the reference. {short}"
+            lead = f"I see the reference image you shared! {short}"
         lead = re.sub(r"\s+", " ", lead).strip()
 
-        for key in ("style", "product", "finishes", "material"):
+        focused = self._vision_focus(state, expected)
+        focus = focused[0] if focused else ""
+        focus_question = focused[1] if focused else ""
+        # Prefer confirming the cue that matches the open checklist field.
+        confirm_order = [focus] if focus in {"style", "product", "finishes", "material"} else []
+        confirm_order.extend(
+            key for key in ("style", "product", "finishes", "material") if key not in confirm_order
+        )
+        for key in confirm_order:
             value = vision_accepted.get(key) or ""
             if not value or state.fields[key].status != STATUS_SUGGESTED:
                 continue
             if key == "product":
-                return f"{lead} Are you looking for {value} from this artwork?"
+                return (
+                    f"{lead} It looks like {value}. "
+                    f"Should I use this for your order — are you looking for {value}?"
+                )
             if key == "style":
-                return f"{lead} Does {value} look like the right style?"
+                return (
+                    f"{lead} It looks like a {value} style. "
+                    "Should I use this for your order?"
+                )
             if key == "finishes":
-                return f"{lead} Does a {value} finish look right?"
-            return f"{lead} Does {value} sound right for the material?"
+                return (
+                    f"{lead} It looks like a {value} finish. "
+                    "Should I use this for your order?"
+                )
+            return (
+                f"{lead} It looks like {value}. "
+                "Should I use this material for your order?"
+            )
 
-        if expected:
-            return f"{lead} {expected[1]}".strip()
+        observation = str(vision.focus_observation or "").strip()
+        if focus == "sizes":
+            product = str(state.fields["product"].value or "label").strip() or "label"
+            return (
+                f"{lead} I can't clearly read exact dimensions from the image — "
+                f"what size should we use for your {product}?"
+            )
+        if focus and not vision.focus_clear:
+            phrase = field_clarify_phrase(focus)
+            clarify = focus_question or f"Could you confirm {phrase}?"
+            if observation:
+                return f"{lead} {observation} {clarify}".strip()
+            return (
+                f"{lead} I couldn't clearly make out {phrase} from this image. "
+                f"{clarify}"
+            ).strip()
+
+        if focused:
+            return f"{lead} {focused[1]}".strip()
         urgent = self._urgent_ask(state)
         if urgent:
             return f"{lead} {urgent}".strip()
@@ -421,6 +575,19 @@ class Orchestrator:
             if urgent:
                 parts.append(urgent)
             return " ".join(parts)
+        if asks_to_share_reference(visitor):
+            parts = [
+                "Yes — please attach your reference image with the attach control in the chat. "
+                "When it arrives, we can match the visible details to your order together."
+            ]
+            focused = continue_ask(state) or expected
+            if urgent and focused and focused[0] in {"sizes", "quantity", "use_case", "product"}:
+                parts.append(focused[1])
+            elif focused:
+                parts.append(focused[1])
+            elif urgent:
+                parts.append(urgent)
+            return " ".join(parts)
         if is_meta_question(visitor):
             parts = ["Fair question — I'll stick to what the quote actually needs."]
             if urgent:
@@ -454,10 +621,14 @@ class Orchestrator:
         visitor_greeted = is_visitor_greeting(visitor)
         locked = ()
         if state is not None:
+            # Any settled goal field is locked — especially product / use_case —
+            # so a live draft cannot re-ask them after a size or quantity turn.
             locked = tuple(
                 key
-                for key in ("style", "finishes")
-                if state.fields[key].stated
+                for key, field_value in state.fields.items()
+                if field_value.stated
+                and not (key == "sizes" and state.size_needs_unit())
+                and key != priority_key
             )
         polished = guards.prepare_reply(
             reply,
@@ -546,14 +717,34 @@ class Orchestrator:
         vision: VisionResult | None = None
         vision_accepted: dict[str, str] = {}
         attachment_id = ""
+        state.flags.pop("reference_image_this_turn", None)
         if image_bytes:
             try:
                 saved = self.attachments.save(conversation_id, image_bytes, image_mime or "image/jpeg")
                 attachment_id = saved.id
-                vision = analyze_image(self.llm, self.config, image_bytes, saved.mime)
+                focused = continue_ask(state) or (
+                    (state.ask_set()[0], state.question_for(state.ask_set()[0]))
+                    if state.ask_set()
+                    else None
+                )
+                focus_field = focused[0] if focused else ""
+                focus_hint = focused[1] if focused else ""
+                catalogue_terms = self._vision_catalogue_terms(state, focus_field)
+                vision = analyze_image(
+                    self.llm,
+                    self.config,
+                    image_bytes,
+                    saved.mime,
+                    focus_field=focus_field,
+                    focus_hint=focus_hint,
+                    family=state.family(),
+                    catalogue_terms=catalogue_terms,
+                )
                 self.attachments.set_vision(saved.id, vision.summary, vision.to_dict())
                 state.flags["reference_image"] = True
+                state.flags["reference_image_this_turn"] = True
                 state.flags["last_attachment_id"] = saved.id
+                state.flags["vision_focus_field"] = focus_field
                 self.store.append_event(
                     conversation_id,
                     "attachment",
@@ -563,6 +754,7 @@ class Orchestrator:
                         "size_bytes": saved.size_bytes,
                         "storage_backend": saved.storage_backend,
                         "vision": vision.to_dict(),
+                        "focus_field": focus_field,
                     },
                 )
             except (AttachmentError, LLMError) as error:
@@ -580,6 +772,7 @@ class Orchestrator:
             accepted[key] = state.fields[key].value
         if vision is not None:
             # Vision cues are bot proposals until the visitor confirms them.
+            focus_field = str(state.flags.get("vision_focus_field") or "")
             vision_updates = {
                 key: value
                 for key, value in vision.field_updates().items()
@@ -590,6 +783,9 @@ class Orchestrator:
                     or state.fields[key].status == STATUS_SUGGESTED
                 )
             }
+            vision_updates = self._canonicalize_vision_updates(
+                state, vision_updates, focus_field=focus_field
+            )
             vision_ok, vision_rejected = apply_field_updates(
                 state, vision_updates, visitor, source="model"
             )
@@ -612,6 +808,7 @@ class Orchestrator:
             and not is_goodbye(visitor)
             and not is_job_pitch(visitor)
             and not asks_if_bot(visitor)
+            and not asks_to_share_reference(visitor)
             and not is_visitor_greeting(visitor)
             and len(visitor.split()) <= 8
         )
@@ -638,9 +835,21 @@ class Orchestrator:
                 product.attempts = 1
 
         expected = state.next_question()
+        # Reference-share and image turns keep the question already on the table.
+        if asks_to_share_reference(visitor) or vision is not None:
+            expected = continue_ask(state) or expected
         handoff_reason = self._handoff_reason(state, visitor, progressed=bool(accepted))
-        if refused_contact:
+        # Declining *their* email is a waiver. A bare refusal can hand off; a refusal
+        # that also asks for OUR contact/address must answer those facts first and
+        # must not claim "we'll email your quote" or dump straight to a specialist.
+        asking_our_details = (
+            canon.asks_for_our_contact(visitor)
+            or canon.asks_for_location(visitor)
+        )
+        if refused_contact and not asking_our_details and not canon.topics_to_answer(visitor):
             handoff_reason = "declined"
+        elif refused_contact and asking_our_details and handoff_reason in {"quote", "declined"}:
+            handoff_reason = ""
         if not expected and not handoff_reason and not state.complete():
             if is_visitor_greeting(visitor) or vision is not None:
                 # Image turns must confirm what we saw — never stall into handoff.
@@ -830,7 +1039,10 @@ class Orchestrator:
                 if key not in accepted
                 and (
                     key not in state.fields
-                    or not state.fields[key].done
+                    or (
+                        not state.fields[key].stated
+                        and not state.fields[key].done
+                    )
                     or key == state.last_question
                 )
             }

@@ -40,6 +40,28 @@ def test_units_are_folded_and_dimension_order_is_theirs():
     assert normalise_size("1/8 x 2 3/4 in") == "1/8 x 2 3/4 in"
     assert normalise_size("A4") == "A4"
     assert normalise_size("6 inches") == "6 in"
+    # Asterisk, spaced x, and "by" fold to the same stored shape.
+    assert normalise_size("2*2") == "2x2"
+    assert normalise_size("2 * 2") == "2x2"
+    assert normalise_size("2 x 2") == "2x2"
+    assert normalise_size("2 by 2") == "2x2"
+    assert normalise_size("2×2 inches") == "2x2 in"
+    assert normalise_size("4*6*2 cm") == "4x6x2 cm"
+
+
+def test_asterisk_and_by_sizes_extract_without_reask():
+    from chatbot.bot.state import SIZE_DIM_RE, normalise_dimension_separators
+
+    for raw in ("2*2", "2 * 2", "2 x 2", "2 by 2", "2×2", "4*6*2"):
+        assert SIZE_DIM_RE.search(normalise_dimension_separators(raw)), raw
+        state = make_state(raw)
+        updates = extract_fields(raw, "sizes", state)
+        assert "sizes" in updates, raw
+        accepted, rejected = apply_field_updates(state, updates, raw)
+        assert "sizes" in accepted, raw
+        assert "sizes" not in rejected
+        assert "x" in state.fields["sizes"].value
+        assert state.fields["sizes"].status == STATUS_VISITOR
 
 
 def test_morning_does_not_become_the_product():
@@ -177,8 +199,29 @@ def test_use_case_phrases_and_channels_are_read_from_the_message():
     assert use_case_from("rigid boxes for my candle business") == "candle business"
     assert use_case_from("labels for retail") == "retail"
     assert use_case_from("I need boxes") == ""
+    # "{product} for {purpose}" — already answered; do not ask use case again.
+    assert use_case_from("labels for whisky bottle") == "whisky bottle"
+    assert use_case_from("custom labels for honey jars") == "honey jars"
+    assert use_case_from("boxes for candles") == "candles"
+    assert use_case_from("looking for boxes") == ""
+    assert use_case_from("labels for example") == ""
+    # "{purpose} {product}" — whiskey bottle label, not only "labels for …".
+    assert use_case_from("whiskey bottle label") == "whiskey bottle"
+    assert use_case_from("whisky bottle labels") == "whisky bottle"
+    assert use_case_from("honey jar stickers") == "honey jar"
+    assert use_case_from("custom labels") == ""
     # A product family is the product field, not a use case.
     assert use_case_from("pouches for packing coffee bags") in {"coffee bags", ""}
+
+
+def test_product_for_purpose_extracts_use_case_with_the_product():
+    state = make_state("labels for whisky bottle")
+    updates = extract_fields("labels for whisky bottle", "", state)
+    assert updates["product"] == "labels"
+    assert updates["use_case"] == "whisky bottle"
+    accepted, _ = apply_field_updates(state, updates, "labels for whisky bottle")
+    assert accepted["use_case"] == "whisky bottle"
+    assert "use_case" not in state.ask_set()
 
 
 def test_an_answer_to_the_use_case_question_is_taken_wholesale():
@@ -286,7 +329,7 @@ def test_a_stated_field_is_on_the_do_not_ask_list_in_their_words():
     constraint = state.ask_constraint()
     assert 'product (they said "boxes")' in constraint
     assert 'style (they said "kraft")' in constraint
-    assert constraint.startswith("You may ask about: use_case, sizes, quantity.")
+    assert constraint.startswith("You may ask about: use case, sizes, quantity.")
 
 
 def test_use_case_is_asked_and_does_not_stall_the_quote():
@@ -311,6 +354,15 @@ def test_the_script_is_only_the_wording_once_a_field_is_selected():
     key, question = state.next_question()
     assert key == "style"
     assert question == "What style of box do you need, or can you share a reference image?"
+
+
+def test_exhausted_use_case_asks_leave_the_missing_list():
+    state = make_state("I need labels")
+    _fill(state, "product", "labels")
+    assert any("What it is for" in item for item in state.missing_for_prompt())
+    state.fields["use_case"].attempts = 2
+    assert "use_case" not in state.ask_set()
+    assert not any("What it is for" in item for item in state.missing_for_prompt())
 
 
 def test_a_waived_size_leaves_the_ask_set():
@@ -371,6 +423,36 @@ def test_a_settled_style_is_not_overwritten_or_left_in_the_ask_set():
     assert "location" not in canon.topics_to_answer("sure. testing@mail.com is my email address")
 
 
+def test_size_turn_does_not_wipe_settled_use_case_or_product():
+    # Regression: after "labels for whisky bottle", entering 15*20 must keep
+    # use_case and product locked — never clear them or put use_case back in ask.
+    state = make_state("labels for whisky bottle")
+    updates = extract_fields("labels for whisky bottle", "product", state)
+    apply_field_updates(state, updates, "labels for whisky bottle")
+    assert state.fields["use_case"].value == "whisky bottle"
+    assert state.fields["product"].value == "labels"
+    state.last_question = "sizes"
+
+    size_updates = extract_fields("15*20", "sizes", state)
+    accepted, rejected = apply_field_updates(state, size_updates, "15*20")
+    assert accepted.get("sizes") == "15x20"
+    assert state.fields["use_case"].value == "whisky bottle"
+    assert state.fields["product"].value == "labels"
+    assert "use_case" not in state.ask_set()
+
+    # A model echo must not rewrite the settled use case either.
+    _accepted, model_rejected = apply_field_updates(
+        state,
+        {"use_case": "product label", "product": "stickers"},
+        "15*20",
+        source="model",
+    )
+    assert "use_case" in model_rejected
+    assert "product" in model_rejected
+    assert state.fields["use_case"].value == "whisky bottle"
+    assert state.fields["product"].value == "labels"
+
+
 def test_plain_orders_do_not_get_a_sku_question():
     state = make_state("plain boxes")
     _fill(state, "product", "boxes")
@@ -394,7 +476,8 @@ def test_the_prompt_injects_the_ask_set_and_drops_the_script_line():
     _fill(state, "product", "boxes")
     _fill(state, "style", "kraft")
     user = build_user(state, "thanks", None)
-    assert "You may ask about: use_case, sizes, quantity." in user
+    assert "You may ask about: use case, sizes, quantity." in user
+    assert "use_case" not in user.split("ASK SET CONSTRAINT", 1)[-1].split("FACTS", 1)[0]
     assert 'Do not ask about: product (they said "boxes"), style (they said "kraft").' in user
     assert "Next script question" not in user
     assert "ASK SET" in RULE_TEXT

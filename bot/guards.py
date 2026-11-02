@@ -25,6 +25,7 @@ from .state import (
     is_option_request,
     is_question,
     is_visitor_greeting,
+    normalise_dimension_separators,
     normalize_finish,
     normalize_style,
     use_case_from,
@@ -132,14 +133,14 @@ FIELD_PROBES: tuple[tuple[str, re.Pattern[str]], ...] = (
         r"|\b(?:flat|stand[- ]?up|flat[- ]?bottom|reference image)\b",
         re.I,
     )),
-    ("material", re.compile(r"\b(?:material|special features|paper stock)\b", re.I)),
-    ("extras", re.compile(r"\b(?:zipper|tear notch|extras?)\b", re.I)),
     ("use_case", re.compile(
         r"\b(?:what (?:will|goes|is going)\s+(?:be\s+)?inside|what are you (?:packing|putting|selling|shipping|sending)|"
         r"use case|what is it for|what are they for|who is it going to|retail or (?:shipping|wholesale|online)|"
         r"what (?:kind|type) of (?:product|item))\b",
         re.I,
     )),
+    ("material", re.compile(r"\b(?:material|special features|paper stock)\b", re.I)),
+    ("extras", re.compile(r"\b(?:zipper|tear notch|extras?)\b", re.I)),
     ("product", re.compile(r"\b(?:what are you looking|boxes, bags|have made|looking to (?:make|order|have))\b", re.I)),
 )
 
@@ -202,7 +203,8 @@ def _has_value_token(key: str, text: str) -> bool:
     if key == "name":
         return bool(re.search(r"\bmy name is\s+[A-Za-z]", value, re.I))
     if key == "sizes":
-        return bool(SIZE_DIM_RE.search(value) or SINGLE_SIZE_RE.search(value))
+        size_text = normalise_dimension_separators(value)
+        return bool(SIZE_DIM_RE.search(size_text) or SINGLE_SIZE_RE.search(value))
     if key == "quantity":
         return bool(QTY_UNIT_RE.search(value) or BARE_QTY_RE.match(value.strip()))
     if key == "finishes":
@@ -284,7 +286,16 @@ def asked_field(text: str) -> str | None:
         return "sizes"
     # Prefer the field the question is actually about when earlier probes only
     # match restated specs ("…besides soft touch and the oval size… material?").
+    # use_case before material: "What use case … finish and material?" is use case.
     focused = (
+        ("use_case", re.compile(
+            r"\buse case\b"
+            r"|\bwhat (?:is|are) (?:this|these|it|they|the \w+)\s+for\b"
+            r"|\bwhat (?:will|goes|is going)\s+(?:be\s+)?inside\b"
+            r"|\bwhat are you (?:packing|putting|selling|shipping|sending)\b"
+            r"|\bwho is it going to\b",
+            re.I,
+        )),
         ("material", re.compile(
             r"\b(?:what|which)\s+(?:\w+\s+){0,4}material\b"
             r"|\bmaterial\s+(?:would|do|should|are|you want)\b",
@@ -307,7 +318,8 @@ def asked_field(text: str) -> str | None:
         )),
         ("style", re.compile(r"\b(?:what|which)\s+style\b", re.I)),
         ("sizes", re.compile(
-            r"\b(?:what|which)\s+size\b|\bsize\s+(?:are|do|would|should)\b",
+            r"\b(?:what|which)\s+size\b|\bsize\s+(?:are|do|would|should|targeting)\b"
+            r"|\blabel size\b|\bbag size\b|\bbox size\b",
             re.I,
         )),
     )

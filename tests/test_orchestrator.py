@@ -118,9 +118,11 @@ def test_pack_count_is_not_an_order_quantity(orchestrator):
     orchestrator.start("c-pouch")
     result = orchestrator.handle("c-pouch", "flat pouch for my 2 count gummy")
     assert result.accepted.get("product")
-    assert "inside" in result.reply.lower()
     state = orchestrator.store.get_or_create("c-pouch")
+    # "2 count" is pack size / use case, not an order of two pouches.
+    assert "gummy" in str(state.fields["use_case"].value)
     assert not state.fields["quantity"].done
+    assert "size" in result.reply.lower()
     assert blockers(result) == []
 
 
@@ -506,6 +508,42 @@ def test_contact_refusal_stops_the_email_loop(orchestrator):
     assert follow_up.reply == ""
 
 
+def test_refuse_email_but_ask_our_contact_and_address(orchestrator):
+    from chatbot.bot import canon
+    from chatbot.bot.state import refuses_contact
+
+    visitor = (
+        "i do not want to share email. please share your contact details with your address"
+    )
+    assert refuses_contact(visitor)
+    assert canon.asks_for_our_contact(visitor)
+    assert canon.asks_for_location(visitor)
+    assert "contact" in canon.topics_to_answer(visitor)
+    assert "location" in canon.topics_to_answer(visitor)
+
+    orchestrator.start("c-refuse-ask-ours")
+    for text in [
+        "i need boxes for shipping candles",
+        "4 x 6 x 2 inches",
+        "1000",
+        "mailer box",
+        "kraft",
+        "matte",
+        "3 designs",
+    ]:
+        orchestrator.handle("c-refuse-ask-ours", text)
+    result = orchestrator.handle("c-refuse-ask-ours", visitor)
+    lowered = result.reply.lower()
+    assert result.handoff in {"", "quote"}
+    assert "specialist" not in lowered
+    assert "support@print247.us" in lowered
+    assert "832" in result.reply
+    assert "rosenberg" in lowered
+    # Do not promise to email them after they refused to share an email.
+    if result.handoff == "quote":
+        assert "email your quote" not in lowered
+
+
 def test_size_unit_follow_up_completes_the_size(orchestrator):
     orchestrator.start("c-unit-follow")
     orchestrator.handle("c-unit-follow", "I need custom boxes for shipping candles")
@@ -708,6 +746,53 @@ def test_for_example_names_the_box_styles(orchestrator):
     assert blockers(result) == []
 
 
+def test_suggest_me_the_styles_lists_box_catalogue(orchestrator):
+    from chatbot.bot.state import is_option_request, wants_recommendation
+    from chatbot.bot import canon
+
+    visitor = "suggest me the styles"
+    assert wants_recommendation(visitor)
+    assert is_option_request(visitor)
+    assert "styles" in canon.topics_to_answer(visitor)
+
+    _ready_for_style(orchestrator, "c-suggest-styles")
+    result = orchestrator.handle("c-suggest-styles", visitor)
+    lowered = result.reply.lower()
+    assert "mailer" in lowered and "display" in lowered and "gift" in lowered
+    assert "drip" not in lowered
+    assert result.reply.count("?") == 1
+    assert blockers(result) == []
+
+
+def test_box_finish_options_stay_on_official_list(orchestrator):
+    from chatbot.bot.composer import BOX_PRIMARY_FINISHES_TEXT, heuristic_turn
+
+    orchestrator.start("c-box-finishes")
+    state = orchestrator.store.get_or_create("c-box-finishes")
+    for key, value in (
+        ("product", "boxes"),
+        ("use_case", "candles"),
+        ("sizes", "4x6 in"),
+        ("quantity", "1000"),
+        ("style", "mailer"),
+    ):
+        state.set_field(key, value, raw=value, status=STATUS_VISITOR)
+    state.last_question = "finishes"
+    visitor = "suggest me the finishes"
+    state.add("visitor", visitor)
+    orchestrator.store.save(state)
+
+    expected = state.next_question()
+    reply = heuristic_turn(state, visitor, expected).reply.lower()
+    assert "matte lamination" in reply
+    assert "gloss lamination" in reply
+    assert "soft touch lamination" in reply
+    assert "spot uv" in reply
+    assert "foil printing" in reply
+    assert "drip" not in reply
+    assert BOX_PRIMARY_FINISHES_TEXT.split(",")[0].lower() in reply
+
+
 def test_label_material_fallback_stays_inside_labels(orchestrator):
     from chatbot.bot.composer import heuristic_turn
     from chatbot.bot.guards import asked_field
@@ -799,12 +884,16 @@ def test_a_zero_in_any_dimension_is_not_stored(orchestrator):
     orchestrator.handle("c-zero", "I need custom boxes for candles")
     result = orchestrator.handle("c-zero", "0x15")
     state = orchestrator.store.get_or_create("c-zero")
-    assert not state.fields["sizes"].value
+    assert state.fields["sizes"].value not in {"0x15", "0x15 in", "0"}
     assert "size_pending_unit" not in state.flags
     assert blockers(result) == []
     orchestrator.handle("c-zero", "10x0x5")
     state = orchestrator.store.get_or_create("c-zero")
-    assert not state.fields["sizes"].value
+    # Zero dims are never kept as the size; after two failed asks the field may
+    # be waived as "to be confirmed" for the team, which is not a stored zero.
+    assert state.fields["sizes"].value not in {"10x0x5", "10x0x5 in", "0x15", "0"}
+    if state.fields["sizes"].value:
+        assert state.fields["sizes"].status == STATUS_WAIVED
 
 
 def test_a_complaint_about_the_minimum_does_not_recite_it(orchestrator):

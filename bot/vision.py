@@ -10,7 +10,7 @@ from typing import Any
 
 from .config import Config
 from .llm import LLMClient, LLMError, cost_usd, is_reasoning_model
-from .state import FAMILY_PRODUCT
+from .state import FAMILY_PRODUCT, FIELD_LABELS
 
 log = logging.getLogger("chatbot.vision")
 
@@ -33,19 +33,47 @@ VISION_SCHEMA = {
             "type": "string",
             "description": "Extra cues useful for quoting. Do not invent dimensions.",
         },
+        "focus_clear": {
+            "type": "boolean",
+            "description": "True only when the active open checklist field is clearly readable in the image.",
+        },
+        "focus_observation": {
+            "type": "string",
+            "description": "What you can say about the active open field from the image, or empty if unclear.",
+        },
     },
-    "required": ["summary", "family", "style", "material", "finishes", "notes"],
+    "required": [
+        "summary",
+        "family",
+        "style",
+        "material",
+        "finishes",
+        "notes",
+        "focus_clear",
+        "focus_observation",
+    ],
 }
 
 SYSTEM_PROMPT = """You analyse a packaging or print reference image for Print247 sales chat.
 Return JSON only.
 Rules:
 - Describe what you see briefly for a sales quote.
+- Correlate the image STRICTLY with the ACTIVE OPEN FIELD from the sales checklist when one is provided.
+  Prefer that field over other visible cues; do not invent values for closed fields.
+  size → only report printed dimensions if clearly readable; never invent or estimate sizes.
+  style → shape/construction cues using APPROVED CATALOGUE style terms for this family when supplied.
+  finishes → surface sheen/texture using APPROVED CATALOGUE finish terms for this family when supplied.
+  material → substrate cues using APPROVED CATALOGUE material terms when supplied.
+  product/use_case → family or packed product only when obvious.
+- When an approved vocabulary list is provided for the open field, map what you see onto the
+  closest exact term from that list. Never invent a finish or style name outside the list.
 - Suggest family/style/material/finish only when clearly visible.
+- Set focus_clear true only when the active open field is clearly supported by the image;
+  otherwise false and leave focus_observation empty or explain the uncertainty briefly.
 - Never invent dimensions, MOQ, price, turnaround, or fit guarantees.
 - If unsure, leave that field as an empty string.
-- style examples: mailer, rigid, tuck end, stand-up pouch, flat pouch, die-cut label.
-- finishes examples: matte, gloss, soft touch.
+- style examples when no list is given: mailer, rigid, tuck end, stand-up pouch, flat pouch, die-cut label.
+- finishes examples when no list is given: matte lamination, gloss lamination, soft touch lamination, spot UV, foil printing.
 """
 
 
@@ -57,6 +85,8 @@ class VisionResult:
     material: str = ""
     finishes: str = ""
     notes: str = ""
+    focus_clear: bool = False
+    focus_observation: str = ""
     source: str = "fake"
     raw: dict[str, Any] = field(default_factory=dict)
 
@@ -83,14 +113,19 @@ class VisionResult:
             "material": self.material,
             "finishes": self.finishes,
             "notes": self.notes,
+            "focus_clear": self.focus_clear,
+            "focus_observation": self.focus_observation,
             "source": self.source,
         }
 
 
-def fake_vision_result() -> VisionResult:
+def fake_vision_result(*, focus_field: str = "") -> VisionResult:
+    focus = str(focus_field or "").strip()
     return VisionResult(
         summary="Reference image received. It looks like a packaging or print mockup.",
         notes="Stored for the quote. Confirm style with the visitor before locking fields.",
+        focus_clear=False,
+        focus_observation="" if focus else "",
         source="fake",
     )
 
@@ -100,10 +135,17 @@ def analyze_image(
     config: Config,
     data: bytes,
     mime: str,
+    *,
+    focus_field: str = "",
+    focus_hint: str = "",
+    family: str = "",
+    catalogue_terms: str = "",
 ) -> VisionResult:
     """Describe a reference image. Fake mode returns a deterministic stub (no API call)."""
+    focus = str(focus_field or "").strip()
+    hint = str(focus_hint or "").strip()
     if not config.real_llm_enabled:
-        return fake_vision_result()
+        return fake_vision_result(focus_field=focus)
 
     model = (config.vision_model or config.model or "").strip()
     if not model:
@@ -111,12 +153,34 @@ def analyze_image(
 
     encoded = base64.b64encode(data).decode("ascii")
     data_url = f"data:{mime};base64,{encoded}"
+    focus_label = FIELD_LABELS.get(focus, focus.replace("_", " ") if focus else "")
+    focus_lines = []
+    if focus:
+        focus_lines.append(f"Active open checklist field: {focus} ({focus_label}).")
+        if hint:
+            focus_lines.append(f"Current question wording: {hint}")
+        if family:
+            focus_lines.append(f"Active product family: {family}.")
+        if catalogue_terms:
+            focus_lines.append(
+                "Approved catalogue vocabulary for the open field "
+                f"(use an exact term from this list when focus_clear is true): {catalogue_terms}."
+            )
+        focus_lines.append(
+            "Prioritise cues for that field only. If it is not clearly readable, set "
+            "focus_clear=false and do not invent a value. Leave other slot fields empty "
+            "unless they are required to name the open-field term."
+        )
+    else:
+        focus_lines.append("No single active field — describe the packaging reference generally.")
+
     user_content = [
         {
             "type": "text",
             "text": (
                 "Analyse this customer reference image for a packaging quote. "
-                "Do not invent sizes."
+                "Do not invent sizes.\n"
+                + "\n".join(focus_lines)
             ),
         },
         {"type": "image_url", "image_url": {"url": data_url}},
@@ -204,6 +268,16 @@ def _from_payload(parsed: dict, *, source: str) -> VisionResult:
             notes,
             flags=re.I,
         )
+    focus_observation = str(parsed.get("focus_observation") or "").strip()
+    if re.search(r"\b\d+(\.\d+)?\s*(mm|cm|in|inch|inches)\b", focus_observation, re.I):
+        # Dimensions are never auto-applied; keep observation free of invented measures.
+        focus_observation = re.sub(
+            r"\b\d+(\.\d+)?\s*(mm|cm|in|inch|inches)\b",
+            "[size omitted]",
+            focus_observation,
+            flags=re.I,
+        )
+    focus_clear = bool(parsed.get("focus_clear")) and bool(focus_observation)
     return VisionResult(
         summary=summary[:400],
         family=family,
@@ -211,6 +285,8 @@ def _from_payload(parsed: dict, *, source: str) -> VisionResult:
         material=material,
         finishes=finishes,
         notes=notes[:400],
+        focus_clear=focus_clear,
+        focus_observation=focus_observation[:200],
         source=source,
         raw=parsed,
     )
