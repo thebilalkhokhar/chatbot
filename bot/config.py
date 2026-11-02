@@ -110,6 +110,9 @@ class Config:
     context: str = "catalogue"
     arch: str = "v2"
     database_url: str = ""
+    vision_model: str = "gpt-4o-mini"
+    blob_token: str = ""
+    attachment_max_bytes: int = 8 * 1024 * 1024
 
     def __post_init__(self) -> None:
         if self.context not in CONTEXTS:
@@ -169,6 +172,13 @@ class Config:
                 or os.getenv("BOT_DATABASE_URL")
                 or ""
             ).strip(),
+            vision_model=os.getenv("BOT_VISION_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini",
+            blob_token=(
+                os.getenv("BLOB_READ_WRITE_TOKEN")
+                or os.getenv("BOT_BLOB_READ_WRITE_TOKEN")
+                or ""
+            ).strip(),
+            attachment_max_bytes=_int("BOT_ATTACHMENT_MAX_BYTES", 8 * 1024 * 1024),
         )
 
     def ensure_dirs(self) -> None:

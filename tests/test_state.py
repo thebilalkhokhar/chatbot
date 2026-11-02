@@ -502,3 +502,29 @@ def test_unknown_design_count_uses_the_single_design_minimum():
     _fill(state, "quantity", "500")
     _fill(state, "skus", "2")
     assert state.quantity_below_standard() is False
+
+
+def test_feet_alone_sets_preferred_unit_not_a_size():
+    state = make_state("banners")
+    _fill(state, "product", "banners")
+    state.last_question = "sizes"
+    state.fields["sizes"].attempts = 1
+    updates = extract_fields("feet", "sizes", state)
+    assert "sizes" not in updates
+    assert state.flags.get("size_preferred_unit") == "ft"
+    assert state.fields["sizes"].attempts <= 1
+    assert "feet" in state.question_for("sizes").lower()
+
+
+def test_two_failed_size_asks_waive_instead_of_empty_ask_set():
+    state = make_state("banners")
+    _fill(state, "product", "banners")
+    _fill(state, "quantity", "100")
+    state.fields["sizes"].attempts = 2
+    assert state.blocking_open()
+    noted = state.finalize_stalled()
+    assert "sizes" in noted
+    assert state.fields["sizes"].status == STATUS_WAIVED
+    assert state.fields["sizes"].value == "to be confirmed"
+    assert not state.blocking_open()
+    assert state.next_question() is not None

@@ -40,7 +40,7 @@ HANDOFF_LINES = {
 
 REPHRASES = {
     "product": "Which product are you looking to have made: boxes, bags, labels or something else?",
-    "sizes": "Could you share the size you need, in inches or cm?",
+    "sizes": "Could you share the size you need — for example 3x6 ft, or in inches?",
     "style": "Which style are you leaning toward for this order?",
     "finishes": "Which finish would you like: matte, gloss or soft touch?",
     "quantity": "Roughly how many units are you planning for the first run?",

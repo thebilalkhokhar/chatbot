@@ -20,6 +20,7 @@ from .composer import (
     live_turn,
     select_examples,
 )
+from .attachments import AttachmentError, open_attachment_store
 from .config import Config
 from .kb import KBIndex, load_or_build
 from .llm import LLMClient, LLMError
@@ -27,6 +28,8 @@ from .personas import persona_for
 from .state import (
     FIELD_LABELS,
     PRODUCT_QUESTION,
+    STATUS_SUGGESTED,
+    UNIT_ONLY_RE,
     ConversationState,
     apply_field_updates,
     asks_if_bot,
@@ -44,6 +47,7 @@ from .state import (
     wants_human,
 )
 from .store import open_state_store
+from .vision import VisionResult, analyze_image
 
 log = logging.getLogger("chatbot.orchestrator")
 
@@ -164,9 +168,16 @@ class Orchestrator:
         self.llm = LLMClient(config)
         self.registry = Registry.load(config.kb_dir)
         self.primer_tokens = estimate_tokens(self.registry.render_primer())
+        self.attachments = open_attachment_store(
+            data_dir=config.data_dir,
+            database_url=config.database_url if store_path is None else "",
+            blob_token=config.blob_token,
+            max_bytes=config.attachment_max_bytes,
+        )
 
     def close(self) -> None:
         self.store.close()
+        self.attachments.close()
 
     def start(self, conversation_id: str, *, channel: str = "website") -> TurnResult:
         started = time.perf_counter()
@@ -338,6 +349,43 @@ class Orchestrator:
             named = f"{', '.join(labels[:-1])} and {labels[-1]} are"
         return f"{named} noted. {state.question_for('style')}".strip()
 
+    def _vision_reply(
+        self,
+        state: ConversationState,
+        vision: VisionResult,
+        vision_accepted: dict[str, str],
+        expected: tuple[str, str] | None,
+    ) -> str:
+        """Ack a reference image and confirm the strongest suggested slot."""
+        summary = str(vision.summary or "").strip()
+        if not summary or summary.lower().startswith("reference image received"):
+            lead = "Thanks — I can see the reference."
+        else:
+            short = re.sub(r"\s+", " ", summary).strip()
+            if len(short) > 140:
+                short = short[:137].rsplit(" ", 1)[0] + "…"
+            lead = f"Thanks — I can see the reference. {short}"
+        lead = re.sub(r"\s+", " ", lead).strip()
+
+        for key in ("style", "product", "finishes", "material"):
+            value = vision_accepted.get(key) or ""
+            if not value or state.fields[key].status != STATUS_SUGGESTED:
+                continue
+            if key == "product":
+                return f"{lead} Are you looking for {value} from this artwork?"
+            if key == "style":
+                return f"{lead} Does {value} look like the right style?"
+            if key == "finishes":
+                return f"{lead} Does a {value} finish look right?"
+            return f"{lead} Does {value} sound right for the material?"
+
+        if expected:
+            return f"{lead} {expected[1]}".strip()
+        urgent = self._urgent_ask(state)
+        if urgent:
+            return f"{lead} {urgent}".strip()
+        return f"{lead} What should we quote from this — boxes, bags, labels, or something else?"
+
     def _safe_fallback(
         self,
         state: ConversationState,
@@ -452,14 +500,25 @@ class Orchestrator:
             proposed_configs=proposed_configs,
         )
 
-    def handle(self, conversation_id: str, text: str, *, channel: str = "website") -> TurnResult:
+    def handle(
+        self,
+        conversation_id: str,
+        text: str,
+        *,
+        channel: str = "website",
+        image: bytes | None = None,
+        image_mime: str = "",
+    ) -> TurnResult:
         started = time.perf_counter()
         spent_before = self.llm.spent_usd
         state = self.store.get_or_create(conversation_id)
         visitor = str(text or "").strip()
+        image_bytes = image if image else None
 
-        if not visitor:
+        if not visitor and not image_bytes:
             return TurnResult(conversation_id=conversation_id, reply="", persona=state.persona)
+        if not visitor and image_bytes:
+            visitor = "[shared a reference image]"
 
         if state.handoff:
             if channel == "ui" and state.handoff != "quote":
@@ -483,6 +542,34 @@ class Orchestrator:
                 )
 
         state.repair_fields()
+
+        vision: VisionResult | None = None
+        vision_accepted: dict[str, str] = {}
+        attachment_id = ""
+        if image_bytes:
+            try:
+                saved = self.attachments.save(conversation_id, image_bytes, image_mime or "image/jpeg")
+                attachment_id = saved.id
+                vision = analyze_image(self.llm, self.config, image_bytes, saved.mime)
+                self.attachments.set_vision(saved.id, vision.summary, vision.to_dict())
+                state.flags["reference_image"] = True
+                state.flags["last_attachment_id"] = saved.id
+                self.store.append_event(
+                    conversation_id,
+                    "attachment",
+                    {
+                        "attachment_id": saved.id,
+                        "mime": saved.mime,
+                        "size_bytes": saved.size_bytes,
+                        "storage_backend": saved.storage_backend,
+                        "vision": vision.to_dict(),
+                    },
+                )
+            except (AttachmentError, LLMError) as error:
+                log.warning("Reference image handling failed (%s)", error)
+                state.flags["attachment_error"] = str(error)[:200]
+                vision = None
+
         state.add("visitor", visitor)
         asked_before = state.last_question
         was_reachable = state.reachable()
@@ -491,6 +578,26 @@ class Orchestrator:
         accepted, rejected = apply_field_updates(state, extracted, visitor)
         for key in confirmed:
             accepted[key] = state.fields[key].value
+        if vision is not None:
+            # Vision cues are bot proposals until the visitor confirms them.
+            vision_updates = {
+                key: value
+                for key, value in vision.field_updates().items()
+                if key not in accepted
+                and (
+                    key not in state.fields
+                    or not state.fields[key].done
+                    or state.fields[key].status == STATUS_SUGGESTED
+                )
+            }
+            vision_ok, vision_rejected = apply_field_updates(
+                state, vision_updates, visitor, source="model"
+            )
+            vision_accepted.update(vision_ok)
+            accepted.update(vision_ok)
+            rejected.update(vision_rejected)
+            if vision.summary:
+                state.flags["reference_summary"] = vision.summary[:300]
         # The unit follow-up gets exactly one turn. If it is not answered with a
         # unit, keep the size as unconfirmed and move on instead of asking again.
         state.finalize_stalled()
@@ -535,7 +642,8 @@ class Orchestrator:
         if refused_contact:
             handoff_reason = "declined"
         if not expected and not handoff_reason and not state.complete():
-            if is_visitor_greeting(visitor):
+            if is_visitor_greeting(visitor) or vision is not None:
+                # Image turns must confirm what we saw — never stall into handoff.
                 expected = ("product", state.question_for("product") or PRODUCT_QUESTION)
             else:
                 handoff_reason = "stalled"
@@ -551,6 +659,9 @@ class Orchestrator:
         offslot = ""
         if not handoff_reason and not is_question(visitor):
             offslot = self._offslot_ack(state, accepted, asked_before)
+        vision_line = ""
+        if vision is not None and not handoff_reason:
+            vision_line = self._vision_reply(state, vision, vision_accepted, expected)
 
         composed = Composed(reply="")
         source = "heuristic"
@@ -564,6 +675,14 @@ class Orchestrator:
             field_value = state.fields.get(state.last_question)
             if field_value and not field_value.done:
                 field_value.attempts = min(field_value.attempts, 1)
+        elif vision_line:
+            composed = Composed(reply=vision_line, source="vision")
+            source = "vision"
+            # Ask confirmation on the first suggested slot so yes/no can settle it.
+            for key in ("style", "product", "finishes", "material"):
+                if key in vision_accepted and state.fields[key].status == STATUS_SUGGESTED:
+                    expected = (key, state.question_for(key) or vision_line)
+                    break
         elif offslot:
             composed = Composed(reply=offslot, source="heuristic")
         elif self.config.real_llm_enabled and not handoff_reason:
@@ -737,6 +856,14 @@ class Orchestrator:
                 # The unit follow-up is not a repeated size ask, so it must not
                 # count toward the attempt limit that marks a size unconfirmed.
                 state.flags["unit_asked"] = True
+            elif (
+                asked == "sizes"
+                and UNIT_ONLY_RE.match(visitor)
+                and not state.fields["sizes"].value
+            ):
+                # Visitor named a unit ("feet") while size is open — next ask gets
+                # the dimension prompt; do not spend an attempt on the unit alone.
+                pass
             elif field_value and not field_value.done and not is_visitor_greeting(visitor):
                 field_value.attempts += 1
         else:
@@ -774,6 +901,8 @@ class Orchestrator:
                 "accepted": accepted,
                 "rejected": rejected,
                 "rejected_drafts": rejected_drafts,
+                "attachment_id": attachment_id,
+                "vision": vision.to_dict() if vision is not None else None,
             },
         )
         sent_configs = composed.proposed_configs or []

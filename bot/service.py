@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import logging
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from . import canon
+from .attachments import AttachmentError, ALLOWED_MIME, normalise_mime
 from .config import Config
 from .orchestrator import Orchestrator
 from .personas import PERSONAS, validate_personas
@@ -23,7 +25,36 @@ class LocalStart(BaseModel):
 
 
 class LocalChat(LocalStart):
-    text: str = Field(..., min_length=1, max_length=4000)
+    text: str = Field("", max_length=4000)
+    image_base64: str | None = None
+    image_mime: str = "image/jpeg"
+
+    @model_validator(mode="after")
+    def require_text_or_image(self) -> "LocalChat":
+        if not str(self.text or "").strip() and not str(self.image_base64 or "").strip():
+            raise ValueError("text or image_base64 is required")
+        return self
+
+
+def _decode_image_payload(payload: LocalChat) -> tuple[bytes | None, str]:
+    raw = str(payload.image_base64 or "").strip()
+    if not raw:
+        return None, ""
+    if "," in raw and raw.lower().startswith("data:"):
+        header, raw = raw.split(",", 1)
+        if ";base64" not in header.lower():
+            raise AttachmentError("image_base64 must be a base64 data URL or raw base64")
+        mime_part = header.split(";", 1)[0]
+        mime = normalise_mime(mime_part.replace("data:", "", 1))
+    else:
+        mime = normalise_mime(payload.image_mime or "image/jpeg")
+    try:
+        data = base64.b64decode(raw, validate=False)
+    except (binascii.Error, ValueError) as error:
+        raise AttachmentError("invalid image_base64") from error
+    if mime not in ALLOWED_MIME:
+        raise AttachmentError(f"unsupported image type: {mime or 'unknown'}")
+    return data, mime
 
 SIGNATURE_HEADERS = (
     "x-siqsignature",
@@ -159,7 +190,17 @@ def create_app(config: Config | None = None, orchestrator: Orchestrator | None =
         if not cfg.ui_enabled:
             return JSONResponse({"error": "Not found"}, status_code=404)
         try:
-            result = engine().handle(payload.conversation_id, payload.text, channel="ui")
+            image, image_mime = _decode_image_payload(payload)
+        except AttachmentError as error:
+            return JSONResponse({"error": str(error)}, status_code=400)
+        try:
+            result = engine().handle(
+                payload.conversation_id,
+                payload.text,
+                channel="ui",
+                image=image,
+                image_mime=image_mime,
+            )
         except Exception:
             log.exception("UI chat failed")
             return JSONResponse({"error": "The reply failed. Please send that again."}, status_code=500)

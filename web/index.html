@@ -139,11 +139,46 @@
   .typing i:nth-child(3) { animation-delay: .3s; }
   @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
   .composer {
-    display: flex; gap: 10px; align-items: flex-end;
+    display: flex; flex-direction: column; gap: 8px;
     padding: 12px 14px;
     border-top: 1px solid #e3ebe5;
     background: #fbfdfb;
   }
+  .composer-row {
+    display: flex; gap: 10px; align-items: flex-end;
+  }
+  .attach-preview {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid #d5e3d9;
+    border-radius: 12px;
+    background: #f3f8f4;
+  }
+  .attach-preview.show { display: flex; }
+  .attach-preview img {
+    width: 48px; height: 48px; object-fit: cover;
+    border-radius: 8px; border: 1px solid #cfe0d4;
+  }
+  .attach-preview .meta-col { flex: 1; min-width: 0; }
+  .attach-preview .name {
+    font-size: 12.5px; font-weight: 600; color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .attach-preview .hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .attach-preview .clear {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--line); padding: 6px 10px; font-weight: 500;
+  }
+  .icon-btn {
+    width: 44px; height: 44px; flex: 0 0 44px;
+    display: grid; place-items: center;
+    background: transparent; color: var(--ink);
+    border: 1px solid #cad9cf; border-radius: 12px;
+    padding: 0; font-size: 18px; line-height: 1;
+  }
+  .icon-btn:hover { background: #eef5f0; }
   textarea {
     flex: 1;
     resize: none;
@@ -162,6 +197,11 @@
   textarea:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(20, 108, 67, .12);
+  }
+  .bubble.with-image { display: grid; gap: 8px; }
+  .bubble.with-image img {
+    max-width: 220px; max-height: 160px; border-radius: 10px;
+    display: block; object-fit: cover;
   }
   .foot {
     display: flex; justify-content: space-between; gap: 10px;
@@ -281,12 +321,24 @@
   <section class="chat-card">
     <div id="messages" class="messages" aria-live="polite"></div>
     <form id="composer" class="composer">
-      <textarea id="input" rows="1" placeholder="Type a message..." maxlength="4000" autocomplete="off"></textarea>
-      <button id="send" type="submit">Send</button>
+      <div id="attach-preview" class="attach-preview" hidden>
+        <img id="attach-thumb" alt="Selected reference">
+        <div class="meta-col">
+          <div id="attach-name" class="name">reference image</div>
+          <div class="hint">Reference image for the quote</div>
+        </div>
+        <button id="attach-clear" class="clear" type="button">Remove</button>
+      </div>
+      <div class="composer-row">
+        <input id="attach-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+        <button id="attach-btn" class="icon-btn" type="button" title="Attach reference image" aria-label="Attach reference image">📎</button>
+        <textarea id="input" rows="1" placeholder="Type a message or attach a reference..." maxlength="4000" autocomplete="off"></textarea>
+        <button id="send" type="submit">Send</button>
+      </div>
     </form>
     <div class="foot">
       <span id="mode-note">Checking mode...</span>
-      <span>Enter to send · Shift+Enter for a new line</span>
+      <span>Enter to send · Shift+Enter for a new line · image any turn</span>
     </div>
   </section>
 
@@ -327,7 +379,13 @@
     modeNote: document.getElementById("mode-note"),
     debugToggle: document.getElementById("debug-toggle"),
     debugEmpty: document.getElementById("debug-empty"),
-    debugContent: document.getElementById("debug-content")
+    debugContent: document.getElementById("debug-content"),
+    attachInput: document.getElementById("attach-input"),
+    attachBtn: document.getElementById("attach-btn"),
+    attachPreview: document.getElementById("attach-preview"),
+    attachThumb: document.getElementById("attach-thumb"),
+    attachName: document.getElementById("attach-name"),
+    attachClear: document.getElementById("attach-clear")
   };
 
   let conversationId = newId();
@@ -337,6 +395,7 @@
   let debugEnabled = true;
   let debugTurns = [];
   let typingElement = null;
+  let pendingImage = null;
 
   function newId() {
     if (window.crypto && typeof window.crypto.randomUUID === "function") {
@@ -352,9 +411,17 @@
     return element;
   }
 
-  function addMessage(role, text, meta) {
+  function addMessage(role, text, meta, imageUrl) {
     const wrap = node("div", "msg " + role);
-    wrap.appendChild(node("div", "bubble", text));
+    const bubble = node("div", "bubble" + (imageUrl ? " with-image" : ""));
+    if (imageUrl) {
+      const img = node("img");
+      img.src = imageUrl;
+      img.alt = "Reference image";
+      bubble.appendChild(img);
+    }
+    if (text) bubble.appendChild(document.createTextNode(text));
+    wrap.appendChild(bubble);
     if (meta) wrap.appendChild(node("div", "meta", meta));
     els.messages.appendChild(wrap);
     els.messages.scrollTop = els.messages.scrollHeight;
@@ -367,6 +434,31 @@
 
   function addBot(turn) {
     addMessage("bot", turn.reply, turn.persona + " · " + turn.source + " · " + turn.elapsed_ms + " ms");
+  }
+
+  function clearPendingImage() {
+    pendingImage = null;
+    els.attachInput.value = "";
+    els.attachThumb.removeAttribute("src");
+    els.attachPreview.classList.remove("show");
+    els.attachPreview.hidden = true;
+  }
+
+  function setPendingImage(file, dataUrl, mime) {
+    pendingImage = { file, dataUrl, mime, base64: dataUrl.split(",", 2)[1] || "" };
+    els.attachThumb.src = dataUrl;
+    els.attachName.textContent = file.name || "reference image";
+    els.attachPreview.hidden = false;
+    els.attachPreview.classList.add("show");
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Could not read that image."));
+      reader.readAsDataURL(file);
+    });
   }
 
   function showTyping() {
@@ -388,16 +480,22 @@
 
   function setBusy(value) {
     busy = value;
-    els.send.disabled = value || handoffLocked;
-    els.input.disabled = value || handoffLocked;
+    const locked = value || handoffLocked;
+    els.send.disabled = locked;
+    els.input.disabled = locked;
+    els.attachBtn.disabled = locked;
+    els.attachClear.disabled = locked;
     if (value) showTyping(); else hideTyping();
   }
 
   function setHandedOff(reason) {
     handedOff = Boolean(reason);
     handoffLocked = reason === "quote";
-    els.send.disabled = busy || handoffLocked;
-    els.input.disabled = busy || handoffLocked;
+    const locked = busy || handoffLocked;
+    els.send.disabled = locked;
+    els.input.disabled = locked;
+    els.attachBtn.disabled = locked;
+    els.attachClear.disabled = locked;
     if (handedOff) {
       const note = handoffLocked ? "" : " Local demo: you can keep chatting.";
       addSystem((HANDOFF_TEXT[reason] || HANDOFF_TEXT.human) + note);
@@ -435,6 +533,7 @@
     handedOff = false;
     handoffLocked = false;
     debugTurns = [];
+    clearPendingImage();
     els.messages.replaceChildren();
     renderDebug();
     setBusy(true);
@@ -453,16 +552,23 @@
 
   async function sendMessage() {
     const text = els.input.value.trim();
-    if (!text || busy || handoffLocked) return;
+    const image = pendingImage;
+    if ((!text && !image) || busy || handoffLocked) return;
     els.input.value = "";
     els.input.style.height = "auto";
-    addMessage("visitor", text);
+    clearPendingImage();
+    addMessage("visitor", text || "Shared a reference image", null, image ? image.dataUrl : null);
     setBusy(true);
     try {
-      const turn = await post("/api/chat", { conversation_id: conversationId, text });
+      const body = { conversation_id: conversationId, text };
+      if (image) {
+        body.image_base64 = image.base64;
+        body.image_mime = image.mime;
+      }
+      const turn = await post("/api/chat", body);
       if (turn.reply) addBot(turn);
       if (turn.handoff) setHandedOff(turn.handoff);
-      recordTurn(turn, text);
+      recordTurn(turn, text || "[shared a reference image]");
     } catch (error) {
       addSystem("Request failed: " + error.message);
     } finally {
@@ -696,6 +802,37 @@
   els.composer.addEventListener("submit", (event) => {
     event.preventDefault();
     sendMessage();
+  });
+
+  els.attachBtn.addEventListener("click", () => {
+    if (!busy && !handoffLocked) els.attachInput.click();
+  });
+
+  els.attachClear.addEventListener("click", () => {
+    clearPendingImage();
+    els.input.focus();
+  });
+
+  els.attachInput.addEventListener("change", async () => {
+    const file = els.attachInput.files && els.attachInput.files[0];
+    if (!file) return;
+    if (!String(file.type || "").startsWith("image/")) {
+      clearPendingImage();
+      addSystem("Please choose a JPG, PNG, WebP, or GIF image.");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      clearPendingImage();
+      addSystem("Image is too large (max 8MB).");
+      return;
+    }
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setPendingImage(file, dataUrl, file.type || "image/jpeg");
+    } catch (error) {
+      clearPendingImage();
+      addSystem(error.message || "Could not read that image.");
+    }
   });
 
   els.input.addEventListener("input", () => {

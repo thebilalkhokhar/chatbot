@@ -317,6 +317,26 @@ def asked_field(text: str) -> str | None:
     for key, pattern in FIELD_PROBES:
         if pattern.search(scope):
             return key
+    # Vision / propose-and-confirm: "Are you looking for print products…?"
+    if re.search(
+        r"\bare you looking for\b|\bdoes (?:that|this|[a-z][\w-]*) look(?: like)?(?: the)? right\b"
+        r"|\bdoes .+ sound right\b|\bis that right\b",
+        scope,
+        re.I,
+    ):
+        if re.search(
+            r"\b(?:boxes?|bags?|labels?|banners?|print products?|business cards?|pouches?)\b",
+            scope,
+            re.I,
+        ):
+            return "product"
+        if re.search(r"\bstyle\b|\bmailer\b|\brigid\b|\bpouch\b|\btuck\b", scope, re.I):
+            return "style"
+        if re.search(r"\bfinish\b|\bmatte\b|\bgloss\b|\bsoft touch\b", scope, re.I):
+            return "finishes"
+        if re.search(r"\bmaterial\b", scope, re.I):
+            return "material"
+        return "product"
     return None
 
 

@@ -520,6 +520,23 @@ def test_size_unit_follow_up_completes_the_size(orchestrator):
     assert blockers(result) == []
 
 
+def test_feet_alone_keeps_asking_for_banner_dimensions(orchestrator):
+    orchestrator.start("c-feet")
+    orchestrator.handle("c-feet", "I need banners for an outdoor event")
+    # Drive to the size question if the opener did not already ask it.
+    state = orchestrator.store.get_or_create("c-feet")
+    if state.last_question != "sizes":
+        orchestrator.handle("c-feet", "outdoor")
+    result = orchestrator.handle("c-feet", "feet")
+    state = orchestrator.store.get_or_create("c-feet")
+    assert state.flags.get("size_preferred_unit") == "ft"
+    assert not state.fields["sizes"].value
+    assert not result.handoff
+    assert "specialist" not in result.reply.lower()
+    lowered = result.reply.lower()
+    assert "size" in lowered or "3x6" in lowered or "feet" in lowered
+
+
 def test_live_field_echo_cannot_overwrite_an_answered_field(
     config, kb_index, tmp_path, monkeypatch
 ):

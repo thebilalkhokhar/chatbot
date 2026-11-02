@@ -180,7 +180,8 @@ PLAIN_RE = re.compile(
 )
 SIZE_UNKNOWN_RE = re.compile(r"\b(no idea|not sure|don'?t know|dunno|whatever|any size|you decide|standard)\b", re.I)
 UNIT_ONLY_RE = re.compile(
-    r"^\s*(?:in(?:ch(?:es)?)?|\"|cm|mm|centimet(?:er|re)s?|millimet(?:er|re)s?)\s*[.!]*\s*$",
+    r"^\s*(?:in(?:ch(?:es)?)?|\"|cm|mm|centimet(?:er|re)s?|millimet(?:er|re)s?"
+    r"|ft|foot|feet)\s*[.!]*\s*$",
     re.I,
 )
 CONTACT_REFUSAL_RE = re.compile(
@@ -787,8 +788,17 @@ class ConversationState:
         )
 
     def family(self) -> str:
-        product = self.fields["product"].value
+        product = str(self.fields["product"].value or "").strip()
         if product:
+            # Canonical keys / labels (vision and registry) must resolve even when
+            # family_of() only matches visitor phrases like "flyer", not "print".
+            key = product.lower().replace(" ", "_")
+            if key in FAMILIES and key != "unknown":
+                return key
+            lowered = product.lower()
+            for family_key, label in FAMILY_PRODUCT.items():
+                if lowered == label or lowered == family_key.replace("_", " "):
+                    return family_key
             return family_of(product)
         return family_of("", tuple(self.visitor_texts()[-4:]))
 
@@ -895,14 +905,31 @@ class ConversationState:
         if self.family() == "unknown":
             if self._askable("product", True, set()):
                 return ["product"]
+            # A vision/model product proposal still needs a yes/no turn; treat it
+            # as askable so the chat does not empty the ask-set and stall.
+            product = self.fields["product"]
+            if product.status == STATUS_SUGGESTED and product.value:
+                return ["product"]
             return []
         blocking_open = self.blocking_open()
         family_fields = {key for key, _question in self.script()}
-        return [
+        keys = [
             key
             for key in ASK_PRIORITY
             if key in self.fields and self._askable(key, blocking_open, family_fields)
         ]
+        # Suggested slots wait on yes/no. Keep them askable so a confirm reply
+        # ("Are you looking for print products…?") is on-script, not a stall warn.
+        for key in ("product", "style", "finishes", "material"):
+            value = self.fields.get(key)
+            if (
+                value
+                and value.status == STATUS_SUGGESTED
+                and value.value
+                and key not in keys
+            ):
+                keys.insert(0, key)
+        return keys
 
     def do_not_ask(self) -> list[tuple[str, str]]:
         """Settled fields with the visitor's own words. Off limits, even as a confirmation."""
@@ -959,6 +986,16 @@ class ConversationState:
         if key == "sizes" and self.size_needs_unit():
             size = str(self.fields["sizes"].value or "").strip()
             return f"Is {size} in inches, cm, or mm?"
+        if key == "sizes":
+            preferred = str(self.flags.get("size_preferred_unit") or "").strip()
+            if preferred:
+                unit_word = {
+                    "ft": "feet",
+                    "in": "inches",
+                    "cm": "cm",
+                    "mm": "mm",
+                }.get(preferred, preferred)
+                return f"What size do you need in {unit_word}? For example 3x6."
         for field_key, question in self.script():
             if field_key == key:
                 return question
@@ -1015,10 +1052,28 @@ class ConversationState:
         return self.next_contact_question()
 
     def finalize_stalled(self) -> list[str]:
-        """The unit follow-up gets exactly one turn; after it, the size is the team's to confirm."""
+        """Close size asks that cannot progress, so the chat does not empty and stall.
+
+        - Unit follow-up already asked once → waive the number for the team.
+        - Two failed size asks with no value → same waiver (team confirms size).
+        """
         noted: list[str] = []
+        sizes = self.fields["sizes"]
         if self.size_needs_unit() and self.flags.get("unit_asked"):
-            self.fields["sizes"].status = STATUS_WAIVED
+            sizes.status = STATUS_WAIVED
+            noted.append("sizes")
+        elif (
+            not sizes.value
+            and sizes.status == STATUS_UNKNOWN
+            and sizes.attempts >= 2
+        ):
+            self.set_field(
+                "sizes",
+                "to be confirmed",
+                BASIS_VISITOR,
+                raw="",
+                status=STATUS_WAIVED,
+            )
             noted.append("sizes")
         return noted
 
@@ -1086,6 +1141,20 @@ class ConversationState:
             lines.append("Already explained there is no standard size: do not explain again.")
         if self.flags.get("plain"):
             lines.append("Plain/unprinted order: do not ask for designs or SKUs.")
+        if self.flags.get("reference_image"):
+            note = str(self.flags.get("reference_summary") or "").strip()
+            if note:
+                lines.append(
+                    "Visitor shared a reference image (on file for this chat): "
+                    f"{note} "
+                    "Keep using it as context. Do not ask them to re-send artwork "
+                    "or describe the same design again unless they offer a new image."
+                )
+            else:
+                lines.append(
+                    "Visitor shared a reference image (on file for this chat). "
+                    "Do not ask them to re-send artwork unless they offer a new image."
+                )
         return "\n".join(lines)
 
     def to_dict(self) -> dict:
@@ -1387,6 +1456,18 @@ def extract_fields(
         size_match = SIZE_DIM_RE.search(value) or SINGLE_SIZE_RE.search(value)
         if last_question == "sizes" and pending_size and UNIT_ONLY_RE.match(value):
             updates["sizes"] = f"{pending_size} {value.strip()}"
+        elif (
+            last_question == "sizes"
+            and UNIT_ONLY_RE.match(value)
+            and not size_match
+            and not pending_size
+        ):
+            # "feet" / "inches" alone = preferred unit, not a finished size answer.
+            unit = _canonical_unit(value.strip().strip("."))
+            if unit:
+                state.flags["size_preferred_unit"] = unit
+                # Unit preference is progress; do not burn the size attempt budget.
+                state.fields["sizes"].attempts = min(state.fields["sizes"].attempts, 1)
         elif size_match and not size_has_zero_dimension(size_match.group(0)):
             updates["sizes"] = size_match.group(0)
         elif size_match or (last_question == "sizes" and size_has_zero_dimension(value)):
