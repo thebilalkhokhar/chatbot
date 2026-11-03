@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, Field, model_validator
 
 from . import canon
@@ -17,7 +17,9 @@ from .orchestrator import Orchestrator
 from .personas import PERSONAS, validate_personas
 
 log = logging.getLogger("chatbot")
-UI_PATH = Path(__file__).resolve().parent.parent / "web" / "index.html"
+WEB_DIR = Path(__file__).resolve().parent.parent / "web"
+UI_PATH = WEB_DIR / "index.html"
+FAVICON_PATH = WEB_DIR / "favicon.svg"
 
 
 class LocalStart(BaseModel):
@@ -177,6 +179,16 @@ def create_app(config: Config | None = None, orchestrator: Orchestrator | None =
         if not UI_PATH.exists():
             return HTMLResponse("Chat UI file is missing", status_code=500)
         return HTMLResponse(UI_PATH.read_text(encoding="utf-8"))
+
+    @app.get("/favicon.svg")
+    @app.get("/favicon.ico")
+    def favicon():
+        if not cfg.ui_enabled:
+            return Response(status_code=404)
+        if not FAVICON_PATH.exists():
+            return Response(status_code=404)
+        return FileResponse(FAVICON_PATH, media_type="image/svg+xml")
+
 
     @app.post("/api/start")
     def api_start(payload: LocalStart):
