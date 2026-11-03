@@ -206,6 +206,13 @@ def test_use_case_phrases_and_channels_are_read_from_the_message():
     assert use_case_from("boxes for candles") == "candles"
     assert use_case_from("looking for boxes") == ""
     assert use_case_from("labels for example") == ""
+    # OCR brief lines: purpose must not truncate before QUANTITY/SIZE/FINISH.
+    assert (
+        use_case_from(
+            "labels for coffee pouches QUANTITY: 250 SIZE: 10x15 CM FINISH: TO BE CONFIRMED"
+        )
+        == "coffee pouches"
+    )
     # "{purpose} {product}" — whiskey bottle label, not only "labels for …".
     assert use_case_from("whiskey bottle label") == "whiskey bottle"
     assert use_case_from("whisky bottle labels") == "whisky bottle"
@@ -406,6 +413,20 @@ def test_a_contact_detail_does_not_settle_a_prose_field():
     assert rejected["style"] == "+1 832-807-3429"
     accepted, _ = apply_field_updates(state, {"email": "buyer@example.com"}, "buyer@example.com")
     assert accepted["email"] == "buyer@example.com"
+
+
+def test_international_phone_is_captured_when_asked():
+    # US-only PHONE_RE skipped +92… so the bot re-asked and dumped company contact.
+    state = make_state("I need boxes")
+    state.last_question = "phone"
+    for raw in ("+923134432915", "923134432915", "+44 7911 123456"):
+        state.fields["phone"].value = ""
+        state.fields["phone"].status = STATUS_UNKNOWN
+        updates = extract_fields(raw, "phone", state)
+        assert updates.get("phone") == raw, raw
+        accepted, _ = apply_field_updates(state, updates, raw)
+        assert accepted["phone"] == raw
+        assert state.fields["phone"].status == STATUS_VISITOR
 
 
 def test_a_v1_record_loads_with_visitor_provenance():

@@ -55,7 +55,188 @@ def test_fake_vision_result_has_summary():
     result = fake_vision_result()
     assert result.summary
     assert result.source == "fake"
+    assert result.image_kind == "packaging"
     assert result.field_updates() == {}
+
+
+def test_vision_payload_email_screenshot_strips_packaging_hallucination():
+    from chatbot.bot.vision import _from_payload
+
+    result = _from_payload(
+        {
+            "summary": "The image depicts a packaging reference that appears to be a flat pouch.",
+            "image_kind": "packaging",
+            "family": "bags",
+            "style": "flat pouch",
+            "material": "",
+            "finishes": "",
+            "use_case": "",
+            "quantity": "",
+            "sizes": "",
+            "notes": "",
+            "readable_text": "annlee@gmail.com",
+            "email": "annlee@gmail.com",
+            "phone": "",
+            "focus_clear": False,
+            "focus_observation": "",
+        },
+        source="live",
+    )
+    assert result.image_kind == "contact"
+    assert result.email == "annlee@gmail.com"
+    assert result.family == ""
+    assert result.style == ""
+    assert "pouch" not in result.summary.lower()
+    assert "annlee@gmail.com" in result.summary
+    assert result.field_updates() == {"email": "annlee@gmail.com"}
+
+
+def test_contact_mislabel_with_order_ocr_is_treated_as_brief():
+    from chatbot.bot.vision import _from_payload
+
+    result = _from_payload(
+        {
+            "summary": "Text or contact details",
+            "image_kind": "contact",
+            "family": "",
+            "style": "",
+            "material": "",
+            "finishes": "",
+            "use_case": "",
+            "quantity": "",
+            "sizes": "",
+            "notes": "",
+            "readable_text": (
+                "labels for coffee pouches QUANTITY: 250 SIZE: 10x15 CM "
+                "FINISH: TO BE CONFIRMED"
+            ),
+            "email": "",
+            "phone": "",
+            "focus_clear": False,
+            "focus_observation": "",
+        },
+        source="live",
+    )
+    assert result.image_kind == "text"
+    assert not result.is_contact_only()
+    assert "labels for coffee pouches" in result.turn_enrichment().lower()
+
+
+def test_contact_mislabel_keeps_structured_order_fields():
+    from chatbot.bot.vision import _from_payload
+
+    result = _from_payload(
+        {
+            "summary": "Contact card",
+            "image_kind": "contact",
+            "family": "labels",
+            "style": "",
+            "material": "",
+            "finishes": "to be confirmed",
+            "use_case": "coffee pouches",
+            "quantity": "250",
+            "sizes": "10x15 CM",
+            "notes": "",
+            "readable_text": "",
+            "email": "",
+            "phone": "",
+            "focus_clear": False,
+            "focus_observation": "",
+        },
+        source="live",
+    )
+    assert result.image_kind == "text"
+    assert result.quantity == "250"
+    assert "15" in result.sizes or "10" in result.sizes
+    assert result.field_updates()["product"]
+    assert result.field_updates()["quantity"] == "250"
+    assert not result.is_contact_only()
+
+
+def test_shared_image_placeholder_is_not_an_attach_request():
+    from chatbot.bot.state import asks_to_share_reference
+
+    assert asks_to_share_reference("can i share a reference image?")
+    assert not asks_to_share_reference("[shared a reference image]")
+    assert not asks_to_share_reference(
+        "[shared a reference image] labels for coffee pouches QUANTITY: 350"
+    )
+
+
+def test_email_only_image_is_captured_not_treated_as_pouch(orchestrator, monkeypatch):
+    def fake_analyze(client, cfg, data, mime, focus_field="", focus_hint="", **_kwargs):
+        return VisionResult(
+            summary="The image shows the email address annlee@gmail.com.",
+            image_kind="contact",
+            email="annlee@gmail.com",
+            readable_text="annlee@gmail.com",
+            focus_clear=False,
+            source="live",
+        )
+
+    monkeypatch.setattr("chatbot.bot.orchestrator.analyze_image", fake_analyze)
+    orchestrator.start("img-email")
+    result = orchestrator.handle(
+        "img-email",
+        "[shared a reference image]",
+        image=PNG_1X1,
+        image_mime="image/png",
+    )
+    lowered = result.reply.lower()
+    assert "annlee@gmail.com" in lowered
+    assert "noted" in lowered or "email" in lowered
+    assert "pouch" not in lowered
+    assert "packaging reference" not in lowered
+    assert "please attach" not in lowered
+    assert result.source == "vision"
+    state = orchestrator.store.get_or_create("img-email")
+    assert state.fields["email"].value == "annlee@gmail.com"
+    assert not state.fields["product"].done
+    assert "boxes" in lowered or "bags" in lowered or "labels" in lowered
+
+
+def test_order_brief_image_extracts_product_qty_size_finish(orchestrator, monkeypatch):
+    def fake_analyze(client, cfg, data, mime, focus_field="", focus_hint="", **_kwargs):
+        return VisionResult(
+            summary="A typed brief for coffee pouch labels.",
+            image_kind="text",
+            family="labels",
+            use_case="coffee pouches",
+            quantity="350",
+            sizes="15x15 CM",
+            finishes="to be confirmed",
+            readable_text=(
+                "labels for coffee pouches QUANTITY: 350 SIZE: 15 * 15 CM "
+                "FINISH: TO BE CONFIRMED"
+            ),
+            focus_clear=True,
+            focus_observation="labels",
+            source="live",
+        )
+
+    monkeypatch.setattr("chatbot.bot.orchestrator.analyze_image", fake_analyze)
+    orchestrator.start("img-brief")
+    result = orchestrator.handle(
+        "img-brief",
+        "[shared a reference image]",
+        image=PNG_1X1,
+        image_mime="image/png",
+    )
+    lowered = result.reply.lower()
+    assert result.source == "vision"
+    assert "please attach" not in lowered
+    assert "350" in result.reply or "350" in lowered
+    assert "label" in lowered
+    state = orchestrator.store.get_or_create("img-brief")
+    assert "label" in state.fields["product"].value.lower()
+    assert state.fields["quantity"].value == "350"
+    assert "15" in state.fields["sizes"].value
+    assert "cm" in state.fields["sizes"].value.lower()
+    assert "coffee" in state.fields["use_case"].value.lower()
+    assert "pouch" in state.fields["use_case"].value.lower()
+    assert "labels for coffee" not in state.fields["use_case"].value.lower()
+    # Brief "FINISH: TO BE CONFIRMED" means not chosen yet — leave finish open.
+    assert not state.fields["finishes"].done
 
 
 def test_local_chat_accepts_reference_image(config, orchestrator):
@@ -333,6 +514,8 @@ def test_vision_box_finish_uses_catalogue_term(orchestrator, monkeypatch):
         ("style", "gift"),
     ):
         state.set_field(key, value, raw=value, status=STATUS_VISITOR)
+    # Soft early email would otherwise jump ahead of finishes on image focus.
+    state.flags["soft_email_asked"] = True
     state.last_question = "finishes"
     orchestrator.store.save(state)
 

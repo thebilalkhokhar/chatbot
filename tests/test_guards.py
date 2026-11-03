@@ -104,6 +104,22 @@ def test_a_contact_question_keeps_the_canon_line_and_the_next_field():
     assert canon.asks_for_our_contact("how can I contact you?")
     assert not canon.asks_for_our_contact("my email is buyer@example.com")
     assert not canon.asks_for_our_contact("I don't have an email")
+    assert not canon.asks_for_our_contact("my phone number is +923134432915")
+    assert "contact" not in canon.topics_to_answer("my phone number is +923134432915")
+
+
+def test_giving_own_phone_does_not_dump_company_contact():
+    product = "What product would you like us to make for you today—boxes, bags, or labels?"
+    visitor = "my phone number is +923134432915"
+    dumped = (
+        "You can reach the team at Support@print247.us or +1 (832) 807-3429. " + product
+    )
+    cleaned = guards.prepare_reply(
+        dumped, visitor, priority_key="product", priority_text=product
+    )
+    assert "Support@print247.us" not in cleaned
+    assert "832" not in cleaned
+    assert product in cleaned
 
 
 def test_policy_ask_without_written_answer_is_injected():

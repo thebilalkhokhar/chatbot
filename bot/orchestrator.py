@@ -52,6 +52,7 @@ from .state import (
     looks_like_invalid_email,
     needs_catalogue_options,
     valid_email,
+    valid_phone,
     greeting_ack,
     is_context_question,
     is_meta_question,
@@ -381,7 +382,15 @@ class Orchestrator:
         return sentence
 
     def _offslot_ack(self, state: ConversationState, accepted: dict[str, str], asked: str) -> str:
-        """A material or finish given while style was the open question."""
+        """Acknowledge a field given while another question was open."""
+        phone = str(accepted.get("phone") or "").strip()
+        email = str(accepted.get("email") or "").strip()
+        if phone and asked != "phone" and valid_phone(phone):
+            follow = self._offslot_followup(state, asked)
+            return f"Thanks — I've got your number. {follow}".strip()
+        if email and asked != "email" and valid_email(email):
+            follow = self._offslot_followup(state, asked)
+            return f"Thanks — I've got your email. {follow}".strip()
         if asked != "style" or state.fields["style"].done:
             return ""
         values = [str(accepted[key]) for key in ("material", "finishes", "extras") if accepted.get(key)]
@@ -395,6 +404,14 @@ class Orchestrator:
         else:
             named = f"{', '.join(labels[:-1])} and {labels[-1]} are"
         return f"{named} noted. {state.question_for('style')}".strip()
+
+    def _offslot_followup(self, state: ConversationState, asked: str) -> str:
+        """Keep the open checklist question after an early contact answer."""
+        if asked and asked in state.fields and not state.fields[asked].done:
+            return (state.question_for(asked) or "").strip()
+        if not state.fields["product"].done:
+            return (state.question_for("product") or PRODUCT_QUESTION).strip()
+        return ""
 
     def _vision_focus(
         self,
@@ -443,7 +460,10 @@ class Orchestrator:
         if focus_field == "sizes":
             return {}
         scoped = updates
-        if focus_field in {"style", "finishes", "material"}:
+        # A typed brief may carry product/qty/size alongside a finish cue — keep
+        # every quote detail the vision model read, not only the open catalogue slot.
+        quote_keys = {"product", "use_case", "quantity", "sizes", "email", "phone"}
+        if focus_field in {"style", "finishes", "material"} and not (quote_keys & set(updates)):
             keep = {focus_field}
             if not state.fields["product"].done:
                 keep.add("product")
@@ -451,13 +471,18 @@ class Orchestrator:
         if self.registry is None or family == "unknown":
             return scoped
 
+        from .state import is_to_be_confirmed
+
         slot_for = {"style": "style", "finishes": "finish", "material": "material"}
         out: dict[str, str] = {}
         for key, value in scoped.items():
             text = str(value or "").strip()
             if not text:
                 continue
-            if key == "product":
+            if key in {"product", "use_case", "quantity", "sizes", "email", "phone"}:
+                out[key] = text
+                continue
+            if key == "finishes" and is_to_be_confirmed(text):
                 out[key] = text
                 continue
             slot = slot_for.get(key)
@@ -516,6 +541,40 @@ class Orchestrator:
         expected: tuple[str, str] | None,
     ) -> str:
         """Ack a reference image, confirm visible cues, or ask when the open field is unclear."""
+        focused = self._vision_focus(state, expected)
+        focus = focused[0] if focused else ""
+        focus_question = focused[1] if focused else ""
+        next_ask = ""
+        if focused:
+            next_ask = focused[1]
+        else:
+            next_ask = self._urgent_ask(state) or (
+                "What should we quote from this — boxes, bags, labels, or something else?"
+            )
+
+        # Contact-only screenshot — acknowledge the contact, never invent packaging.
+        email = (
+            str(vision.email or "").strip()
+            or str(vision_accepted.get("email") or "").strip()
+            or str(state.fields["email"].value or "").strip()
+        )
+        phone = (
+            str(vision.phone or "").strip()
+            or str(vision_accepted.get("phone") or "").strip()
+            or str(state.fields["phone"].value or "").strip()
+        )
+        if vision.is_contact_only():
+            if email and valid_email(email):
+                lead = f"Thanks — I can see your email as {email}. I've noted it."
+            elif phone:
+                lead = f"Thanks — I can see your phone number as {phone}. I've noted it."
+            else:
+                lead = (
+                    "Thanks for the image — it looks like text or contact details rather "
+                    "than a packaging mockup."
+                )
+            return f"{lead} {next_ask}".strip()
+
         summary = str(vision.summary or "").strip()
         stub = (not summary) or summary.lower().startswith("reference image received")
         if stub:
@@ -527,10 +586,7 @@ class Orchestrator:
             lead = f"I see the reference image you shared! {short}"
         lead = re.sub(r"\s+", " ", lead).strip()
 
-        focused = self._vision_focus(state, expected)
-        focus = focused[0] if focused else ""
-        focus_question = focused[1] if focused else ""
-        # Prefer confirming the cue that matches the open checklist field.
+        # Prefer confirming a suggested catalogue cue on packaging mockups.
         confirm_order = [focus] if focus in {"style", "product", "finishes", "material"} else []
         confirm_order.extend(
             key for key in ("style", "product", "finishes", "material") if key not in confirm_order
@@ -559,6 +615,31 @@ class Orchestrator:
                 "Should I use this material for your order?"
             )
 
+        # Typed order brief: cite what OCR already locked, then the next open ask.
+        brief = vision.image_kind == "text" or bool(
+            vision.quantity or vision.sizes or vision.use_case
+        )
+        if brief:
+            noted: list[str] = []
+            product = vision_accepted.get("product") or state.fields["product"].value
+            use_case = vision_accepted.get("use_case") or state.fields["use_case"].value
+            quantity = vision_accepted.get("quantity") or state.fields["quantity"].value
+            sizes = vision_accepted.get("sizes") or state.fields["sizes"].value
+            finishes = vision_accepted.get("finishes") or state.fields["finishes"].value
+            if product:
+                noted.append(str(product))
+            if use_case:
+                noted.append(f"for {use_case}")
+            if quantity:
+                noted.append(f"qty {quantity}")
+            if sizes:
+                noted.append(f"size {sizes}")
+            if finishes:
+                noted.append(f"finish {finishes}")
+            if noted:
+                lead = "Thanks — from your image I've noted " + ", ".join(noted) + "."
+            return f"{lead} {next_ask}".strip()
+
         observation = str(vision.focus_observation or "").strip()
         if focus == "sizes":
             product = str(state.fields["product"].value or "label").strip() or "label"
@@ -576,12 +657,7 @@ class Orchestrator:
                 f"{clarify}"
             ).strip()
 
-        if focused:
-            return f"{lead} {focused[1]}".strip()
-        urgent = self._urgent_ask(state)
-        if urgent:
-            return f"{lead} {urgent}".strip()
-        return f"{lead} What should we quote from this — boxes, bags, labels, or something else?"
+        return f"{lead} {next_ask}".strip()
 
     def _safe_fallback(
         self,
@@ -604,7 +680,7 @@ class Orchestrator:
         if note:
             return note
         visitor = state.last_visitor()
-        if is_option_request(visitor):
+        if is_option_request(visitor) or state.flags.get("offer_options_for"):
             return heuristic_turn(
                 state,
                 visitor,
@@ -806,6 +882,13 @@ class Orchestrator:
                 state.flags["attachment_error"] = str(error)[:200]
                 vision = None
 
+        # Fold OCR + structured vision fields into this turn so extract/traceable
+        # treat readable quote details as the visitor's own words.
+        if vision is not None:
+            enrichment = vision.turn_enrichment()
+            if enrichment and enrichment.lower() not in visitor.lower():
+                visitor = f"{visitor} {enrichment}".strip() if visitor else enrichment
+
         state.add("visitor", visitor)
         asked_before = state.last_question
         was_reachable = state.reachable()
@@ -825,33 +908,61 @@ class Orchestrator:
         for key in confirmed:
             accepted[key] = state.fields[key].value
         if vision is not None:
-            # Vision cues are bot proposals until the visitor confirms them.
+            # Structured vision fields fill gaps extract missed; visitor text already
+            # includes OCR so quantity/size/email stay traceable as customer facts.
             focus_field = str(state.flags.get("vision_focus_field") or "")
             vision_updates = {
                 key: value
                 for key, value in vision.field_updates().items()
-                if key not in accepted
+                if (
+                    key not in accepted
+                    # Structured vision use_case wins over a truncated OCR parse
+                    # ("labels for coffee" vs "coffee pouches").
+                    or (
+                        key == "use_case"
+                        and value
+                        and str(accepted.get(key) or "").lower() != str(value).lower()
+                    )
+                )
                 and (
                     key not in state.fields
                     or not state.fields[key].done
                     or state.fields[key].status == STATUS_SUGGESTED
+                    or (
+                        key == "use_case"
+                        and value
+                        and str(state.fields[key].value or "").lower() != str(value).lower()
+                    )
                 )
             }
             vision_updates = self._canonicalize_vision_updates(
                 state, vision_updates, focus_field=focus_field
             )
+            # Customer-only facts from the image are still the visitor's words (OCR).
             vision_ok, vision_rejected = apply_field_updates(
                 state, vision_updates, visitor, source="model"
             )
             vision_accepted.update(vision_ok)
+            # Also surface values extract already accepted so the reply can cite them.
+            for key in ("product", "use_case", "quantity", "sizes", "finishes", "email", "phone"):
+                if key in accepted and key not in vision_accepted:
+                    vision_accepted[key] = accepted[key]
             accepted.update(vision_ok)
+            # Prefer the structured vision use_case when both fired.
+            if "use_case" in vision_ok:
+                accepted["use_case"] = vision_ok["use_case"]
             rejected.update(vision_rejected)
             if vision.summary:
                 state.flags["reference_summary"] = vision.summary[:300]
+            if vision.image_kind:
+                state.flags["reference_image_kind"] = vision.image_kind
         # Size/qty/SKUs with no concrete answer → to be confirmed.
         # Style/material/finish with no concrete pick → flag options (any wording).
-        for deferred in defer_unanswered_open_field(state, visitor, accepted):
-            rejected.pop(deferred, None)
+        # Image turns apply OCR/vision fields; do not waive the open ask just because
+        # the placeholder message is not itself a size/qty answer.
+        if not state.flags.get("reference_image_this_turn"):
+            for deferred in defer_unanswered_open_field(state, visitor, accepted):
+                rejected.pop(deferred, None)
         offer_for = needs_catalogue_options(state, visitor, accepted)
         # Alternatives ask while a material/style/finish is only suggested (or
         # was wrongly waived): clear it and force the catalogue menu.
@@ -869,8 +980,20 @@ class Orchestrator:
                 material.basis = ""
             offer_for = offer_for or "material"
             state.last_question = "material"
+        # Bare "suggest me" / "recommend something" while a catalogue field is open
+        # must keep that field — do not burn attempts and jump to finish.
+        if (
+            not offer_for
+            and (is_option_request(visitor) or wants_recommendation(visitor))
+            and asked_before in CATALOGUE_OPTION_FIELDS
+            and not state.fields[asked_before].done
+        ):
+            offer_for = asked_before
+            state.last_question = asked_before
         if offer_for:
             state.flags["offer_options_for"] = offer_for
+            # Keep the field askable while we are listing options.
+            state.fields[offer_for].attempts = min(state.fields[offer_for].attempts, 1)
         else:
             state.flags.pop("offer_options_for", None)
         if "email" in accepted:
@@ -944,6 +1067,11 @@ class Orchestrator:
         # Reference-share and image turns keep the question already on the table.
         if asks_to_share_reference(visitor) or vision is not None:
             expected = continue_ask(state) or expected
+        # Catalogue-menu asks stay on that field even if attempts were already spent.
+        offer_for = str(state.flags.get("offer_options_for") or "").strip()
+        if offer_for in CATALOGUE_OPTION_FIELDS and not state.fields[offer_for].done:
+            expected = (offer_for, state.question_for(offer_for) or (expected[1] if expected else ""))
+            state.last_question = offer_for
         handoff_reason = self._handoff_reason(state, visitor, progressed=bool(accepted))
         # Declining *their* email is a waiver. Soft early skip keeps quoting.
         # Closing refuse can hand off; a refuse that also asks for OUR contact/
@@ -983,6 +1111,20 @@ class Orchestrator:
         vision_line = ""
         if vision is not None and not handoff_reason:
             vision_line = self._vision_reply(state, vision, vision_accepted, expected)
+        # Propose-and-confirm: affirmation already settled the open suggestion —
+        # continue from the next ask instead of letting live re-interpret "yes".
+        confirm_follow = ""
+        if (
+            confirmed
+            and not handoff_reason
+            and not is_question(visitor)
+            and not clarification
+            and vision is None
+        ):
+            follow = (expected[1] if expected else "") or ""
+            if not follow and expected:
+                follow = state.question_for(expected[0]) or ""
+            confirm_follow = f"Got it. {follow}".strip() if follow else "Got it."
 
         composed = Composed(reply="")
         source = "heuristic"
@@ -1014,6 +1156,12 @@ class Orchestrator:
                     break
         elif offslot:
             composed = Composed(reply=offslot, source="heuristic")
+        elif confirm_follow:
+            composed = Composed(
+                reply=confirm_follow,
+                asked=expected[0] if expected else "",
+                source="heuristic",
+            )
         elif self.config.real_llm_enabled and not handoff_reason:
             try:
                 composed = live_turn(
@@ -1134,25 +1282,57 @@ class Orchestrator:
                 blocked = []
 
         if not result.ok:
-            fallback = self._finish_reply(
-                self._safe_fallback(
+            offer = str(state.flags.get("offer_options_for") or "").strip()
+            if offer in CATALOGUE_OPTION_FIELDS or is_option_request(visitor) or wants_recommendation(visitor):
+                # Keep heuristic fields (e.g. suggested standard material) so a
+                # following "yes" can confirm via propose-and-confirm.
+                composed = heuristic_turn(
                     state,
+                    visitor,
                     expected,
-                    handoff_reason,
-                    guard=result,
-                    configs=composed.proposed_configs,
-                ),
-                visitor,
-                expected,
-                already_greeted=already_greeted,
-                state=state,
-            )
-            fallback_result = self._guard(
-                fallback, state, visitor, prompt_chunks, expected, bool(handoff_reason)
-            )
-            if fallback_result.blockers:
+                    handoff_reason=handoff_reason,
+                    overrides=self.overrides,
+                    unclear=unclear,
+                )
+                composed.source = "fallback"
+                composed.reply = self._finish_reply(
+                    composed.reply,
+                    visitor,
+                    expected,
+                    already_greeted=already_greeted,
+                    state=state,
+                )
+                result = self._guard(
+                    composed.reply,
+                    state,
+                    visitor,
+                    prompt_chunks,
+                    expected,
+                    bool(handoff_reason),
+                    composed.proposed_configs,
+                )
+                if result.blockers and not offer:
+                    fallback = self._finish_reply(
+                        expected[1] if expected else (HANDOFF_LINES.get(handoff_reason) or ""),
+                        visitor,
+                        expected,
+                        already_greeted=already_greeted,
+                        state=state,
+                    )
+                    composed = Composed(reply=fallback, source="fallback")
+                    result = self._guard(
+                        fallback, state, visitor, prompt_chunks, expected, bool(handoff_reason)
+                    )
+                source = "fallback"
+            else:
                 fallback = self._finish_reply(
-                    expected[1] if expected else (HANDOFF_LINES.get(handoff_reason) or ""),
+                    self._safe_fallback(
+                        state,
+                        expected,
+                        handoff_reason,
+                        guard=result,
+                        configs=composed.proposed_configs,
+                    ),
                     visitor,
                     expected,
                     already_greeted=already_greeted,
@@ -1161,9 +1341,20 @@ class Orchestrator:
                 fallback_result = self._guard(
                     fallback, state, visitor, prompt_chunks, expected, bool(handoff_reason)
                 )
-            composed = Composed(reply=fallback, source="fallback")
-            result = fallback_result
-            source = "fallback"
+                if fallback_result.blockers:
+                    fallback = self._finish_reply(
+                        expected[1] if expected else (HANDOFF_LINES.get(handoff_reason) or ""),
+                        visitor,
+                        expected,
+                        already_greeted=already_greeted,
+                        state=state,
+                    )
+                    fallback_result = self._guard(
+                        fallback, state, visitor, prompt_chunks, expected, bool(handoff_reason)
+                    )
+                composed = Composed(reply=fallback, source="fallback")
+                result = fallback_result
+                source = "fallback"
 
         reply = composed.reply.strip()
         if composed.fields:
@@ -1233,6 +1424,10 @@ class Orchestrator:
             elif state.flags.get("invalid_email"):
                 # A bad address is a correction turn, not a failed email ask.
                 pass
+            elif state.flags.get("offer_options_for"):
+                # Listing catalogue options is not a failed answer — keep the field open.
+                if field_value and not field_value.done:
+                    field_value.attempts = min(field_value.attempts, 1)
             elif field_value and not field_value.done and not is_visitor_greeting(visitor):
                 field_value.attempts += 1
         else:

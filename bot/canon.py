@@ -527,7 +527,9 @@ _OUR_CONTACT_ASK = re.compile(
     r"\b(?:what(?:'s|s| is)|whats|where(?:'s| is)?)\b[^?.!]{0,48}\b(?:e-?mail|phone(?:\s+number)?|contact(?:\s+(?:info|information|details|number))?|whatsapp)\b"
     r"|\bwhat(?:'s| is) (?:your|the) number\b"
     r"|\b(?:your|the)\s+(?:e-?mail|phone(?:\s+number)?|contact(?:\s+(?:info|information|details|number))?|whatsapp|number)\b"
-    r"|\b(?:contact|phone|e-?mail)\s+(?:info|information|details|number)\b"
+    # "phone number" alone is how visitors *give* theirs — keep contact/email info|details only.
+    r"|\bcontact\s+(?:info|information|details|number)\b"
+    r"|\b(?:phone|e-?mail)\s+(?:info|information|details)\b"
     r"|\bhow (?:can|do|should) (?:i|we) (?:contact|reach|call|get in touch|email)\b"
     r"|\b(?:can|could|may) (?:i|we) (?:get|have|call)\b[^?.!]{0,36}\b(?:e-?mail|phone|contact|number)\b"
     r"|\bdo you have\b[^?.!]{0,36}\b(?:an?\s+)?(?:e-?mail|phone|whatsapp|contact)\b"
@@ -535,6 +537,20 @@ _OUR_CONTACT_ASK = re.compile(
     r"|\b(?:reach|contact) (?:you|the team|support|someone)\b"
     r"|\b(?:share|give|send|provide)\s+(?:me\s+|us\s+)?(?:your|the)\s+"
     r"(?:e-?mail|phone(?:\s+number)?|contact(?:\s+(?:info|information|details|number))?|whatsapp|number)\b",
+    re.I,
+)
+
+# Visitor stating their own details — not a request for Print247's.
+_OWN_CONTACT_OFFER = re.compile(
+    r"\b(?:my|our)\s+(?:e-?mail|phone(?:\s+number)?|number|mobile|cell|contact(?:\s+(?:info|details))?)\b"
+    r"|\b(?:e-?mail|phone(?:\s+number)?|number|mobile|cell)\s+(?:is|are)\b"
+    r"|\b(?:here(?:'s| is)|this is)\s+(?:my\s+)?(?:e-?mail|phone|number|mobile|cell)\b",
+    re.I,
+)
+
+_STILL_ASKS_OURS = re.compile(
+    r"\byour\b|\bthe team\b|\bhow (?:can|do|should) (?:i|we)\b"
+    r"|\breach you\b|\bcontact you\b|\bcall you\b",
     re.I,
 )
 
@@ -558,7 +574,12 @@ def asks_for_our_contact(text: str) -> bool:
     value = str(text or "").strip()
     if not value or not CANON["contact"].matches(value):
         return False
-    return bool(_OUR_CONTACT_ASK.search(value))
+    if not _OUR_CONTACT_ASK.search(value):
+        return False
+    # "my phone number is +92…" matched older "phone number" triggers; keep compound asks.
+    if _OWN_CONTACT_OFFER.search(value) and not _STILL_ASKS_OURS.search(value):
+        return False
+    return True
 
 
 def topics_to_answer(text: str) -> list[str]:
@@ -570,12 +591,9 @@ def topics_to_answer(text: str) -> list[str]:
     topics = detect_topics(text)
     if "moq" in topics and not asks_for_minimum(text):
         topics = [key for key in topics if key != "moq"]
-    # Giving their own email is not a question about how to reach the team.
+    # Word "phone"/"email" alone is not a question about how to reach the team.
     if "contact" in topics and not asks_for_our_contact(text):
-        from .state import EMAIL_RE
-
-        if EMAIL_RE.search(text):
-            topics = [key for key in topics if key != "contact"]
+        topics = [key for key in topics if key != "contact"]
     if "location" in topics and not asks_for_location(text):
         topics = [key for key in topics if key != "location"]
     return topics

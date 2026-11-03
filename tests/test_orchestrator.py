@@ -811,6 +811,20 @@ def test_webhook_channel_stays_handed_off(orchestrator):
     assert second.flags.get("already_handed_off") is True
 
 
+def test_early_phone_is_acknowledged_then_product_ask(orchestrator):
+    # Visitor dumps a number on turn 1 — thank them, don't ignore it.
+    orchestrator.start("c-early-phone")
+    result = orchestrator.handle("c-early-phone", "my phone number is +923134432915")
+    assert result.accepted.get("phone") == "+923134432915"
+    lowered = result.reply.lower()
+    assert "got your number" in lowered or "noted" in lowered
+    assert "support@print247.us" not in lowered
+    assert "832" not in result.reply
+    assert "box" in lowered  # still asks product
+    assert result.reply.count("?") == 1
+    assert blockers(result) == []
+
+
 def test_quote_close_does_not_dump_the_facility_or_phone(orchestrator):
     orchestrator.start("c-quote-close")
     for text in (
@@ -1328,6 +1342,87 @@ def test_suggest_other_materials_lists_options_not_finish(orchestrator):
         for token in ("kraft", "board", "cardboard", "corrugated", "material")
     ), result.reply
     assert "matte lamination" not in lowered
+
+
+def test_suggest_me_materials_for_mailer_lists_box_boards(orchestrator):
+    """Vision asked material → visitor asks for suggestions → list boards, not finish."""
+    from chatbot.bot.state import STATUS_VISITOR
+
+    orchestrator.start("c-mailer-mat")
+    state = orchestrator.store.get_or_create("c-mailer-mat")
+    for key, value in (
+        ("product", "boxes"),
+        ("use_case", "pizza"),
+        ("sizes", "15x20 in"),
+        ("quantity", "300"),
+        ("style", "mailer"),
+    ):
+        state.set_field(key, value, raw=value, status=STATUS_VISITOR)
+    state.flags["soft_email_asked"] = True
+    state.last_question = "material"
+    state.fields["material"].attempts = 1
+    orchestrator.store.save(state)
+
+    first = orchestrator.handle("c-mailer-mat", "suggest me materials for this")
+    lowered = first.reply.lower()
+    assert "matte lamination" not in lowered
+    assert any(
+        token in lowered for token in ("kraft", "corrugated", "sbs", "chipboard", "board")
+    ), first.reply
+    state = orchestrator.store.get_or_create("c-mailer-mat")
+    assert state.last_question == "material"
+    assert state.fields["material"].attempts <= 1
+
+    second = orchestrator.handle("c-mailer-mat", "suggest me")
+    lowered2 = second.reply.lower()
+    assert "matte lamination" not in lowered2
+    assert any(
+        token in lowered2 for token in ("kraft", "corrugated", "sbs", "chipboard", "board")
+    ), second.reply
+    assert state.fields["material"].attempts <= 1 or (
+        orchestrator.store.get_or_create("c-mailer-mat").last_question == "material"
+    )
+
+
+def test_yes_confirms_label_material_proposal(orchestrator):
+    # Propose-and-confirm: "yes" after the standard-stock ask must settle material,
+    # not send live back into "what other materials".
+    from chatbot.bot.state import STATUS_CONFIRMED, STATUS_SUGGESTED, STATUS_VISITOR, STATUS_WAIVED
+
+    orchestrator.start("c-label-yes")
+    state = orchestrator.store.get_or_create("c-label-yes")
+    for key, value, status in (
+        ("product", "labels", STATUS_VISITOR),
+        ("use_case", "for coffee", STATUS_VISITOR),
+        ("sizes", "to be confirmed", STATUS_WAIVED),
+        ("quantity", "350", STATUS_VISITOR),
+        ("finishes", "matte", STATUS_VISITOR),
+    ):
+        state.set_field(key, value, raw=value, status=status)
+    state.fields["email"].value = "bilal@gmail.com"
+    state.fields["email"].status = STATUS_VISITOR
+    state.flags["soft_email_asked"] = True
+    state.last_question = "material"
+    orchestrator.store.save(state)
+
+    propose = orchestrator.handle(
+        "c-label-yes", "suggest me other label materials you have."
+    )
+    state = orchestrator.store.get_or_create("c-label-yes")
+    assert "vinyl" in propose.reply.lower()
+    assert state.fields["material"].status == STATUS_SUGGESTED
+    assert "vinyl" in state.fields["material"].value.lower()
+    assert state.last_question == "material"
+
+    yes = orchestrator.handle("c-label-yes", "yes")
+    state = orchestrator.store.get_or_create("c-label-yes")
+    assert state.fields["material"].status == STATUS_CONFIRMED
+    assert "vinyl" in state.fields["material"].value.lower()
+    lowered = yes.reply.lower()
+    assert "got it" in lowered
+    assert "beyond the pp white vinyl" not in lowered
+    assert "other option from our materials" not in lowered
+    assert blockers(yes) == []
 
 
 def test_label_material_fallback_stays_inside_labels(orchestrator):

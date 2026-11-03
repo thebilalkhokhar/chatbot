@@ -907,7 +907,8 @@ def shape_contact_flow(reply: str, visitor: str, priority_key: str = "", priorit
     """Answer a contact question with the canon line, then the next checklist field.
 
     An email or phone ask is also removed while designs, material, or finish are still
-    the field that should be asked.
+    the field that should be asked. Company Support/832 is never volunteered when they
+    only gave *their* number.
     """
     text = str(reply or "").strip()
     exact = canon.effective_answer("contact")
@@ -923,6 +924,21 @@ def shape_contact_flow(reply: str, visitor: str, priority_key: str = "", priorit
         text = " ".join(kept).strip()
         if exact not in text:
             text = f"{exact} {text}".strip()
+    elif canon.CANON["contact"].matches(visitor):
+        # Word "phone"/"email" in their reply made the live model dump Support@ —
+        # strip it. Leave untouched when the draft already had a restored public
+        # line on an unrelated turn (placeholder [EMAIL]/[PHONE] restore).
+        kept = []
+        for sentence in _sentences(text):
+            if exact and exact in sentence:
+                rest = sentence.replace(exact, "").strip(" .,;")
+                if rest:
+                    kept.append(rest)
+                continue
+            if re.search(r"support@print247|\(832\)\s*807", sentence, re.I):
+                continue
+            kept.append(sentence)
+        text = " ".join(kept).strip()
     redirect = bool(priority_text) and priority_key not in {"", "email", "phone"}
     if not redirect:
         return re.sub(r"\s+", " ", text).strip()
@@ -1137,7 +1153,8 @@ def _check_recommendation(
     if RECOMMENDATION_MARKER.search(reply):
         return
     if OPTION_NOUN.search(reply) and re.search(
-        r"\b(?:works?|fits?|suits?|good|best|right for|ideal for|include|includes|we have|we offer)\b",
+        r"\b(?:works?|fits?|suits?|good|best|right for|ideal for|include|includes|"
+        r"we have|we offer|we use)\b",
         reply,
         re.I,
     ):

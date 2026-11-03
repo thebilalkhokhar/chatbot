@@ -253,7 +253,13 @@ BARE_QTY_RE = re.compile(
     re.I,
 )
 EMAIL_RE = re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b")
-PHONE_RE = re.compile(r"(?<!\d)(?:\+?1[\s.\-]?)?(?:\(?\d{3}\)?[\s.\-]?)\d{3}[\s.\-]?\d{4}(?!\d)")
+# NANP (optional +1) or E.164 (+cc… with optional separators). valid_phone still gates 10–15 digits.
+PHONE_RE = re.compile(
+    r"(?<!\d)(?:"
+    r"(?:\+?1[\s.\-]?)?(?:\(?\d{3}\)?[\s.\-]?)\d{3}[\s.\-]?\d{4}"
+    r"|\+\d(?:[\s.\-]?\d){7,14}"
+    r")(?!\d)"
+)
 FINISH_WORDS = {
     # Longer catalogue forms first so "matte lamination" does not collapse to "matte".
     "matte lamination": ("matte lamination",),
@@ -304,7 +310,12 @@ MATERIAL_HINTS = re.compile(
 # channel, or the thing that goes inside.
 USE_CASE_TAIL = (
     r"([a-z0-9][a-z0-9 &'\-]{1,48}?)"
-    r"(?=\s*(?:[,.!?]|\band\b|\bbut\b|\bso\b|\bbecause\b|\bin\b|\bwith\b|\bthat\b|\bplease\b|\bthanks\b|$))"
+    r"(?=\s*(?:[,.!?]|\band\b|\bbut\b|\bso\b|\bbecause\b|\bin\b|\bwith\b|\bthat\b|"
+    r"\bplease\b|\bthanks\b|"
+    # Stop before labelled brief fields so OCR lines like
+    # "labels for coffee pouches QUANTITY: 250" keep "coffee pouches".
+    r"\bquantity\b|\bqty\b|\bsize\b|\bsizes\b|\bfinish(?:es)?\b|\bmaterial\b|"
+    r"\bstyle\b|\bmoq\b|\bemail\b|\bphone\b|$))"
 )
 USE_CASE_NOUN_RE = re.compile(
     r"\b(?:for my|for our|to pack|packing|packed with|holds|holding|filled with|going inside|goes inside|"
@@ -938,8 +949,14 @@ def use_case_from(text: str) -> str:
             "blank",
             "printed",
         }
+        # "labels for coffee pouches" must not become purpose="labels for coffee"
+        # via the trailing pouch/bag product match.
+        purpose_has_product_head = bool(
+            re.search(rf"\b(?:{_PRODUCT_HEAD_ALTS})\b", purpose.group(1), re.I)
+        )
         if (
             phrase
+            and not purpose_has_product_head
             and phrase not in USE_CASE_PURPOSE_BLOCKLIST
             and words
             and not any(word in lead_blocked for word in words)
@@ -1148,8 +1165,14 @@ def is_option_request(text: str) -> bool:
 
 
 def asks_to_share_reference(text: str) -> bool:
-    """Visitor wants to attach a reference image — invite them, do not ignore."""
-    return bool(REFERENCE_SHARE_RE.search(str(text or "")))
+    """Visitor wants to attach a reference image — invite them, do not ignore.
+
+    The placeholder used when an image was already uploaded must not match.
+    """
+    value = str(text or "").strip()
+    if re.search(r"\[\s*shared a reference image\s*\]", value, re.I):
+        return False
+    return bool(REFERENCE_SHARE_RE.search(value))
 
 
 def wants_human(text: str) -> bool:
@@ -1912,7 +1935,11 @@ def apply_field_updates(
         # stamps sizes="to be confirmed" while the visitor answered use case
         # ("coffee beans") must not close size early.
         if key in UNCERTAIN_WAIVE_FIELDS and is_to_be_confirmed(value):
-            if key != state.last_question:
+            # Image OCR / typed brief may waive a field that was not the last ask.
+            visitor_confirms = is_to_be_confirmed(visitor_text) or bool(
+                re.search(r"\bto\s*be\s*confirmed\b", str(visitor_text or ""), re.I)
+            )
+            if key != state.last_question and not visitor_confirms:
                 rejected[key] = value
                 continue
             state.set_field(
@@ -1964,18 +1991,20 @@ def apply_field_updates(
             or wants_recommendation(visitor_text)
             or is_option_request(visitor_text)
         ):
-            # An alternatives ask is not a material choice — visitor or model.
-            # "suggest me other materials" must not settle kraft / no preference.
-            material_match = MATERIAL_HINTS.search(value)
-            if (
-                not material_match
-                or wants_recommendation(visitor_text)
-                or is_option_request(visitor_text)
-                or basis != BASIS_VISITOR
-            ):
-                rejected[key] = value
-                continue
-            value = material_match.group(0)
+            # Alternatives ask is not the visitor picking a stock. A model proposal
+            # on that turn is still allowed — it becomes `suggested` for yes/no.
+            if source == "model" and basis == BASIS_MODEL:
+                pass
+            else:
+                material_match = MATERIAL_HINTS.search(value)
+                if (
+                    not material_match
+                    or wants_recommendation(visitor_text)
+                    or is_option_request(visitor_text)
+                ):
+                    rejected[key] = value
+                    continue
+                value = material_match.group(0)
         if key == "extras" and is_question(visitor_text) and basis == BASIS_VISITOR:
             if value.lower() not in {"yes", "no", "none", "both", "neither"}:
                 rejected[key] = value
@@ -2116,6 +2145,14 @@ def extract_fields(
     phone = PHONE_RE.search(value)
     if phone and not email:
         updates["phone"] = phone.group(0)
+    elif (
+        not email
+        and last_question == "phone"
+        and looks_like_contact(value.strip())
+        and valid_phone(value.strip())
+    ):
+        # Bare intl / digit-run answers when we just asked for their number.
+        updates["phone"] = value.strip()
 
     name = re.search(r"\bmy name is\s+([A-Za-z][\w'-]+)", value, re.I)
     if name:

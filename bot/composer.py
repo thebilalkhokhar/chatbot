@@ -7,7 +7,9 @@ from . import canon
 from .llm import LLMClient, REPLY_SCHEMA
 from .personas import PERSONAS, persona_for
 from .state import (
+    BASIS_MODEL,
     ConversationState,
+    STATUS_SUGGESTED,
     asks_if_bot,
     asks_to_share_reference,
     continue_ask,
@@ -229,7 +231,11 @@ def _topic_answer(key: str, family: str, overrides: dict[str, str] | None) -> st
                 "For labels we use PP white vinyl as the standard stock "
                 "for best print results."
             ),
-            "boxes": "Our boxes are board, never film.",
+            "boxes": (
+                "For custom boxes we offer kraft paperboard, corrugated cardboard, "
+                "SBS board, and rigid chipboard — all board, never film."
+            ),
+
             "banners": "Banners use vinyl, polyester, foamcore or corrugated plastic.",
             "business_cards": (
                 "Business cards use cardstock and specialty stocks such as kraft or acrylic."
@@ -278,7 +284,7 @@ def _ack(state: ConversationState, visitor: str) -> str:
     if last == "email" and valid_email(state.fields["email"].value):
         return "Got it, email noted."
     if last == "phone" and state.fields["phone"].value:
-        return "Got it."
+        return "Thanks — I've got your number."
     if last == "product" and state.fields["product"].value:
         return "Got it."
     if last == "style" and state.fields["style"].value:
@@ -462,8 +468,16 @@ def heuristic_turn(
         ):
             expected = (asked_key, state.question_for(asked_key) or "")
         if catalogue and asked_key == "material" and family == "labels":
-            parts.append("Would you like to proceed with PP white vinyl?")
-            return Composed(reply=" ".join(parts).strip(), asked="material", source="heuristic")
+            # Single standard stock: propose it and wait for yes/no (Section 8).
+            proposed = "PP white vinyl"
+            parts.append(f"Would you like to proceed with {proposed}?")
+            return Composed(
+                reply=" ".join(parts).strip(),
+                asked="material",
+                fields={"material": proposed},
+                bases={"material": BASIS_MODEL},
+                source="heuristic",
+            )
         if catalogue and asked_key == "material":
             follow = state.question_for("material") or (
                 "Which of those materials do you want for this order?"
@@ -833,6 +847,32 @@ def build_user(
                 and "materials" not in topics
                 and "styles" not in topics
                 and not re.search(r"\b(?:styles?|finishes?)\b", visitor, re.I)
+            )
+            else ""
+        ),
+        (
+            "Known has a field marked suggested — that is your open proposal waiting on yes/no. "
+            "If their latest message affirms it (yes, sure, okay, sounds good, proceed, etc.), "
+            "treat that field as confirmed: put the same value in `fields`, do NOT re-ask it or "
+            "offer more alternatives for it, and ask the next ASK SET field. If they refuse or "
+            "want other options, clear the proposal and list catalogue alternatives for that field."
+            if any(
+                field_value.status == STATUS_SUGGESTED and field_value.value
+                for field_value in state.fields.values()
+            )
+            else ""
+        ),
+        (
+            "When you propose a single standard material and ask whether to proceed, put that "
+            "material in `fields` (so it is recorded as suggested). Do not leave Material empty "
+            "while asking them to confirm it."
+            if (
+                str(state.flags.get("offer_options_for") or "") == "material"
+                or (
+                    state.last_question == "material"
+                    and (is_option_request(visitor) or wants_recommendation(visitor)
+                         or "materials" in topics)
+                )
             )
             else ""
         ),
