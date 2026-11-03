@@ -74,7 +74,7 @@
   }
 
   .topbar {
-    max-width: 1440px;
+    max-width: 1280px;
     margin: 0 auto;
     padding: 18px 22px 0;
     display: flex;
@@ -124,13 +124,20 @@
   #new-chat::before { content: "+ "; font-weight: 700; }
 
   .layout {
-    max-width: 1440px;
+    max-width: 1280px;
     margin: 0 auto;
     padding: 14px 22px 22px;
-    display: grid;
-    grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.95fr);
+    display: flex;
+    align-items: stretch;
     gap: 16px;
     height: calc(100vh - 82px);
+    transition:
+      gap 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+      max-width 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .layout.panel-collapsed {
+    gap: 0;
+    max-width: 920px;
   }
 
   .chat-card, .side-panel {
@@ -142,9 +149,12 @@
     backdrop-filter: blur(10px);
   }
   .chat-card {
+    flex: 1 1 auto;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    transition: flex-basis 0.42s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .messages {
     flex: 1; min-height: 0;
@@ -340,11 +350,88 @@
   }
 
   .side-panel {
+    flex: 0 0 clamp(300px, 32vw, 420px);
+    width: clamp(300px, 32vw, 420px);
+    max-width: 42vw;
     display: flex;
     flex-direction: column;
     padding: 14px;
     overflow: hidden;
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    transform-origin: right center;
+    transition:
+      flex-basis 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+      width 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+      max-width 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.28s ease,
+      transform 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+      padding 0.36s ease,
+      border-color 0.28s ease,
+      box-shadow 0.28s ease;
   }
+  .layout.panel-collapsed .side-panel {
+    flex-basis: 0;
+    width: 0;
+    max-width: 0;
+    opacity: 0;
+    padding-left: 0;
+    padding-right: 0;
+    border-color: transparent;
+    box-shadow: none;
+    transform: translateX(18px) scale(0.97);
+    pointer-events: none;
+  }
+  .side-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .side-head h2 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .2px;
+    color: var(--ink);
+  }
+  .side-head .hint {
+    margin: 2px 0 0;
+    font-size: 11px;
+    color: var(--muted-2);
+  }
+  .panel-close {
+    width: 32px; height: 32px; flex: 0 0 32px;
+    display: grid; place-items: center;
+    border-radius: 10px;
+    padding: 0;
+    background: rgba(255,255,255,0.04);
+    color: var(--muted);
+    border: 1px solid var(--line);
+  }
+  .panel-close:hover { color: var(--ink); background: rgba(255,255,255,0.07); }
+  .panel-close svg { width: 16px; height: 16px; }
+  #panel-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.04);
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+    font-weight: 600;
+    padding: 8px 12px;
+  }
+  #panel-toggle svg {
+    width: 15px; height: 15px;
+    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  #panel-toggle[aria-expanded="true"] {
+    background: rgba(124, 92, 255, 0.14);
+    border-color: rgba(124, 92, 255, 0.35);
+    color: #d7ccff;
+  }
+  #panel-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
   .tabs {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
@@ -507,11 +594,6 @@
     font-size: 10.5px;
   }
   .chip.ok { color: #b8f5d5; border-color: rgba(61, 214, 140, 0.28); background: var(--green-dim); }
-  .switch {
-    display: inline-flex; align-items: center; gap: 6px;
-    font-size: 11.5px; color: var(--muted-2); cursor: pointer;
-  }
-  .switch input { accent-color: var(--teal); }
 
   .issue {
     background: rgba(255,255,255,0.03);
@@ -563,19 +645,42 @@
   .debug-note { color: var(--muted); font-size: 11px; margin: 0 0 8px; }
 
   @media (max-width: 980px) {
-    .layout { grid-template-columns: 1fr; height: auto; }
+    .layout {
+      flex-direction: column;
+      height: auto;
+    }
     .chat-card { height: calc(100vh - 140px); min-height: 420px; }
-    .side-panel { max-height: 560px; }
+    .side-panel {
+      flex: 0 0 auto;
+      width: 100%;
+      max-width: none;
+      max-height: 560px;
+      transform-origin: top center;
+    }
+    .layout.panel-collapsed .side-panel {
+      flex-basis: 0;
+      width: 100%;
+      max-width: none;
+      max-height: 0;
+      margin: 0;
+      padding-top: 0;
+      padding-bottom: 0;
+      transform: translateY(-10px) scale(0.98);
+    }
     .bubble { max-width: 88%; }
   }
   @media (max-width: 560px) {
     .topbar, .layout { padding-left: 12px; padding-right: 12px; }
     .messages { padding: 16px 14px 8px; }
     .status .badge.muted { display: none; }
+    #panel-toggle .label { display: none; }
     .foot { flex-direction: column; gap: 2px; }
     .quick-replies { padding-left: 0; }
     .meta { padding-left: 4px; }
     .req-row { grid-template-columns: 18px 68px 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .layout, .side-panel, #panel-toggle svg { transition: none !important; }
   }
 </style>
 </head>
@@ -591,11 +696,18 @@
   <div class="status">
     <span id="mode-badge" class="badge muted"><span class="dot"></span><span class="label">loading</span></span>
     <span id="kb-badge" class="badge muted">KB</span>
+    <button id="panel-toggle" type="button" aria-controls="debug-panel" aria-expanded="true" title="Hide debug panel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="16" rx="2"/>
+        <path d="M15 4v16"/>
+      </svg>
+      <span class="label">Debug</span>
+    </button>
     <button id="new-chat" type="button">New chat</button>
   </div>
 </header>
 
-<main class="layout">
+<main class="layout" id="layout">
   <section class="chat-card">
     <div id="messages" class="messages" aria-live="polite"></div>
     <form id="composer" class="composer">
@@ -628,7 +740,18 @@
     </div>
   </section>
 
-  <aside class="side-panel" aria-label="Conversation insights">
+  <aside id="debug-panel" class="side-panel" aria-label="Conversation insights">
+    <div class="side-head">
+      <div>
+        <h2>Debug panel</h2>
+        <p class="hint">Pipeline brief, turns, and guard issues</p>
+      </div>
+      <button id="panel-close" class="panel-close" type="button" title="Hide debug panel" aria-label="Hide debug panel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
     <div class="tabs" role="tablist">
       <button type="button" class="tab active" data-tab="brief" role="tab" aria-selected="true">Brief</button>
       <button type="button" class="tab" data-tab="turns" role="tab" aria-selected="false">Turns · 0</button>
@@ -644,7 +767,6 @@
         <code id="foot-id"></code>
       </div>
       <div id="foot-chips" class="foot-chips"></div>
-      <label class="switch"><input id="debug-toggle" type="checkbox" checked> Show panel details</label>
     </div>
   </aside>
 </main>
@@ -686,7 +808,10 @@
     modeBadge: document.getElementById("mode-badge"),
     kbBadge: document.getElementById("kb-badge"),
     modeNote: document.getElementById("mode-note"),
-    debugToggle: document.getElementById("debug-toggle"),
+    layout: document.getElementById("layout"),
+    debugPanel: document.getElementById("debug-panel"),
+    panelToggle: document.getElementById("panel-toggle"),
+    panelClose: document.getElementById("panel-close"),
     debugEmpty: document.getElementById("debug-empty"),
     panelBrief: document.getElementById("panel-brief"),
     panelTurns: document.getElementById("panel-turns"),
@@ -707,13 +832,14 @@
   let busy = false;
   let handedOff = false;
   let handoffLocked = false;
-  let debugEnabled = true;
+  let panelOpen = true;
   let debugTurns = [];
   let typingElement = null;
   let pendingImage = null;
   let activeTab = "brief";
   let issueCount = 0;
   let activePersona = "Max Carter";
+  const PANEL_KEY = "print247.debugPanelOpen";
 
   const PERSONA_AVATARS = {
     "alex": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20role%3D%22img%22%20aria-label%3D%22Alex%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%2210%22%20y1%3D%224%22%20x2%3D%2254%22%20y2%3D%2260%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%2357e0c8%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%231fa892%22%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22url%28%23bg%29%22%2F%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2256%22%20rx%3D%2216%22%20ry%3D%2210%22%20fill%3D%22%230e4f47%22%2F%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2228%22%20r%3D%2214%22%20fill%3D%22%23f3c7a0%22%2F%3E%20%3Cpath%20fill%3D%22%231d2433%22%20d%3D%22M18%2024c1.2-10%208-14%2014-14s12.8%204%2014%2014c-2.2-3.8-7-6.2-14-6.2S20.2%2020.2%2018%2024z%22%2F%3E%20%3Ccircle%20cx%3D%2226.5%22%20cy%3D%2228%22%20r%3D%221.6%22%20fill%3D%22%231d2433%22%2F%3E%20%3Ccircle%20cx%3D%2237.5%22%20cy%3D%2228%22%20r%3D%221.6%22%20fill%3D%22%231d2433%22%2F%3E%20%3Cpath%20d%3D%22M27%2034.5c2%201.8%208%201.8%2010%200%22%20fill%3D%22none%22%20stroke%3D%22%23c48a66%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%2F%3E%20%3C%2Fsvg%3E",
@@ -1182,19 +1308,27 @@
     });
   }
 
+  function setPanelOpen(open, options) {
+    const opts = options || {};
+    panelOpen = Boolean(open);
+    els.layout.classList.toggle("panel-collapsed", !panelOpen);
+    els.debugPanel.setAttribute("aria-hidden", panelOpen ? "false" : "true");
+    els.panelToggle.setAttribute("aria-expanded", panelOpen ? "true" : "false");
+    els.panelToggle.title = panelOpen ? "Hide debug panel" : "Show debug panel";
+    const label = els.panelToggle.querySelector(".label");
+    if (label) label.textContent = "Debug";
+    if (!opts.skipStore) {
+      try { localStorage.setItem(PANEL_KEY, panelOpen ? "1" : "0"); } catch (_) {}
+    }
+  }
+
   function showActivePanel() {
-    const hasTurns = debugTurns.length > 0 && debugEnabled;
+    const hasTurns = debugTurns.length > 0;
     els.debugEmpty.hidden = hasTurns;
     els.panelBrief.hidden = !(hasTurns && activeTab === "brief");
     els.panelTurns.hidden = !(hasTurns && activeTab === "turns");
     els.panelIssues.hidden = !(hasTurns && activeTab === "issues");
-    if (!debugEnabled) {
-      els.debugEmpty.hidden = false;
-      els.debugEmpty.textContent = "Debug panel hidden.";
-      els.panelBrief.hidden = true;
-      els.panelTurns.hidden = true;
-      els.panelIssues.hidden = true;
-    } else if (!debugTurns.length) {
+    if (!debugTurns.length) {
       els.debugEmpty.textContent = "Send a message to see the pipeline output.";
     }
   }
@@ -1387,7 +1521,7 @@
     updateTabs();
     renderFoot(debugTurns.length ? debugTurns[debugTurns.length - 1] : null, allIssues);
 
-    if (!debugEnabled || !debugTurns.length) {
+    if (!debugTurns.length) {
       clear(els.panelBrief);
       clear(els.panelTurns);
       clear(els.panelIssues);
@@ -1492,9 +1626,13 @@
     startChat();
   });
 
-  els.debugToggle.addEventListener("change", () => {
-    debugEnabled = els.debugToggle.checked;
-    renderDebug();
+  els.panelToggle.addEventListener("click", () => setPanelOpen(!panelOpen));
+  els.panelClose.addEventListener("click", () => setPanelOpen(false));
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && panelOpen && !event.target.closest("textarea, input")) {
+      setPanelOpen(false);
+    }
   });
 
   els.tabs.forEach((tab) => {
@@ -1504,6 +1642,14 @@
       showActivePanel();
     });
   });
+
+  try {
+    const saved = localStorage.getItem(PANEL_KEY);
+    if (saved === "0") setPanelOpen(false, { skipStore: true });
+    else setPanelOpen(true, { skipStore: true });
+  } catch (_) {
+    setPanelOpen(true, { skipStore: true });
+  }
 
   loadHealth();
   startChat();
