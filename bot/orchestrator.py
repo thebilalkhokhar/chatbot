@@ -839,48 +839,70 @@ class Orchestrator:
         attachment_id = ""
         state.flags.pop("reference_image_this_turn", None)
         if image_bytes:
+            from .attachments import validate_image
+
+            saved = None
+            mime_for_vision = image_mime or "image/jpeg"
             try:
-                saved = self.attachments.save(conversation_id, image_bytes, image_mime or "image/jpeg")
+                saved = self.attachments.save(conversation_id, image_bytes, mime_for_vision)
                 attachment_id = saved.id
-                focused = continue_ask(state) or (
-                    (state.ask_set()[0], state.question_for(state.ask_set()[0]))
-                    if state.ask_set()
-                    else None
-                )
-                focus_field = focused[0] if focused else ""
-                focus_hint = focused[1] if focused else ""
-                catalogue_terms = self._vision_catalogue_terms(state, focus_field)
-                vision = analyze_image(
-                    self.llm,
-                    self.config,
-                    image_bytes,
-                    saved.mime,
-                    focus_field=focus_field,
-                    focus_hint=focus_hint,
-                    family=state.family(),
-                    catalogue_terms=catalogue_terms,
-                )
-                self.attachments.set_vision(saved.id, vision.summary, vision.to_dict())
-                state.flags["reference_image"] = True
-                state.flags["reference_image_this_turn"] = True
-                state.flags["last_attachment_id"] = saved.id
-                state.flags["vision_focus_field"] = focus_field
-                self.store.append_event(
-                    conversation_id,
-                    "attachment",
-                    {
-                        "attachment_id": saved.id,
-                        "mime": saved.mime,
-                        "size_bytes": saved.size_bytes,
-                        "storage_backend": saved.storage_backend,
-                        "vision": vision.to_dict(),
-                        "focus_field": focus_field,
-                    },
-                )
-            except (AttachmentError, LLMError) as error:
-                log.warning("Reference image handling failed (%s)", error)
+                mime_for_vision = saved.mime
+            except AttachmentError as error:
+                # Blob/disk save must not kill vision — production quote still needs OCR.
+                log.warning("Attachment save failed (%s); continuing with in-memory vision", error)
                 state.flags["attachment_error"] = str(error)[:200]
-                vision = None
+                try:
+                    mime_for_vision = validate_image(
+                        image_bytes,
+                        mime_for_vision,
+                        max_bytes=self.config.attachment_max_bytes,
+                    )
+                except AttachmentError as validate_error:
+                    log.warning("Reference image rejected (%s)", validate_error)
+                    state.flags["attachment_error"] = str(validate_error)[:200]
+                    mime_for_vision = ""
+            if mime_for_vision:
+                try:
+                    focused = continue_ask(state) or (
+                        (state.ask_set()[0], state.question_for(state.ask_set()[0]))
+                        if state.ask_set()
+                        else None
+                    )
+                    focus_field = focused[0] if focused else ""
+                    focus_hint = focused[1] if focused else ""
+                    catalogue_terms = self._vision_catalogue_terms(state, focus_field)
+                    vision = analyze_image(
+                        self.llm,
+                        self.config,
+                        image_bytes,
+                        mime_for_vision,
+                        focus_field=focus_field,
+                        focus_hint=focus_hint,
+                        family=state.family(),
+                        catalogue_terms=catalogue_terms,
+                    )
+                    state.flags["reference_image"] = True
+                    state.flags["reference_image_this_turn"] = True
+                    state.flags["vision_focus_field"] = focus_field
+                    if saved is not None:
+                        self.attachments.set_vision(saved.id, vision.summary, vision.to_dict())
+                        state.flags["last_attachment_id"] = saved.id
+                        self.store.append_event(
+                            conversation_id,
+                            "attachment",
+                            {
+                                "attachment_id": saved.id,
+                                "mime": saved.mime,
+                                "size_bytes": saved.size_bytes,
+                                "storage_backend": saved.storage_backend,
+                                "vision": vision.to_dict(),
+                                "focus_field": focus_field,
+                            },
+                        )
+                except LLMError as error:
+                    log.warning("Reference image vision failed (%s)", error)
+                    state.flags["attachment_error"] = str(error)[:200]
+                    vision = None
 
         # Fold OCR + structured vision fields into this turn so extract/traceable
         # treat readable quote details as the visitor's own words.

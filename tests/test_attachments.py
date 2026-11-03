@@ -22,6 +22,44 @@ def test_local_object_store_round_trip(tmp_path):
     assert store.get("attachments/demo/a.png") == PNG_1X1
 
 
+def test_vercel_blob_put_sends_private_access_header(monkeypatch):
+    # Private Blob stores 400 if access defaults to public (query param alone is ignored).
+    from chatbot.bot.attachments import VercelBlobStore
+
+    captured: dict = {}
+
+    class FakeResponse:
+        status_code = 200
+
+        def json(self):
+            return {"url": "https://store.private.blob.vercel-storage.com/attachments/a.png"}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def put(self, url, headers=None, content=None):
+            captured["url"] = url
+            captured["headers"] = dict(headers or {})
+            captured["content"] = content
+            return FakeResponse()
+
+    monkeypatch.setattr("httpx.Client", FakeClient)
+    store = VercelBlobStore("vercel_blob_rw_test_token")
+    url = store.put("attachments/demo/a.png", PNG_1X1, "image/png")
+    assert url.endswith("a.png")
+    assert "access=" not in captured["url"] or "access=private" in captured["url"]
+    assert captured["headers"].get("x-vercel-blob-access") == "private"
+    assert captured["headers"].get("x-content-type") == "image/png"
+    assert captured["content"] == PNG_1X1
+
+
 def test_attachment_store_persists_metadata_and_bytes(tmp_path):
     repo = open_attachment_store(data_dir=tmp_path / "data")
     try:
@@ -193,6 +231,42 @@ def test_email_only_image_is_captured_not_treated_as_pouch(orchestrator, monkeyp
     assert state.fields["email"].value == "annlee@gmail.com"
     assert not state.fields["product"].done
     assert "boxes" in lowered or "bags" in lowered or "labels" in lowered
+
+
+def test_vision_still_runs_when_attachment_save_fails(orchestrator, monkeypatch):
+    # Production Blob 400 used to abort the whole image path before OCR.
+    def boom(*_args, **_kwargs):
+        raise AttachmentError(
+            'blob upload returned 400: Cannot use public access on a private store'
+        )
+
+    def fake_analyze(client, cfg, data, mime, focus_field="", focus_hint="", **_kwargs):
+        return VisionResult(
+            summary="A typed brief for coffee pouch labels.",
+            image_kind="text",
+            family="labels",
+            use_case="coffee pouches",
+            quantity="350",
+            sizes="15x15 cm",
+            readable_text="labels for coffee pouches QUANTITY: 350 SIZE: 15x15 CM",
+            focus_clear=True,
+            source="live",
+        )
+
+    monkeypatch.setattr(orchestrator.attachments, "save", boom)
+    monkeypatch.setattr("chatbot.bot.orchestrator.analyze_image", fake_analyze)
+    orchestrator.start("img-blob-fail")
+    result = orchestrator.handle(
+        "img-blob-fail",
+        "[shared a reference image]",
+        image=PNG_1X1,
+        image_mime="image/png",
+    )
+    state = orchestrator.store.get_or_create("img-blob-fail")
+    assert result.source == "vision"
+    assert "label" in state.fields["product"].value.lower()
+    assert state.fields["quantity"].value == "350"
+    assert state.flags.get("attachment_error")
 
 
 def test_order_brief_image_extracts_product_qty_size_finish(orchestrator, monkeypatch):

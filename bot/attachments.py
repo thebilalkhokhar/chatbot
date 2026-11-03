@@ -108,13 +108,19 @@ class VercelBlobStore:
 
     def put(self, key: str, data: bytes, mime: str) -> str:
         import httpx
+        from urllib.parse import quote
 
-        pathname = key.lstrip("/")
-        url = f"https://vercel.com/api/blob?pathname={pathname}&access=private"
+        # Private Blob stores require the access header. Query `access=` alone is
+        # ignored and the API defaults to public → 400 on a private store.
+        pathname = quote(key.lstrip("/"), safe="/")
+        url = f"https://vercel.com/api/blob?pathname={pathname}"
+        content_type = mime or "application/octet-stream"
         headers = {
             "Authorization": f"Bearer {self.token}",
-            "X-API-Version": "7",
-            "Content-Type": mime or "application/octet-stream",
+            "X-API-Version": "12",
+            "x-vercel-blob-access": "private",
+            "x-content-type": content_type,
+            "Content-Type": content_type,
         }
         try:
             with httpx.Client(timeout=self.timeout_s) as client:
