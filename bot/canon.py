@@ -185,6 +185,70 @@ CANON: dict[str, CanonFact] = {
         ),
         note="KB policy names no international carrier, cost or promise. Answer with the written wording; the quote carries the team's confirmation.",
     ),
+    "refund": CanonFact(
+        key="refund",
+        label="Refund and returns",
+        answer=(
+            "Returns can be requested within 5 business days of delivery for defective or "
+            "incorrect items; fully customized packaging made from scratch is not returnable. "
+            "Email Support@print247.us to start an approved return request."
+        ),
+        source="kb/policies/refund-returns.md",
+        status=CONFIRMED,
+        triggers=(
+            r"\brefunds?\b",
+            r"\breturns?\b",
+            r"\breturn[- ](?:policy|policies)\b",
+            r"\brefund[- ](?:policy|policies)\b",
+            r"\bmoney[- ]back\b",
+        ),
+        answer_tokens=(
+            r"5\s*business days",
+            r"support@print247\.us",
+            r"\breturn",
+            r"defective",
+        ),
+        note="Request window is 5 business days; do not merge with the Terms 3-working-day fault-notify step.",
+    ),
+    "privacy": CanonFact(
+        key="privacy",
+        label="Privacy policy",
+        answer=(
+            "We collect the details you share for your order plus basic site data to fulfil "
+            "and support it, protect that data with SSL, and never share mobile numbers with "
+            "third parties for marketing."
+        ),
+        source="kb/policies/privacy.md",
+        status=CONFIRMED,
+        triggers=(
+            r"\bprivacy\b",
+            r"\bprivacy[- ]polic(?:y|ies)\b",
+            r"\bdata protection\b",
+            r"\bpersonal (?:data|information)\b",
+        ),
+        answer_tokens=(r"\bssl\b", r"mobile", r"\border\b"),
+        note="Summary only; do not invent GDPR/CCPA claims not on the published page.",
+    ),
+    "terms": CanonFact(
+        key="terms",
+        label="Terms and conditions",
+        answer=(
+            "All orders need proof approval before we print, and printing faults must be "
+            "notified within 3 working days of delivery with clear evidence. Claims go to "
+            "Support@print247.us."
+        ),
+        source="kb/policies/terms.md",
+        status=CONFIRMED,
+        triggers=(
+            r"\bterms?\s+(?:and|&)\s+conditions?\b",
+            r"\bterms?\s+of\s+(?:service|use)\b",
+            r"\bt\s*&\s*c'?s?\b",
+            r"\btandcs?\b",
+            r"\bterms?\s+and\s+conds?\b",
+        ),
+        answer_tokens=(r"3\s*working days", r"proof", r"support@print247\.us"),
+        note="3 working days is the fault-notify window; refunds use the separate 5-business-day return request.",
+    ),
     "contact": CanonFact(
         key="contact",
         label="Contact",
@@ -382,7 +446,8 @@ CANON: dict[str, CanonFact] = {
 
 TOPIC_PRIORITY = (
     "price", "moq", "rush", "turnaround", "location", "hours", "payments",
-    "shipping", "intl_shipping", "contact", "artwork", "samples", "quote_time", "design",
+    "shipping", "intl_shipping", "refund", "privacy", "terms", "contact",
+    "artwork", "samples", "quote_time", "design",
     "materials", "extras_info", "custom", "styles", "food_boxes", "products",
 )
 
@@ -528,6 +593,10 @@ OFFERABLE_FACTS = {
     "hours": False,
     # The MOQ sentence is not a volunteer line. A quantity is not a request for it.
     "moq": False,
+    "refund": False,
+    "privacy": False,
+    "terms": False,
+    "shipping": False,
 }
 OPERATOR_EMAIL = "johnhenry.it@print247.us"
 

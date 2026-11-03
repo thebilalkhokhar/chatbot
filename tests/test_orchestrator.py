@@ -312,6 +312,25 @@ def test_domestic_shipping_question_stays_short(orchestrator):
     assert blockers(result) == []
 
 
+def test_policy_questions_are_answered_from_kb(orchestrator):
+    from chatbot.bot import canon
+
+    cases = (
+        ("what about your refund policy?", "refund", ("5 business days", "support@print247.us")),
+        ("any privacy policy?", "privacy", ("ssl",)),
+        ("any terms and conditions?", "terms", ("3 working days", "proof")),
+        ("what about your policy refund returns", "refund", ("return",)),
+    )
+    for visitor, topic, needles in cases:
+        assert topic in canon.topics_to_answer(visitor), visitor
+        orchestrator.start(f"c-pol-{topic}")
+        result = orchestrator.handle(f"c-pol-{topic}", visitor)
+        lowered = result.reply.lower()
+        assert any(n in lowered for n in needles), (visitor, result.reply)
+        assert blockers(result) == []
+        assert "unanswered_question" not in [issue["code"] for issue in result.issues]
+
+
 def test_zipper_options_question_is_answered(orchestrator):
     orchestrator.start("c-zip")
     result = orchestrator.handle("c-zip", "could you please clarify which zipper options you have?")
