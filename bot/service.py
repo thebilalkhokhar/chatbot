@@ -162,15 +162,26 @@ def create_app(config: Config | None = None, orchestrator: Orchestrator | None =
 
     @app.get("/health")
     def health() -> dict:
-        return {
+        payload: dict[str, Any] = {
             "ok": True,
             "mode": cfg.mode,
             "real_llm_enabled": cfg.real_llm_enabled,
             "personas": len(PERSONAS),
             "persona_errors": validate_personas(),
-            "kb": engine().index.stats(),
-            "store": engine().store.stats(),
         }
+        try:
+            payload["kb"] = engine().index.stats()
+        except Exception as error:
+            log.exception("health kb stats failed")
+            payload["kb"] = {"error": str(error)}
+            payload["ok"] = False
+        try:
+            payload["store"] = engine().store.stats()
+        except Exception as error:
+            log.exception("health store stats failed")
+            payload["store"] = {"error": str(error)}
+            payload["ok"] = False
+        return payload
 
     @app.get("/", response_class=HTMLResponse)
     def local_chat_page():

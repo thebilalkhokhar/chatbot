@@ -204,6 +204,9 @@ MERGE = {
     "paperboard": "paperboard",
     "sbs paperboard": "SBS paperboard",
     "sbs": "SBS paperboard",
+    # Parenthetical expansion attested in kb/materials/boxes-campaign-materials.md.
+    "solid bleached sulfate": "SBS paperboard",
+
     "acrylic": "acrylic",
     "vinyl": "vinyl",
     "bopp": "BOPP",

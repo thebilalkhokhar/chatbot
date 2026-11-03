@@ -581,7 +581,12 @@ SHAPED_DEFER_FIELDS = frozenset({"sizes", "quantity", "skus"})
 CATALOGUE_OPTION_FIELDS = frozenset({"style", "material", "finishes"})
 
 
-def field_shaped_attempt(key: str, visitor: str) -> bool:
+def field_shaped_attempt(
+    key: str,
+    visitor: str,
+    registry: Any | None = None,
+    family: str = "",
+) -> bool:
     """True when the message looks like a real attempt to answer this field."""
     value = str(visitor or "").strip()
     if not value:
@@ -597,6 +602,12 @@ def field_shaped_attempt(key: str, visitor: str) -> bool:
         )
     if key == "quantity":
         return parse_quantity(value) is not None or bool(BARE_QTY_RE.match(value))
+    if key in {"material", "style", "finishes"} and registry is not None:
+        # Catalogue fields: registry aliases/vocab count as a shaped answer so
+        # "SBS" is not treated as "not a pick" just because MATERIAL_HINTS is thin.
+        hits = registry.vocabulary_hits(value, family)
+        if any(field_name == key for field_name, _canonical in hits):
+            return True
     if key == "finishes":
         return normalize_finish(value) is not None
     if key == "material":
@@ -639,6 +650,7 @@ def needs_catalogue_options(
     state: "ConversationState",
     visitor: str,
     accepted: dict[str, str],
+    registry: Any | None = None,
 ) -> str:
     """Open style/material/finish + no concrete pick → list options (any wording).
 
@@ -656,7 +668,7 @@ def needs_catalogue_options(
     if UNSPECIFIED_RE.match(text):
         # "not sure" / "no preference" → waiver path, not a catalogue dump.
         return ""
-    if field_shaped_attempt(key, text):
+    if field_shaped_attempt(key, text, registry=registry, family=state.family()):
         return ""
     # "suggest me other materials" is exactly the catalogue-menu ask — do not
     # treat the materials topic as a reason to skip the menu.
@@ -673,7 +685,10 @@ def needs_catalogue_options(
     from . import canon
     from .guards import question_as_answer
 
-    if question_as_answer(text, key) or canon.topics_to_answer(text):
+    if (
+        question_as_answer(text, key, registry=registry, family=state.family())
+        or canon.topics_to_answer(text)
+    ):
         return ""
     if is_question(text) and not is_option_request(text) and not wants_recommendation(text):
         # Real question for us (MOQ, address, …) — answer that path instead.
@@ -1817,7 +1832,13 @@ class ConversationState:
         return ConversationState.from_dict(self.to_dict())
 
 
-def traceable(key: str, value: str, visitor_text: str, state: ConversationState) -> bool:
+def traceable(
+    key: str,
+    value: str,
+    visitor_text: str,
+    state: ConversationState,
+    registry: Any | None = None,
+) -> bool:
     visitor = str(visitor_text or "").lower()
     candidate = str(value or "").strip()
     if not candidate:
@@ -1868,6 +1889,17 @@ def traceable(key: str, value: str, visitor_text: str, state: ConversationState)
                 for vt in visitor_tokens:
                     if token.startswith(vt) or vt.startswith(token):
                         return True
+        # Registry alias / parenthetical long form → canonical catalogue value.
+        # Visitor said "solid bleached sulfate"; settled value is "SBS paperboard".
+        if registry is not None and key in {"style", "material", "finishes", "extras"}:
+            from .capability import fold, value_forms
+
+            candidate_forms = value_forms(candidate)
+            for field_name, canonical in registry.vocabulary_hits(visitor_text, state.family()):
+                if field_name != key:
+                    continue
+                if candidate_forms & value_forms(canonical) or fold(canonical) == fold(candidate):
+                    return True
         return False
     return True
 
@@ -1879,6 +1911,7 @@ def apply_field_updates(
     *,
     source: str = "visitor",
     bases: dict[str, str] | None = None,
+    registry: Any | None = None,
 ) -> tuple[dict[str, str], dict[str, str]]:
     """Write accepted values with their provenance: whose words, which epistemic class, how far travelled.
 
@@ -1961,7 +1994,12 @@ def apply_field_updates(
             rejected[key] = value
             continue
         # A question is not an answer. "your address" must not fill style.
-        if basis == BASIS_VISITOR and question_as_answer(str(visitor_text or ""), key):
+        if basis == BASIS_VISITOR and question_as_answer(
+            str(visitor_text or ""),
+            key,
+            registry=registry,
+            family=state.family(),
+        ):
             rejected[key] = value
             continue
         if key == "product" and state.fields["product"].done and is_question(visitor_text):
@@ -2069,7 +2107,7 @@ def apply_field_updates(
         if (
             key in {"style", "finishes"}
             and basis == BASIS_CATALOGUE
-            and not traceable(key, value, visitor_text, state)
+            and not traceable(key, value, visitor_text, state, registry=registry)
         ):
             rejected[key] = value
             continue
@@ -2090,7 +2128,9 @@ def apply_field_updates(
             else:
                 rejected[key] = value
             continue
-        if basis == BASIS_VISITOR and not traceable(key, value, visitor_text, state):
+        if basis == BASIS_VISITOR and not traceable(
+            key, value, visitor_text, state, registry=registry
+        ):
             # A customer answer must be the customer's own words. A model proposal
             # is allowed to invent a value, because it is recorded as `suggested`
             # and never reaches the quote sheet until the customer confirms it.

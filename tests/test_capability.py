@@ -229,6 +229,19 @@ def test_phase4_synonyms_map_onto_vocabulary(registry):
     assert (vinyl.family, vinyl.slot, vinyl.value) == ("labels", "material", "vinyl")
 
 
+def test_vocabulary_hits_resolve_registry_aliases_and_kb_parentheticals(registry):
+    # Alias table already has sbs -> SBS paperboard; extract must use it.
+    sbs_hits = dict(registry.vocabulary_hits("SBS", "boxes"))
+    assert sbs_hits.get("material") == "SBS paperboard"
+    # KB prose "SBS (solid bleached sulfate)" expands the long form via the same alias.
+    assert fold("solid bleached sulfate") in registry.aliases
+    long_hits = dict(registry.vocabulary_hits("solid bleached sulfate", "boxes"))
+    assert long_hits.get("material") == "SBS paperboard"
+    # Kraft still works through vocabulary + hints path.
+    kraft_hits = dict(registry.vocabulary_hits("kraft", "boxes"))
+    assert kraft_hits.get("material") in {"kraft", "kraft paperboard", "kraft board"}
+
+
 def test_value_forms_bridge_page_titles_and_customer_wording():
     assert value_forms("Mailer Boxes") & value_forms("mailer box")
     assert value_forms("Pull up Banners") & value_forms("pull-up banner")

@@ -193,7 +193,12 @@ def _straighten(text: str) -> str:
     return str(text or "").translate(_APOSTROPHE)
 
 
-def _has_value_token(key: str, text: str) -> bool:
+def _has_value_token(
+    key: str,
+    text: str,
+    registry: Registry | None = None,
+    family: str = "",
+) -> bool:
     """Whether `text` actually carries a value for `key`, not just a question about it."""
     value = str(text or "")
     if key == "email":
@@ -207,13 +212,6 @@ def _has_value_token(key: str, text: str) -> bool:
         return bool(SIZE_DIM_RE.search(size_text) or SINGLE_SIZE_RE.search(value))
     if key == "quantity":
         return bool(QTY_UNIT_RE.search(value) or BARE_QTY_RE.match(value.strip()))
-    if key == "finishes":
-        finish = normalize_finish(value)
-        return bool(finish)
-    if key == "style":
-        return bool(normalize_style(value) or STYLE_HINTS.search(value))
-    if key == "material":
-        return bool(MATERIAL_HINTS.search(value))
     if key == "product":
         return family_of(value) != "unknown"
     if key == "use_case":
@@ -222,10 +220,25 @@ def _has_value_token(key: str, text: str) -> bool:
         return bool(re.search(r"\d+\s*(?:designs?|skus?)", value, re.I))
     if key == "extras":
         return bool(re.search(r"\b(?:zipper|tear notch|window|hang hole)\b", value, re.I))
+    if key == "finishes" and normalize_finish(value):
+        return True
+    if key == "style" and (normalize_style(value) or STYLE_HINTS.search(value)):
+        return True
+    if key == "material" and MATERIAL_HINTS.search(value):
+        return True
+    # Catalogue aliases ("SBS") are real material/style picks even when the
+    # legacy hint regex never learned the short form.
+    if key in {"material", "style", "finishes"} and registry is not None:
+        return any(field_name == key for field_name, _ in registry.vocabulary_hits(value, family))
     return False
 
 
-def question_as_answer(visitor_text: str, key: str) -> bool:
+def question_as_answer(
+    visitor_text: str,
+    key: str,
+    registry: Registry | None = None,
+    family: str = "",
+) -> bool:
     """True when this message must not be stored as `key`.
 
     Section 3.4: a question cannot satisfy a field unless it also carries a value
@@ -233,7 +246,7 @@ def question_as_answer(visitor_text: str, key: str) -> bool:
     it is the logged failure that used to fill style and skip the question.
     """
     text = str(visitor_text or "").strip()
-    if not text or _has_value_token(key, text):
+    if not text or _has_value_token(key, text, registry=registry, family=family):
         return False
     if is_question(text) or asks_if_bot(text):
         return True

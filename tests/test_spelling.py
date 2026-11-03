@@ -84,6 +84,24 @@ def test_extract_adress_in_use_case_is_corrected():
     assert "address" in updates.get("use_case", "").lower()
 
 
+def test_sbs_paperboard_fuzzy_keeps_registry_label():
+    """Exact registry material must not lose to bare 'paper' / 'paperboard' fuzzy."""
+    from pathlib import Path
+
+    from chatbot.bot.capability import Registry
+
+    registry = Registry.load(Path("kb"))
+    assert (
+        fuzzy_catalogue_match(
+            "SBS paperboard", "material", family="boxes", registry=registry
+        )
+        == "SBS paperboard"
+    )
+    # Short alias is extract's job (vocabulary_hits), not fuzzy.
+    assert fuzzy_catalogue_match("SBS", "material", family="boxes", registry=registry) == ""
+
+
+
 def test_adress_while_quantity_open_is_location_not_qty():
     from chatbot.bot import canon
 

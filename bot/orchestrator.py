@@ -926,7 +926,9 @@ class Orchestrator:
         )
         confirmed = state.confirm_suggested(visitor)
         extracted = extract_fields(visitor, state.last_question, state, registry=self.registry)
-        accepted, rejected = apply_field_updates(state, extracted, visitor)
+        accepted, rejected = apply_field_updates(
+            state, extracted, visitor, registry=self.registry
+        )
         for key in confirmed:
             accepted[key] = state.fields[key].value
         if vision is not None:
@@ -962,7 +964,7 @@ class Orchestrator:
             )
             # Customer-only facts from the image are still the visitor's words (OCR).
             vision_ok, vision_rejected = apply_field_updates(
-                state, vision_updates, visitor, source="model"
+                state, vision_updates, visitor, source="model", registry=self.registry
             )
             vision_accepted.update(vision_ok)
             # Also surface values extract already accepted so the reply can cite them.
@@ -985,7 +987,7 @@ class Orchestrator:
         if not state.flags.get("reference_image_this_turn"):
             for deferred in defer_unanswered_open_field(state, visitor, accepted):
                 rejected.pop(deferred, None)
-        offer_for = needs_catalogue_options(state, visitor, accepted)
+        offer_for = needs_catalogue_options(state, visitor, accepted, registry=self.registry)
         # Alternatives ask while a material/style/finish is only suggested (or
         # was wrongly waived): clear it and force the catalogue menu.
         if (
@@ -1403,13 +1405,20 @@ class Orchestrator:
             for key in list(llm_fields):
                 if key not in CATALOGUE_OPTION_FIELDS:
                     continue
-                if field_shaped_attempt(key, visitor):
+                if field_shaped_attempt(
+                    key, visitor, registry=self.registry, family=state.family()
+                ):
                     continue
                 if key == focus or key == state.last_question:
                     continue
                 llm_fields.pop(key, None)
             llm_accepted, llm_rejected = apply_field_updates(
-                state, llm_fields, visitor, source="model", bases=composed.bases
+                state,
+                llm_fields,
+                visitor,
+                source="model",
+                bases=composed.bases,
+                registry=self.registry,
             )
             accepted.update(llm_accepted)
             rejected.update(llm_rejected)

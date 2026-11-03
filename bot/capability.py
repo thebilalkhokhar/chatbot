@@ -90,6 +90,12 @@ PACK_COUNT = re.compile(
 SIZE_WITHOUT_UNIT = re.compile(
     r"^\d+(?:\.\d+)?\s*[x×]\s*\d+(?:\.\d+)?(?:\s*[x×]\s*\d+(?:\.\d+)?)?(?:\s*\+\s*\d+(?:\.\d+)?)?$"
 )
+# Site prose often expands a short material name once: "SBS (solid bleached sulfate)".
+# When the short form is already a registry alias, the parenthetical becomes another
+# visitor spelling of the same catalogue value — no hand-authored synonym list.
+PARENTHETICAL_ALIAS = re.compile(
+    r"\b([A-Za-z][A-Za-z0-9+]{1,15})\s*\(([^)]{3,80})\)"
+)
 
 
 def fold(text: str) -> str:
@@ -152,6 +158,32 @@ def value_forms(text: str) -> set[str]:
             singular.append(token)
     forms.add(" ".join(singular))
     return forms
+
+
+def _expand_parenthetical_aliases(aliases: dict[str, str], kb_dir: Path) -> dict[str, str]:
+    """Add long forms from KB prose like ``SBS (solid bleached sulfate)``.
+
+    Only expands when the short token already resolves through the registry
+    alias table, so invented parentheticals never create catalogue values.
+    """
+    expanded = dict(aliases)
+    if not kb_dir.exists():
+        return expanded
+    for path in kb_dir.rglob("*.md"):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for match in PARENTHETICAL_ALIAS.finditer(text):
+            short = fold(match.group(1))
+            long_form = fold(match.group(2))
+            if not short or not long_form or short == long_form:
+                continue
+            canonical = expanded.get(short)
+            if not canonical:
+                continue
+            expanded.setdefault(long_form, canonical)
+    return expanded
 
 
 def _as_tuple(value) -> tuple[str, ...]:
@@ -552,6 +584,7 @@ class Registry:
             for row in tables.get("aliases", [])
             if _cell(row, "variant") and _cell(row, "canonical")
         }
+        aliases = _expand_parenthetical_aliases(aliases, kb_dir)
         claims = tuple(
             Claim(
                 topic=_cell(row, "topic"),
@@ -609,6 +642,10 @@ class Registry:
         The ask on the table does not limit the scan: a material said while the
         bot asked for a style is still that material. One value per quote field,
         longest form wins, and the active family's wording wins a tie.
+
+        Alias spellings from the registry table (and KB parenthetical expansions)
+        count the same as full vocabulary forms, so a visitor saying "SBS" lands
+        on the same catalogue value as "SBS paperboard".
         """
         folded = fold(text)
         if not folded:
@@ -622,6 +659,29 @@ class Registry:
             if name not in families:
                 families.append(name)
         found: dict[str, tuple[int, str]] = {}
+
+        def remember(field_name: str, score: int, canonical: str) -> None:
+            previous = found.get(field_name)
+            if previous is None or score > previous[0]:
+                found[field_name] = (score, canonical)
+
+        def vocab_match(canonical: str) -> list[tuple[str, str]]:
+            """Map a canonical alias target onto (field, vocabulary value) rows."""
+            hits: list[tuple[str, str]] = []
+            target_forms = value_forms(canonical)
+            for fam in families:
+                for slot, values in self.vocabulary.get(fam, {}).items():
+                    field_name = slot_field.get(slot)
+                    if not field_name:
+                        continue
+                    for value in values:
+                        if not value or value == EMPTY:
+                            continue
+                        if target_forms & value_forms(value) or fold(value) == fold(canonical):
+                            hits.append((field_name, value))
+                            break
+            return hits
+
         for fam in families:
             for slot, values in self.vocabulary.get(fam, {}).items():
                 field_name = slot_field.get(slot)
@@ -633,16 +693,27 @@ class Registry:
                     for form in value_forms(value):
                         if len(form) < 4 or f" {form} " not in padded:
                             continue
-                        previous = found.get(field_name)
-                        if previous is None or len(form) > previous[0]:
-                            found[field_name] = (len(form), value)
+                        remember(field_name, len(form), value)
                         break
+
+        # Whole message and each token through the alias table (covers short
+        # forms like "sbs" that fail the len>=4 vocabulary substring rule).
+        phrases = {folded, *folded.split()}
+        for phrase in phrases:
+            if len(phrase) < 2:
+                continue
+            aliased = self.aliases.get(phrase)
+            if not aliased:
+                continue
+            for field_name, value in vocab_match(aliased):
+                remember(field_name, len(phrase), value)
+
         synonym = _SYNONYMS.get(folded)
         if synonym is not None:
             slot, canonical, _forced_family = synonym
             field_name = slot_field.get(slot)
             if field_name and canonical:
-                found[field_name] = (max(len(folded), found.get(field_name, (0, ""))[0]), canonical)
+                remember(field_name, max(len(folded), found.get(field_name, (0, ""))[0]), canonical)
         return [(field_name, canonical) for field_name, (_length, canonical) in found.items()]
 
     def unknown_values(self, candidate: Candidate) -> dict[str, tuple[str, ...]]:

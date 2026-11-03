@@ -459,6 +459,7 @@ rigid|rigid board
 rigid grayboard|grayboard
 rigid stocks|rigid board
 sbs|SBS paperboard
+solid bleached sulfate|SBS paperboard
 sheen aqueous|aqueous coating
 softtouch|soft touch
 softtouch lamination|soft touch lamination

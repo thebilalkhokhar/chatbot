@@ -788,6 +788,31 @@ def test_size_not_sure_does_not_waive_material_on_the_side():
     assert state.fields["material"].status != STATUS_WAIVED
 
 
+def test_box_material_alias_answers_are_accepted_without_relisting_options():
+    """Visitor 'SBS' / parenthetical long form must settle material via registry aliases."""
+    from pathlib import Path
+
+    from chatbot.bot.capability import Registry
+    from chatbot.bot.state import needs_catalogue_options
+
+    registry = Registry.load(Path(__file__).resolve().parents[2] / "kb")
+    for answer, expected in (
+        ("SBS", "SBS paperboard"),
+        ("solid bleached sulfate", "SBS paperboard"),
+    ):
+        state = make_state("boxes", "display", answer)
+        _fill(state, "product", "boxes")
+        _fill(state, "style", "display")
+        state.last_question = "material"
+        updates = extract_fields(answer, "material", state, registry=registry)
+        assert updates.get("material") == expected, (answer, updates)
+        accepted, _rejected = apply_field_updates(
+            state, updates, answer, registry=registry
+        )
+        assert accepted.get("material") == expected
+        assert needs_catalogue_options(state, answer, accepted, registry=registry) == ""
+
+
 def test_alternative_material_ask_does_not_fill_material_or_open_email():
     from chatbot.bot.state import is_option_request, wants_recommendation
 

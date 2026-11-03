@@ -141,53 +141,96 @@ class PostgresStateStore:
     """Conversation state backed by Postgres (Neon / any DATABASE_URL)."""
 
     def __init__(self, database_url: str) -> None:
-        import psycopg
-        from psycopg.rows import dict_row
-
         self.backend = "postgres"
         self.database_url = database_url
         self._lock = threading.RLock()
-        self._conn = psycopg.connect(database_url, row_factory=dict_row, autocommit=False)
+        self._conn = None
+        self._connect()
         self._init()
 
+    def _connect(self) -> None:
+        import psycopg
+        from psycopg.rows import dict_row
+
+        old = self._conn
+        self._conn = psycopg.connect(
+            self.database_url,
+            row_factory=dict_row,
+            # Serverless + Neon: never leave an open transaction between requests.
+            autocommit=True,
+            connect_timeout=10,
+        )
+        if old is not None:
+            try:
+                old.close()
+            except Exception:
+                pass
+
+    @staticmethod
+    def _is_conn_error(error: BaseException) -> bool:
+        try:
+            from psycopg import OperationalError
+            from psycopg.errors import IdleInTransactionSessionTimeout
+        except ImportError:
+            return "connection is closed" in str(error).lower() or "terminating connection" in str(error).lower()
+        return isinstance(error, (OperationalError, IdleInTransactionSessionTimeout))
+
+    def _ensure_conn(self) -> None:
+        if self._conn is None or self._conn.closed:
+            self._connect()
+
+    def _run(self, op):
+        """Run DB work once, reconnect + retry on a dead serverless connection."""
+        with self._lock:
+            self._ensure_conn()
+            try:
+                return op()
+            except Exception as error:
+                if not self._is_conn_error(error):
+                    raise
+                self._connect()
+                return op()
+
     def _init(self) -> None:
-        with self._lock, self._conn.cursor() as cur:
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS conversations (
-                    id TEXT PRIMARY KEY,
-                    persona TEXT NOT NULL,
-                    state_json TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'active'
+        def work():
+            with self._conn.cursor() as cur:
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS conversations (
+                        id TEXT PRIMARY KEY,
+                        persona TEXT NOT NULL,
+                        state_json TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        status TEXT NOT NULL DEFAULT 'active'
+                    )
+                    """
                 )
-                """
-            )
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS counter (
-                    name TEXT PRIMARY KEY,
-                    value INTEGER NOT NULL
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS counter (
+                        name TEXT PRIMARY KEY,
+                        value INTEGER NOT NULL
+                    )
+                    """
                 )
-                """
-            )
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS events (
-                    id BIGSERIAL PRIMARY KEY,
-                    conversation_id TEXT NOT NULL,
-                    at TEXT NOT NULL,
-                    type TEXT NOT NULL,
-                    data_json TEXT NOT NULL
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS events (
+                        id BIGSERIAL PRIMARY KEY,
+                        conversation_id TEXT NOT NULL,
+                        at TEXT NOT NULL,
+                        type TEXT NOT NULL,
+                        data_json TEXT NOT NULL
+                    )
+                    """
                 )
-                """
-            )
-            self._conn.commit()
+
+        self._run(work)
 
     def next_persona(self):
-        with self._lock, self._conn.cursor() as cur:
-            try:
+        def work():
+            with self._conn.cursor() as cur:
                 # Atomically allocate the previous counter value as the persona index.
                 cur.execute(
                     """
@@ -196,19 +239,20 @@ class PostgresStateStore:
                     RETURNING (value - 1) AS position
                     """
                 )
-                position = int(cur.fetchone()["position"])
-                self._conn.commit()
-            except Exception:
-                self._conn.rollback()
-                raise
+                return int(cur.fetchone()["position"])
+
+        position = self._run(work)
         return PERSONAS[position % len(PERSONAS)]
 
     def get_or_create(self, conversation_id: str, persona_name: str | None = None) -> ConversationState:
-        with self._lock, self._conn.cursor() as cur:
-            cur.execute("SELECT state_json FROM conversations WHERE id = %s", (conversation_id,))
-            row = cur.fetchone()
-            if row is not None:
-                return ConversationState.from_dict(json.loads(row["state_json"]))
+        def work():
+            with self._conn.cursor() as cur:
+                cur.execute("SELECT state_json FROM conversations WHERE id = %s", (conversation_id,))
+                return cur.fetchone()
+
+        row = self._run(work)
+        if row is not None:
+            return ConversationState.from_dict(json.loads(row["state_json"]))
         persona = persona_for(persona_name) or self.next_persona()
         state = ConversationState(id=conversation_id, persona=persona.name)
         self.save(state)
@@ -218,49 +262,59 @@ class PostgresStateStore:
     def save(self, state: ConversationState) -> None:
         payload = json.dumps(state.to_dict(), ensure_ascii=False)
         status = "handed_off" if state.handoff else "active"
-        with self._lock, self._conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO conversations (id, persona, state_json, created_at, updated_at, status)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET
-                    state_json = EXCLUDED.state_json,
-                    updated_at = EXCLUDED.updated_at,
-                    status = EXCLUDED.status
-                """,
-                (state.id, state.persona, payload, state.created_at, now_iso(), status),
-            )
-            self._conn.commit()
+
+        def work():
+            with self._conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO conversations (id, persona, state_json, created_at, updated_at, status)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (id) DO UPDATE SET
+                        state_json = EXCLUDED.state_json,
+                        updated_at = EXCLUDED.updated_at,
+                        status = EXCLUDED.status
+                    """,
+                    (state.id, state.persona, payload, state.created_at, now_iso(), status),
+                )
+
+        self._run(work)
 
     def append_event(self, conversation_id: str, event_type: str, data: dict | None = None) -> None:
-        with self._lock, self._conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO events (conversation_id, at, type, data_json) VALUES (%s, %s, %s, %s)",
-                (conversation_id, now_iso(), event_type, json.dumps(data or {}, ensure_ascii=False)),
-            )
-            self._conn.commit()
+        def work():
+            with self._conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO events (conversation_id, at, type, data_json) VALUES (%s, %s, %s, %s)",
+                    (conversation_id, now_iso(), event_type, json.dumps(data or {}, ensure_ascii=False)),
+                )
+
+        self._run(work)
 
     def stats(self) -> dict:
-        with self._lock, self._conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) AS n FROM conversations")
-            total = cur.fetchone()["n"]
-            cur.execute("SELECT COUNT(*) AS n FROM conversations WHERE status = 'handed_off'")
-            handed = cur.fetchone()["n"]
-            cur.execute("SELECT COUNT(*) AS n FROM events")
-            events = cur.fetchone()["n"]
-            cur.execute("SELECT value FROM counter WHERE name = 'persona'")
-            counter = cur.fetchone()
-        return {
-            "backend": self.backend,
-            "conversations": int(total),
-            "handed_off": int(handed),
-            "events": int(events),
-            "persona_counter": int(counter["value"]) if counter else 0,
-        }
+        def work():
+            with self._conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) AS n FROM conversations")
+                total = cur.fetchone()["n"]
+                cur.execute("SELECT COUNT(*) AS n FROM conversations WHERE status = 'handed_off'")
+                handed = cur.fetchone()["n"]
+                cur.execute("SELECT COUNT(*) AS n FROM events")
+                events = cur.fetchone()["n"]
+                cur.execute("SELECT value FROM counter WHERE name = 'persona'")
+                counter = cur.fetchone()
+            return {
+                "backend": self.backend,
+                "conversations": int(total),
+                "handed_off": int(handed),
+                "events": int(events),
+                "persona_counter": int(counter["value"]) if counter else 0,
+            }
+
+        return self._run(work)
 
     def close(self) -> None:
         with self._lock:
-            self._conn.close()
+            if self._conn is not None and not self._conn.closed:
+                self._conn.close()
+            self._conn = None
 
 
 def open_state_store(

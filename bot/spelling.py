@@ -17,6 +17,8 @@ CATALOGUE_FUZZY_SCORE = 80
 # Winner must beat the runner-up by this much, or be the only hit above threshold.
 CATALOGUE_FUZZY_MARGIN = 8
 
+# Short legacy tokens for fuzzy fallback when the registry is absent. Bare fillers
+# like "paper" are omitted: they outrank real labels ("SBS paperboard") under WRatio.
 _MATERIAL_CANDIDATES = tuple(
     sorted(
         {
@@ -27,7 +29,6 @@ _MATERIAL_CANDIDATES = tuple(
             "foil",
             "metalized",
             "metallized",
-            "paper",
             "cardstock",
             "corrugated",
             "vinyl",
@@ -111,9 +112,11 @@ def _option_family(field: str, value: str) -> str:
         from .state import normalize_style
 
         return (normalize_style(text) or text).lower()
-    if field == "material" and MATERIAL_HINTS.search(text):
-        word = MATERIAL_HINTS.search(text).group(0).lower()
-        return "metalized" if word == "metallized" else word
+    if field == "material":
+        # Keep the registry label. Only fold the metallized spelling variant.
+        if text in {"metallized", "metalized"}:
+            return "metalized"
+        return text
     return text
 
 
@@ -145,6 +148,13 @@ def fuzzy_catalogue_match(
 
         if normalize_finish(query) and not STYLE_HINTS.search(query):
             return ""
+    # Exact catalogue label (case-insensitive) wins before fuzzy — stops bare
+    # tokens like "paperboard" outranking the full "SBS paperboard" phrase.
+    for candidate in candidates:
+        if re.sub(r"\s+", " ", candidate.strip().lower()) == query:
+            if field == "material" and query in {"metallized", "metalized"}:
+                return "metalized"
+            return str(candidate).strip()
     try:
         from rapidfuzz import fuzz, process
     except ImportError:
@@ -164,12 +174,14 @@ def fuzzy_catalogue_match(
 
     by_family: dict[str, tuple[str, float]] = {}
     for variant in queries:
-        # Single-token typos use ratio (avoids WRatio substring inflation on long names).
-        scorer = fuzz.ratio if " " not in variant else fuzz.WRatio
+        # Prefer ratio: WRatio inflates short tokens ("pe", "paperboard") against
+        # longer registry labels. Single-token typos still score well on ratio.
+        scorer = fuzz.ratio
         hits = process.extract(
             variant,
             candidates,
             scorer=scorer,
+            processor=lambda value: re.sub(r"\s+", " ", str(value or "").strip().lower()),
             limit=5,
             score_cutoff=max(60, score_cutoff - 15),
         )
@@ -208,9 +220,11 @@ def fuzzy_catalogue_match(
             return normalized
         if best_fam:
             return best_fam
-    if field == "material" and MATERIAL_HINTS.search(best_value):
-        word = MATERIAL_HINTS.search(best_value).group(0).lower()
-        return "metalized" if word == "metallized" else word
+    if field == "material":
+        label = str(best_value).strip()
+        if label.lower() in {"metallized", "metalized"}:
+            return "metalized"
+        return label
     return str(best_value).strip()
 
 
