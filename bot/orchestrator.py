@@ -680,6 +680,7 @@ class Orchestrator:
             priority_text=priority_text,
             already_greeted=already_greeted and not visitor_greeted,
             locked_fields=locked,
+            overrides=self.overrides,
         )
         if not polished and expected:
             polished = expected[1]

@@ -320,15 +320,37 @@ def test_policy_questions_are_answered_from_kb(orchestrator):
         ("any privacy policy?", "privacy", ("ssl",)),
         ("any terms and conditions?", "terms", ("3 working days", "proof")),
         ("what about your policy refund returns", "refund", ("return",)),
+        ("refund?", "refund", ("5 business days", "return")),
     )
-    for visitor, topic, needles in cases:
+    for index, (visitor, topic, needles) in enumerate(cases):
         assert topic in canon.topics_to_answer(visitor), visitor
-        orchestrator.start(f"c-pol-{topic}")
-        result = orchestrator.handle(f"c-pol-{topic}", visitor)
+        cid = f"c-pol-{topic}-{index}"
+        orchestrator.start(cid)
+        result = orchestrator.handle(cid, visitor)
         lowered = result.reply.lower()
         assert any(n in lowered for n in needles), (visitor, result.reply)
         assert blockers(result) == []
         assert "unanswered_question" not in [issue["code"] for issue in result.issues]
+
+
+def test_contact_and_address_ask_answers_both(orchestrator):
+    from chatbot.bot import canon
+
+    visitor = "your contact details and address?"
+    assert "contact" in canon.topics_to_answer(visitor)
+    assert "location" in canon.topics_to_answer(visitor)
+    orchestrator.start("c-contact-addr")
+    orchestrator.handle("c-contact-addr", "Hi")
+    result = orchestrator.handle("c-contact-addr", visitor)
+    lowered = result.reply.lower()
+    assert "support@print247.us" in lowered
+    assert "832" in result.reply
+    assert "rosenberg" in lowered
+    assert "our facility is in rosenberg, texas" in lowered
+    assert "(location:" not in lowered
+    assert result.reply.count("?") == 1
+    assert blockers(result) == []
+    assert "unanswered_question" not in [issue["code"] for issue in result.issues]
 
 
 def test_zipper_options_question_is_answered(orchestrator):

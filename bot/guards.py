@@ -940,6 +940,64 @@ def shape_contact_flow(reply: str, visitor: str, priority_key: str = "", priorit
     return re.sub(r"\s+", " ", text).strip()
 
 
+_LOOSE_LOCATION_MARK = re.compile(r"\(\s*location\s*:[^)]*\)", re.I)
+
+
+def shape_location_flow(reply: str, visitor: str) -> str:
+    """Force the written Rosenberg line when they asked for address/location."""
+    if not canon.asks_for_location(visitor):
+        return str(reply or "").strip()
+    exact = canon.effective_answer("location")
+    text = _LOOSE_LOCATION_MARK.sub("", str(reply or "")).strip()
+    kept: list[str] = []
+    for sentence in _sentences(text):
+        if exact in sentence:
+            kept.append(sentence)
+        elif re.search(r"\brosenberg\b", sentence, re.I):
+            continue
+        else:
+            kept.append(sentence)
+    text = " ".join(kept).strip()
+    if exact not in text:
+        contact = canon.effective_answer("contact")
+        if contact and contact in text:
+            text = text.replace(contact, f"{contact} {exact}", 1)
+        else:
+            text = f"{exact} {text}".strip()
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def ensure_asked_answers(
+    reply: str,
+    visitor: str,
+    overrides: dict[str, str] | None = None,
+) -> str:
+    """Prepend written answers for asked topics the reply still does not cover.
+
+    Contact and location have dedicated shapers. Alternative-material asks must not
+    get the multi-family materials dump forced in — the guard steers those separately.
+    """
+    text = str(reply or "").strip()
+    if not text:
+        return text
+    missing: list[str] = []
+    for key in canon.topics_to_answer(visitor):
+        if key in {"contact", "location"}:
+            continue
+        if key == "materials" and (
+            wants_recommendation(visitor) or is_option_request(visitor)
+        ):
+            continue
+        if canon.answer_covers(key, text):
+            continue
+        exact = canon.effective_answer(key, overrides)
+        if exact and exact not in text:
+            missing.append(exact)
+    if not missing:
+        return text
+    return re.sub(r"\s+", " ", (" ".join(missing) + " " + text).strip())
+
+
 def redirect_settled_ask(
     reply: str,
     locked: tuple[str, ...] | list[str] = (),
@@ -985,6 +1043,7 @@ def prepare_reply(
     priority_text: str = "",
     already_greeted: bool = False,
     locked_fields: tuple[str, ...] | list[str] = (),
+    overrides: dict[str, str] | None = None,
 ) -> str:
     """Outgoing reply rules: no unsolicited MOQ, no second greeting, one question."""
     text = restore_public_contact(strip_unsolicited_moq(reply, visitor))
@@ -992,6 +1051,8 @@ def prepare_reply(
         text = strip_repeated_greeting(text)
     text = scrub_visitor_sku_jargon(text)
     text = shape_contact_flow(text, visitor, priority_key, priority_text)
+    text = shape_location_flow(text, visitor)
+    text = ensure_asked_answers(text, visitor, overrides)
     text = redirect_settled_ask(text, locked_fields, priority_key, priority_text)
     return enforce_single_question(text, priority_key, priority_text).strip()
 

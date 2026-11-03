@@ -106,6 +106,47 @@ def test_a_contact_question_keeps_the_canon_line_and_the_next_field():
     assert not canon.asks_for_our_contact("I don't have an email")
 
 
+def test_policy_ask_without_written_answer_is_injected():
+    product = "Which product are you looking to have made: boxes, bags, labels or something else?"
+    for visitor, needle in (
+        ("what about your refund policy?", "5 business days"),
+        ("refund?", "5 business days"),
+        ("any privacy policy?", "ssl"),
+        ("any terms and conditions?", "3 working days"),
+    ):
+        cleaned = guards.prepare_reply(product, visitor, priority_key="product", priority_text=product)
+        assert needle in cleaned.lower(), visitor
+        assert product in cleaned
+        assert cleaned.count("?") == 1
+        assert "unanswered_question" not in guards.check_reply(
+            cleaned, make_state(visitor), visitor_text=visitor
+        ).codes()
+
+
+def test_contact_and_address_ask_gets_both_written_lines():
+    contact = "You can reach the team at Support@print247.us or +1 (832) 807-3429."
+    location = "Our facility is in Rosenberg, Texas."
+    product = "What product would you like us to make today: boxes, bags, or labels?"
+    visitor = "your contact details and address?"
+    mangled = (
+        f"{contact} Sure thing. {product} (location: Rosenberg, TX)"
+    )
+    cleaned = guards.prepare_reply(
+        mangled,
+        visitor,
+        priority_key="product",
+        priority_text=product,
+    )
+    assert contact in cleaned
+    assert location in cleaned
+    assert "(location:" not in cleaned.lower()
+    assert cleaned.index(contact) < cleaned.index(location)
+    assert cleaned.count("?") == 1
+    assert "unanswered_question" not in guards.check_reply(
+        cleaned, make_state(visitor), visitor_text=visitor
+    ).codes()
+
+
 def test_an_early_email_ask_is_replaced_with_the_open_field():
     material = "Do you have any specific material or special features in mind?"
     cleaned = guards.prepare_reply(

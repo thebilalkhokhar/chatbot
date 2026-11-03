@@ -796,6 +796,28 @@ def build_user(
             else ""
         ),
         (
+            "They asked where you are or for your address/location. Include exactly: "
+            '"Our facility is in Rosenberg, Texas." Do not stuff it in parentheses. '
+            "If they also asked for contact details, give the contact sentence, then this "
+            "location sentence, then one ASK SET field."
+            if canon.asks_for_location(visitor)
+            else ""
+        ),
+        (
+            "They asked a written FACTS topic ("
+            + ", ".join(
+                key
+                for key in topics
+                if key in {"refund", "privacy", "terms", "payments", "hours", "shipping", "intl_shipping"}
+            )
+            + "). Use those FACTS answers verbatim as the opening sentence(s); do not paraphrase."
+            if any(
+                key in {"refund", "privacy", "terms", "payments", "hours", "shipping", "intl_shipping"}
+                for key in topics
+            )
+            else ""
+        ),
+        (
             "They declined to share their email/phone. Acknowledge that, do not ask for their "
             "email or phone again, and do not hand off just because they refused. If they also "
             "asked for OUR contact or address, answer those from FACTS (support email/phone and "
