@@ -189,6 +189,17 @@ def create_app(config: Config | None = None, orchestrator: Orchestrator | None =
             return Response(status_code=404)
         return FileResponse(FAVICON_PATH, media_type="image/svg+xml")
 
+    @app.get("/avatars/{name}")
+    def persona_avatar(name: str):
+        if not cfg.ui_enabled:
+            return Response(status_code=404)
+        stem = name.lower().removesuffix(".svg")
+        safe = "".join(ch for ch in stem if ch.isalpha())
+        path = (WEB_DIR / "avatars" / f"{safe}.svg").resolve()
+        root = (WEB_DIR / "avatars").resolve()
+        if not safe or not path.exists() or root not in path.parents:
+            return Response(status_code=404)
+        return FileResponse(path, media_type="image/svg+xml")
 
     @app.post("/api/start")
     def api_start(payload: LocalStart):

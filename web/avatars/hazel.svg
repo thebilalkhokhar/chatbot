@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Hazel">
+  <defs>
+    <linearGradient id="bg" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#d2c4ff"/><stop offset="100%" stop-color="#7c5cff"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="32" fill="url(#bg)"/>
+  <path fill="#2a1b12" d="M11 28c3-18 13-24 21-24s18 6 21 24c-1.5 12-4 24-7 28-2.2-12-5.5-18-14-18s-11.8 6-14 18c-3-4-5.5-16-7-28z"/>
+  <ellipse cx="32" cy="57" rx="15" ry="10" fill="#4b2fad"/>
+  <circle cx="32" cy="28" r="13.5" fill="#f4c9a8"/>
+  <path fill="#2a1b12" d="M18 23c2.8-9 9-12.5 14-12.5s11.2 3.5 14 12.5c-3.5-3.5-8.2-5.2-14-5.2S21.5 19.5 18 23z"/>
+  <circle cx="26.5" cy="28.5" r="1.55" fill="#2a1b12"/>
+  <circle cx="37.5" cy="28.5" r="1.55" fill="#2a1b12"/>
+  <path d="M28 35c1.8 1.5 6.2 1.5 8 0" fill="none" stroke="#d19a74" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
