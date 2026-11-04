@@ -98,6 +98,19 @@ primer is consequently **2,856 tokens**, so `PRIMER_TOKEN_BUDGET` is 2,900 and
 **Phase 2 (goal state and ask discipline) starts while the packet is reviewed offline**, and the
 allow-list re-source stays blocked behind the D-10 contradictions listed in the packet.
 
+**Revision G (2026-11-04 — visitor language + contact capture):** G15 is **closed in product**, not
+deferred. Live turns run English-internal for extract / spelling / guards / compose, with a dynamic
+LLM language pass around that core (`bot/reply_language.py`, `bot/visitor_language.py`): inbound
+detects language and produces an English gloss; outbound translates the guarded English reply into
+the session language on `flags.language`. There are **no hardcoded per-language word lists**; sticky
+session language keeps short catalogue answers from flipping back to English. Contact details are
+read from the visitor's **raw** words via `extract_contact_fields` (name + email + phone may land in
+one turn), because the inbound gloss used to mask emails to `[EMAIL]` and drop them. Name intros
+cover informal forms ("hey Bilal here", "this is…", "call me…", "NAME speaking") as well as "my name
+is" / "I am". When two or more contact fields arrive together, the ack is **"Thanks — I've got
+everything you shared."** instead of thanking only the phone. Compose LLM calls still mask PII;
+inbound language calls do not. §5, §8, §11, §17 and Appendix A below reflect this.
+
 **Relationship to v1:** [PLAN.md](./PLAN.md) stays the record of what exists today. This document
 replaces v1 §4 (pipeline design) and §7 (plan from here) for the *conversation* layer. The
 evaluation harness, KB, state store and guard rails described there are kept, not dropped.
@@ -833,9 +846,11 @@ never-rows) checks the flag, not a regex.
 ## 5. v2 turn lifecycle
 
 ```
-visitor message
-  → PII mask (unchanged)
-  → extract fields into GoalState; classify each as visitor | suggested | confirmed
+visitor message (raw text kept on Message.text)
+  → inbound language pass (Revision G): detect language → English gloss for extract/guards;
+       session language sticky on flags.language; inbound call is NOT PII-masked so contacts survive
+  → extract fields into GoalState from the gloss + raw contact spans (extract_contact_fields);
+       classify each as visitor | suggested | confirmed
   → compute the ask-set: missing fields that materially change the quote or the recommendation
   → detect meta-questions (identity challenge, complaint, "are you a bot", off-topic)   <-- NEW
        identity challenge = a fixed route, per approved D-1: honest one-sentence disclosure of being an
@@ -856,13 +871,15 @@ visitor message
          last N transcript messages
          the visitor's message, tagged with its detected intent
          NO "next script question" line
-  → model returns { reply, move, proposed_configs[], fields_proposed:[{key,value,basis}] }
+  → compose LLM (PII-masked) returns { reply, move, proposed_configs[], fields_proposed:[{key,value,basis}] }
+       multi-contact intros ack with "I've got everything you shared" when ≥2 of name/email/phone land
   → reply ↔ config reconciliation: every registry-vocabulary value named in the reply must be inside
     a validated config; state of that config governs the sentence          <-- NEW (4.3, §7)
   → Tier B guards run (block) → config + dimension guards run (block) → Tier A guards run (warn)
   → if blocked: rewrite once, then re-reconcile and re-guard; then a *context-aware* fallback  <-- NEW
+  → outbound language pass (Revision G): translate guarded English reply → session language (Message.shown)
   → store event: move taken, goal deltas, proposed_configs + per-claim basis, guard issues,
-                 context mode, prompt/completion tokens, model, cost
+                 context mode, prompt/completion tokens, model, cost, language
 ```
 
 Three fixes that are not optional in this loop:
@@ -1027,6 +1044,13 @@ of `unknown_capability` — Section 4.2 and 4.3.
 - **Give-to-get.** Two unanswered contact asks → offer the phone or support email the FACTS block
   marks `offerable: true`, keep talking. The full rule is **Section 4.10** — one table, so behaviour 5,
   D-5 and the prompt cannot drift apart again.
+- **Contact dump in one turn (Revision G).** Name, email and phone may arrive together in an intro
+  ("hey Bilal here, my email is … and my phone number is …"). `extract_contact_fields` reads them from
+  the visitor's raw words; the ack thanks for **everything shared**, not only the number; do-not-ask
+  lists every field that landed.
+- **Visitor language (Revision G).** Detect → English gloss in; translate the guarded reply out. Sticky
+  `flags.language`; no per-language dictionaries. Closes v1 gap G15 without changing the English-only
+  extract/guard/compose core.
 - **Meta-question handling.** A new detector for identity challenges, complaints and
   "why are you asking me that" — the reply must address it before any ask. Turn 4 is the test case.
 - **Honest dead ends.** "I don't know" is allowed and must not trigger a fallback loop. Today the
@@ -1124,7 +1148,8 @@ by the shopkeeper design too, is already written, and is already tested:
 | KB ingest + BM25 index (41 docs → 122 chunks, **60 verified**; the other 62 are the two draft capability files and are unreachable by a reply) | Done | Now the **FAMILY DETAIL** provider (§4.9) instead of a 12k-token resend; the capability registry joins it |
 | Canon fact layer + sign-off tracking | Done, all facts confirmed 2026-10-30 | Becomes the Tier B fact sheet verbatim |
 | SQLite state store, personas, atomic counter | Done | Goal state lives in the same record |
-| PII masking before any external call | Done | Unchanged, non-negotiable |
+| PII masking before compose LLM calls | Done | Non-negotiable for compose; inbound language gloss is unmasked so contact extract still sees the real address/number (Revision G) |
+| Dynamic visitor language (inbound gloss + outbound translate) | Done (Revision G) | English-internal core; session language on `flags.language`; closes G15 |
 | Guard layer | Done | Tier B subset survives; Tier A subset downgraded |
 | Replay harness + spend lock | Done | The only way to prove v2 > v1 |
 | Judge pipeline (`server/analyzer/qa/judge.py`) | Done | Side-by-side scoring |
@@ -1867,7 +1892,10 @@ loop that writes new rules from found loopholes. v2 continues that path rather t
   row, not a search.
 - A vector database / embedding retrieval. The KB is 60 chunks; the deterministic primer plus
   family-filtered BM25 beats semantic search until the corpus grows an order of magnitude (§4.9).
-- Multi-lingual output (production translates EN→6+ languages; v1 gap G15 stays open).
+- ~~Multi-lingual output (v1 gap G15).~~ **Closed by Revision G** — LLM inbound gloss + outbound
+  translate around the English extract/guard/compose core; no fine-tuned per-language models and no
+  hardcoded phrase tables. Production's older EN→6+ fixed-language list is not re-implemented as a
+  closed set; any language the inbound pass names can stick on the session.
 - Replacing the judge, the dashboard, or the SalesIQ integration.
 - Anything that spends money or touches live traffic without a per-run approval.
 
@@ -1891,15 +1919,17 @@ loop that writes new rules from found loopholes. v2 continues that path rather t
 | `chatbot/data/catalogue_primer.txt` | **generated, 2026-10-30** — the rendered primer (**2,856 tokens** against the 2,900 bound, from the kb_v2 registry). Written by `cli ingest`, never hand-edited: `cli capability` exits 1 if the file on disk differs from a fresh render |
 | ~~`chatbot/bot/sizing.py`~~ | **deleted by Revision D** — never written. No `estimate_size()`, no sizing module; the sizing policy is one prompt paragraph plus the `unsanctioned_dimension` guard (§4.4, §7) |
 | `chatbot/bot/cli.py` | **`capability` subcommand done 2026-10-30** (registry integrity, per-family row counts, primer-drift check; exit 1 on errors) · **`probe` subcommand added 2026-10-31** (Stage A, S1/S2/S3, dollar cap; the Phase 4 run itself did not pass) · `ingest` now also writes the primer |
-| `chatbot/bot/state.py` | **Phase 3 part done** — `is_meta_question` covers identity, a complaint, and "why are you asking". A catalogue size may be stored with basis `catalogue`. Phase 2 ask-set and provenance are unchanged |
-| `chatbot/bot/composer.py` | **Phase 3 done 2026-10-31** — cacheable prefix (persona, D-1, D-13, Tier A/B, primer, allow-list, sizing). Tail holds the goal, ask-set, FACTS, family detail, transcript and intent. `move`, `proposed_configs` and `fields_proposed` are parsed off the model object |
-| `chatbot/bot/guards.py` | **Phase 3 done 2026-10-31** — Section 7 severities applied (`off_script` removed). Registry guards, `unsanctioned_dimension`, `reply_config_mismatch`, `unstructured_recommendation`, `contact_offered_unasked`, `canon_conflict`. Allow-list sentences are the only way a safety word passes. Phase 2c `redundant_ask` and `question_as_answer` stay |
-| `chatbot/bot/orchestrator.py` | **Phase 3 done 2026-10-31** — catalogue context keeps family-scoped chunks; live turns and rewrites are reconciled against `proposed_configs`; the event records `move`, configs and primer token count. Meta fallback stays a fixed line. Identity fallback from Phase 2c stays |
+| `chatbot/bot/state.py` | **Phase 3 part done** — `is_meta_question` covers identity, a complaint, and "why are you asking". A catalogue size may be stored with basis `catalogue`. Phase 2 ask-set and provenance are unchanged. **Revision G:** `extract_contact_fields` + broader name intros; phone and email may store together |
+| `chatbot/bot/composer.py` | **Phase 3 done 2026-10-31** — cacheable prefix (persona, D-1, D-13, Tier A/B, primer, allow-list, sizing). Tail holds the goal, ask-set, FACTS, family detail, transcript and intent. `move`, `proposed_configs` and `fields_proposed` are parsed off the model object. **Revision G:** multi-contact ack "I've got everything you shared" |
+| `chatbot/bot/guards.py` | **Phase 3 done 2026-10-31** — Section 7 severities applied (`off_script` removed). Registry guards, `unsanctioned_dimension`, `reply_config_mismatch`, `unstructured_recommendation`, `contact_offered_unasked`, `canon_conflict`. Allow-list sentences are the only way a safety word passes. Phase 2c `redundant_ask` and `question_as_answer` stay. **Revision G:** name value-token check uses `extract_contact_fields` |
+| `chatbot/bot/orchestrator.py` | **Phase 3 done 2026-10-31** — catalogue context keeps family-scoped chunks; live turns and rewrites are reconciled against `proposed_configs`; the event records `move`, configs and primer token count. Meta fallback stays a fixed line. Identity fallback from Phase 2c stays. **Revision G:** inbound/outbound language wiring; raw-contact merge into extract; multi-field off-slot contact ack |
+| `chatbot/bot/reply_language.py` | **new (Revision G)** — LLM inbound `{language, english}` gloss and outbound translate; sticky session language; catalogue option labels translated with the reply |
+| `chatbot/bot/visitor_language.py` | **new (Revision G)** — `ENGLISH` sentinel + `session_language(flags)` only; no word lists |
 | `chatbot/bot/config.py` | **Phase 3 done 2026-10-31** — `BOT_ARCH=v1\|v2` (default `v2`); `BOT_CONTEXT=catalogue\|full\|retrieval` (default `catalogue`). **No `sizing.mode`.** |
-| `chatbot/bot/llm.py` | **Phase 4 accounting added 2026-10-31** — `cost_usd` from published gpt-5-nano / mini / gpt-5 rates (longest prefix first; an unknown model bills at the mini rate). Each live completion stores usage, latency and dollars. The orchestrator event records `cost_usd`, prompt tokens, completion tokens and latency |
+| `chatbot/bot/llm.py` | **Phase 4 accounting added 2026-10-31** — `cost_usd` from published gpt-5-nano / mini / gpt-5 rates (longest prefix first; an unknown model bills at the mini rate). Each live completion stores usage, latency and dollars. The orchestrator event records `cost_usd`, prompt tokens, completion tokens and latency. **Revision G:** `mask_pii=` flag so inbound language can keep real contact spans |
 | `chatbot/bot/replay.py` | Side-by-side v1/v2 runs; spend lock unchanged |
 | `chatbot/web/index.html` | Debug panel shows `move`, `proposed_configs[]`, registry state per claim, the context tier actually sent and its token count, and the goal checklist |
-| `chatbot/tests/` | **Phase 4 probe fixtures in, suite 170 passing (2026-10-31).** `test_probe.py` covers the rate table, the 12-scenario grid, the 60-case cap, C1/C2/C3 examples, an uppercase family, and a catalogue style name that contains a safety word. The paid run did not pass its exit |
+| `chatbot/tests/` | **Revision G contact + language regressions in; suite ~347 collected (2026-11-04).** Earlier Phase 4 probe fixtures remain; informal name intros and multi-contact ack are covered |
 
 ## Appendix B — v1's 19 prompt rules in v2
 

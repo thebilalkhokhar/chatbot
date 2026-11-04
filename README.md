@@ -11,10 +11,12 @@ Sales-support chatbot for [Print247](https://print247.us) website chats. It answ
 - Ground every factual answer in the `kb/` knowledge base (no invented prices, policies, sizes, or certifications).
 - Rotate nine sales personas (one sticky persona per conversation).
 - Collect quote fields (product family, use case, size, quantity, style / material / finish, contact) and hand off when ready.
+- Capture name / email / phone from informal intros in one turn (including forms like “hey Bilal here”) and acknowledge everything shared.
+- Reply in the visitor’s language via a dynamic LLM inbound/outbound pass (reasoning stays English-internal; no per-language word lists).
 - Run deterministic guards on every draft reply.
 - Support local chat, a browser UI, and a Zoho SalesIQ-compatible webhook.
 
-**Out of scope:** model fine-tuning, ERP pricing in chat, multilingual output (early phases), replacing the separate QA dashboard.
+**Out of scope:** model fine-tuning, ERP pricing in chat, replacing the separate QA dashboard.
 
 Design history and rollout decisions live in [`PLAN.md`](./PLAN.md) and [`PLAN_V2.md`](./PLAN_V2.md).
 
@@ -31,7 +33,9 @@ Visitor (UI / SalesIQ / CLI)
         ▼
    Orchestrator             bot/orchestrator.py
         │
-        ├── State machine   bot/state.py          (fields, goals, handoff)
+        ├── Language        bot/reply_language.py, visitor_language.py
+        │                     (detect → English gloss in; translate reply out)
+        ├── State machine   bot/state.py          (fields, goals, handoff, contact extract)
         ├── Spelling / PII  bot/spelling.py, pii.py
         ├── Vision          bot/vision.py         (optional image → fields)
         ├── KB retrieval    bot/kb.py             (BM25 over markdown)
@@ -43,7 +47,7 @@ Visitor (UI / SalesIQ / CLI)
    Store                    bot/store.py          (SQLite or Postgres)
 ```
 
-Live turns use a deterministic **catalogue primer** (from the capability registry) plus family-filtered KB chunks. `BOT_CONTEXT` is locked to `catalogue` in code (decision D-12).
+Live turns use a deterministic **catalogue primer** (from the capability registry) plus family-filtered KB chunks. `BOT_CONTEXT` is locked to `catalogue` in code (decision D-12). Session language sticks on `flags.language`; short catalogue answers do not flip it back to English.
 
 ---
 
@@ -59,7 +63,7 @@ Live turns use a deterministic **catalogue primer** (from the capability registr
 | Attachments | Local `data/uploads`, or Vercel Blob when a blob token is set |
 | Fuzzy / spelling | rapidfuzz, pyspellchecker |
 | Deploy | Vercel (`main.py` exports the FastAPI app, `maxDuration: 60`) |
-| Tests | pytest (~298 tests) |
+| Tests | pytest (~347 tests) |
 
 Anthropic is never used. Paid LLM calls require explicit spend gates (`BOT_ALLOW_LIVE=1` + API key + non-`fake` mode).
 
@@ -79,9 +83,11 @@ chatbot/
 │   ├── service.py          # FastAPI: UI APIs, SalesIQ webhook, health
 │   ├── cli.py              # ingest, capability, chat, serve, probe, …
 │   ├── orchestrator.py     # End-to-end turn pipeline
-│   ├── state.py            # Goal / field machine
+│   ├── state.py            # Goal / field machine + contact extract
 │   ├── composer.py         # Heuristic + live prompt / turn
 │   ├── guards.py           # Deterministic reply checks
+│   ├── reply_language.py   # LLM inbound gloss + outbound translate
+│   ├── visitor_language.py # Session language helpers (no word lists)
 │   ├── capability.py       # Capability registry + catalogue primer
 │   ├── kb.py               # Markdown ingest, chunking, BM25
 │   ├── canon.py            # Canonical facts + sign-off report
@@ -91,7 +97,7 @@ chatbot/
 │   ├── attachments.py      # Image validate / save
 │   ├── vision.py           # Multimodal field extraction
 │   ├── spelling.py         # Visitor-text normalisation
-│   ├── pii.py              # Email / phone mask before LLM
+│   ├── pii.py              # Email / phone mask before compose LLM
 │   ├── golden.py           # Golden examples from judged chats
 │   ├── replay.py           # Offline historical replay
 │   └── probe.py            # Phase 4 grounding probe (paid)
@@ -308,11 +314,14 @@ Attachments: JPEG, PNG, WebP, GIF up to `BOT_ATTACHMENT_MAX_BYTES` (default 8 MB
 ## Chat turn flow
 
 1. **Start** — assign persona → heuristic greeting (ask product) → guard → persist.
-2. **Handle** — load state; optional image save + vision enrichment; spelling normalize; extract / apply fields.
-3. **Handoff reasons** — human requested, quote complete, complex / stalled, contact declined, or `max_turns`.
-4. **Retrieve** — BM25 top-K chunks; catalogue path uses family-filtered prompt context + primer.
-5. **Compose** — `fake` → heuristic; `live` → LLM with primer, facts, chunks, goldens, goal.
-6. **Guard** — block → one rewrite attempt or fallback; then persist state + events.
+2. **Handle** — load state; optional image save + vision enrichment.
+3. **Language (inbound)** — detect visitor language; keep an English gloss for extract / spelling / guards. Contact fields are also read from the **raw** visitor text so email/phone survive inbound masking.
+4. **Extract / apply** — quote fields plus `extract_contact_fields` (name intros such as “I am…”, “hey NAME here”, “this is…”, plus email and phone together).
+5. **Handoff reasons** — human requested, quote complete, complex / stalled, contact declined, or `max_turns`.
+6. **Retrieve** — BM25 top-K chunks; catalogue path uses family-filtered prompt context + primer.
+7. **Compose** — `fake` → heuristic; `live` → LLM with primer, facts, chunks, goldens, goal (PII masked). Multi-contact intros ack with “I've got everything you shared.”
+8. **Guard** — block → one rewrite attempt or fallback.
+9. **Language (outbound)** — translate the English reply into the session language when needed; then persist state + events.
 
 Guards cover invented prices, rush dates, AI self-claim / denial, unsanctioned dimensions, config↔prose reconciliation, Tier B claims, repeated asks, answer-first behaviour, and more.
 
@@ -389,7 +398,7 @@ Offline quality loops:
 
 1. No paid LLM call without explicit approval for that run (`BOT_ALLOW_LIVE` + key + non-fake mode).
 2. Never call the Anthropic API.
-3. Mask email and phone before external LLM calls.
+3. Mask email and phone before **compose** LLM calls. The inbound language gloss runs unmasked so contact details can be extracted from the visitor’s own words; those values stay in state, not in model prompts for compose.
 4. `kb/` wins on signed facts; unverified claims must hand off, not guess.
 5. No prices in chat — pricing stays with the quote / operator.
 6. The bot must not invent or guarantee packaging dimensions outside the verified catalogue (or the customer’s own numbers).
