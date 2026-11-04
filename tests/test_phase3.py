@@ -313,6 +313,28 @@ def test_operator_email_blocks_and_hours_wait_to_be_asked():
     assert "contact_offered_unasked" not in asked.codes()
 
 
+def test_labels_chip_does_not_keep_office_hours_in_polish():
+    """Regression: live drafts sometimes prepend office hours on a product pick."""
+    from chatbot.bot.canon import asks_for_hours, topics_to_answer
+
+    assert not asks_for_hours("Labels")
+    assert "hours" not in topics_to_answer("Labels")
+    assert "hours" not in topics_to_answer("open style pouch")
+    draft = (
+        "Our office is open Monday to Friday, 9am to 5pm. "
+        "What is the intended use case for the labels?"
+    )
+    polished = guards.prepare_reply(
+        draft,
+        "Labels",
+        priority_key="use_case",
+        priority_text="What will you be using the labels for?",
+    )
+    assert "office is open" not in polished.lower()
+    assert "9am" not in polished.lower()
+    assert "use" in polished.lower()
+
+
 def test_paypal_only_conflicts_with_canon():
     state = _state("hello")
     result = guards.check_reply("We accept PayPal only.", state, visitor_text="hello")

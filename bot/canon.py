@@ -109,8 +109,12 @@ CANON: dict[str, CanonFact] = {
         triggers=(
             r"\b(?:office|business|support)\s+hours\b",
             r"\bwhat\s+time\s+(?:are|do)\s+you\b",
-            r"\bopen\b",
-            r"\bclosed?\b",
+            # Bare "open"/"closed" alone is too broad ("open style", product copy).
+            r"\b(?:are you|you(?:'re| are)|is (?:the )?(?:office|shop|store))\s+open\b",
+            r"\bwhen (?:are|do) you\s+open\b",
+            r"\bwhat(?:'s| is) your\s+(?:hour|hours|timing|timings)\b",
+            r"\b(?:office|shop|store)\s+closed?\b",
+            r"\bclosed\s+(?:today|now|weekend|saturday|sunday)\b",
             r"\bweekend\b",
             r"\bsaturday\b",
             r"\bsunday\b",
@@ -565,6 +569,35 @@ def asks_for_location(text: str) -> bool:
     return "location" in detect_topics(value)
 
 
+def asks_for_hours(text: str) -> bool:
+    """They asked when the office is open — not a product/checklist turn."""
+    value = str(text or "").strip()
+    if not value or "hours" not in detect_topics(value):
+        return False
+    # Weekend/Saturday alone in a packaging brief is not an hours ask.
+    if re.search(
+        r"\b(?:office|business|support)\s+hours\b"
+        r"|\bwhat\s+time\s+(?:are|do)\s+you\b"
+        r"|\b(?:are you|you(?:'re| are)|is (?:the )?(?:office|shop|store))\s+open\b"
+        r"|\bwhen (?:are|do) you\s+open\b"
+        r"|\bwhat(?:'s| is) your\s+(?:hour|hours|timing|timings)\b"
+        r"|\b(?:office|shop|store)\s+closed?\b"
+        r"|\bclosed\s+(?:today|now|weekend|saturday|sunday)\b",
+        value,
+        re.I,
+    ):
+        return True
+    # "weekend" / "saturday" only count with open/hours/closed framing nearby.
+    return bool(
+        re.search(
+            r"\b(?:open|closed|hours?|timing|timings)\b.{0,24}\b(?:weekend|saturday|sunday)\b"
+            r"|\b(?:weekend|saturday|sunday)\b.{0,24}\b(?:open|closed|hours?|timing|timings)\b",
+            value,
+            re.I,
+        )
+    )
+
+
 def asks_for_our_contact(text: str) -> bool:
     """They asked how to reach Print247, not for a place to send their own details.
 
@@ -596,6 +629,8 @@ def topics_to_answer(text: str) -> list[str]:
         topics = [key for key in topics if key != "contact"]
     if "location" in topics and not asks_for_location(text):
         topics = [key for key in topics if key != "location"]
+    if "hours" in topics and not asks_for_hours(text):
+        topics = [key for key in topics if key != "hours"]
     return topics
 
 

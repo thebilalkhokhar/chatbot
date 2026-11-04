@@ -863,6 +863,25 @@ def strip_unsolicited_moq(reply: str, visitor: str) -> str:
     return re.sub(r"\s+", " ", " ".join(kept)).strip()
 
 
+def strip_unsolicited_hours(reply: str, visitor: str) -> str:
+    """Drop office-hours sentences unless the visitor asked when you are open."""
+    text = str(reply or "").strip()
+    if not text or canon.asks_for_hours(visitor):
+        return text
+    hours_answer = str(canon.effective_answer("hours") or "").strip().casefold()
+    kept: list[str] = []
+    for sentence in _sentences(text):
+        folded = sentence.casefold()
+        if hours_answer and hours_answer in folded:
+            continue
+        if HOURS_STATED.search(sentence):
+            continue
+        kept.append(sentence)
+    if not kept:
+        return ""
+    return re.sub(r"\s+", " ", " ".join(kept)).strip()
+
+
 def enforce_one_field_ask(reply: str, priority_key: str = "", priority_text: str = "") -> str:
     """Collapse 'what size and quantity…?' into a single checklist ask."""
     text = str(reply or "").strip()
@@ -1034,6 +1053,9 @@ def ensure_asked_answers(
     for key in canon.topics_to_answer(visitor):
         if key in {"contact", "location"}:
             continue
+        # Never volunteer offerable:false facts (hours, refund, …) via polish.
+        if canon.OFFERABLE_FACTS.get(key) is False:
+            continue
         if key == "materials" and (
             wants_recommendation(visitor) or is_option_request(visitor)
         ):
@@ -1115,8 +1137,9 @@ def prepare_reply(
     locked_fields: tuple[str, ...] | list[str] = (),
     overrides: dict[str, str] | None = None,
 ) -> str:
-    """Outgoing reply rules: no unsolicited MOQ, no second greeting, one question."""
+    """Outgoing reply rules: no unsolicited MOQ/hours, no second greeting, one question."""
     text = restore_public_contact(strip_unsolicited_moq(reply, visitor))
+    text = strip_unsolicited_hours(text, visitor)
     if already_greeted:
         text = strip_repeated_greeting(text)
     text = scrub_visitor_sku_jargon(text)
