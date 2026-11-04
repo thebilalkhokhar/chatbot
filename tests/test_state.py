@@ -335,6 +335,39 @@ def test_not_sure_on_finish_question_waives_finish():
     assert "finishes" not in state.ask_set()
 
 
+def test_no_idea_is_not_a_recommendation_ask():
+    from chatbot.bot.state import wants_recommendation
+
+    for text in ("No idea", "no idea", "I have no idea", "i have no idea."):
+        assert not wants_recommendation(text)
+    assert wants_recommendation("any ideas")
+    assert wants_recommendation("ideas?")
+    assert wants_recommendation("give me ideas")
+
+
+def test_no_idea_on_finish_style_material_waives():
+    """Regression: 'idea' in 'no idea' must not block the uncertainty waiver."""
+    from chatbot.bot.state import TO_BE_CONFIRMED, STATUS_WAIVED
+
+    cases = (
+        ("finishes", "No idea", TO_BE_CONFIRMED),
+        ("style", "no idea", "no preference"),
+        ("material", "I have no idea", "no preference"),
+    )
+    for field, text, expected in cases:
+        state = make_state(text)
+        state.fields["product"].value = "boxes"
+        state.fields["product"].status = STATUS_VISITOR
+        state.last_question = field
+        updates = extract_fields(text, field, state)
+        assert updates.get(field) == expected, (field, text, updates)
+        accepted, rejected = apply_field_updates(state, updates, text)
+        assert accepted.get(field) == expected, (field, text, accepted, rejected)
+        assert field not in rejected
+        assert state.fields[field].status == STATUS_WAIVED
+        assert field not in state.ask_set()
+
+
 def test_labels_for_pizza_box_locks_labels_not_boxes():
     """Head product wins when purpose names another family (attachment ambiguity)."""
     from chatbot.bot.state import family_of, headed_product_family

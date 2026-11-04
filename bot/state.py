@@ -559,7 +559,9 @@ QUESTION_START_RE = re.compile(
 RECOMMENDATION_RE = re.compile(
     r"\b(?:suggest|recommend)\b"
     r"|\b(?:any|some)\s+(?:suggestions?|recommendations?|ideas?|options?)\b"
-    r"|\b(?:suggestions?|recommendations?|ideas?)\s*\??\s*$"
+    # Bare "ideas?" / "suggestions?" — but not "no idea" (uncertainty waiver).
+    r"|\b(?:suggestions?|recommendations?)\s*\??\s*$"
+    r"|(?<!\bno )\bideas?\s*\??\s*$"
     r"|\bwhat(?:'s| is) (?:the )?best\b"
     r"|\bwhat (?:packaging|box(?:es)?|bags?|pouches?|materials?|styles?)\b[^.?!]{0,40}\bbest\b"
     r"|\bbest (?:option|choice|fit|box(?:es)?|bags?|pouches?|packaging|materials?|styles?)\b"
@@ -596,7 +598,12 @@ LANGUAGE_PREFERENCE_RE = re.compile(
 
 
 def wants_recommendation(text: str) -> bool:
-    return bool(RECOMMENDATION_RE.search(str(text or "")))
+    value = str(text or "").strip()
+    # "No idea" / "not sure" / "you pick" are waivers, not "give me ideas" asks.
+    # The trailing-ideas? branch used to match the word "idea" inside "no idea".
+    if UNSPECIFIED_RE.match(value):
+        return False
+    return bool(RECOMMENDATION_RE.search(value))
 
 
 def now_iso() -> str:

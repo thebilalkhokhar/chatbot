@@ -24,6 +24,8 @@ def test_any_suggestion_counts_as_recommendation():
     assert wants_recommendation("Any suggestion?")
     assert wants_recommendation("any suggestions")
     assert wants_recommendation("some recommendations please")
+    assert not wants_recommendation("No idea")
+    assert not wants_recommendation("I have no idea")
 
 
 def test_language_preference_is_meta():
