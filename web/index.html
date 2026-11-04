@@ -159,7 +159,8 @@
   .messages {
     flex: 1; min-height: 0;
     overflow-y: auto;
-    padding: 22px 22px 14px;
+    /* Left room for bot avatars; almost no right inset so visitor sits on the edge. */
+    padding: 22px 4px 14px 22px;
     display: flex; flex-direction: column; gap: 16px;
     scroll-behavior: smooth;
   }
@@ -179,7 +180,10 @@
     width: 100%;
     max-width: 100%;
   }
-  .msg.visitor .msg-row { flex-direction: row-reverse; }
+  .msg.visitor .msg-row {
+    flex-direction: row-reverse;
+    justify-content: flex-start;
+  }
   .avatar {
     width: 30px; height: 30px; flex: 0 0 30px;
     border-radius: 50%;
@@ -211,6 +215,9 @@
     color: #fff;
     border-bottom-right-radius: 6px;
     box-shadow: 0 8px 22px rgba(82, 56, 201, 0.28);
+    /* Slack only on the left — visitor text always grows from the right. */
+    max-width: min(560px, calc(100% - 48px));
+    margin-left: auto;
   }
   .msg.system .bubble {
     background: rgba(240, 180, 41, 0.1);
@@ -223,14 +230,16 @@
     padding: 8px 14px;
   }
   .meta { font-size: 11px; color: var(--muted-2); padding: 0 4px 0 40px; }
-  .msg.visitor .meta { padding: 0 4px; text-align: right; }
+  .msg.visitor .meta { padding: 0; text-align: right; }
   /* Attached reference: media card, not a purple text-bubble wrap */
   .msg.visitor .bubble.with-image {
     background: transparent;
     box-shadow: none;
     padding: 0;
     gap: 8px;
-    max-width: min(280px, 85%);
+    max-width: min(280px, calc(100% - 48px));
+    margin-left: auto;
+    justify-items: end; /* image + caption both flush right */
   }
   .bubble.with-image {
     display: grid;
@@ -250,6 +259,7 @@
   .bubble.with-image .caption {
     width: max-content;
     max-width: 100%;
+    justify-self: end;
     padding: 9px 12px;
     border-radius: 14px;
     border-bottom-right-radius: 6px;
