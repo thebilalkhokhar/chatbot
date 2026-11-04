@@ -470,7 +470,7 @@ def test_boxes_may_be_asked_what_is_inside_and_not_a_scripted_size():
     assert state.ask_set() == ["use_case", "sizes", "quantity"]
     key, question = state.next_question()
     assert key == "use_case"
-    assert question == USE_CASE_QUESTION
+    assert question == "What will you be using the boxes for?"
     assert "box size" not in question.lower()
 
 
@@ -767,6 +767,7 @@ def test_refusing_contact_waives_email_and_phone():
     assert "alternative materials when only one standard material exists" in RULE_TEXT
     assert "do not have an email" in RULE_TEXT
     assert "Stay inside the active product family" in RULE_TEXT
+    assert "Always write your reply in English" in RULE_TEXT
 
 
 def test_size_not_sure_does_not_waive_material_on_the_side():

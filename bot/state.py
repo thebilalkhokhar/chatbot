@@ -74,7 +74,7 @@ LEGACY_STATUSES = {
 # A v1 record only ever held customer-supplied values; a model echo was stored the same way.
 LEGACY_SOURCES = {"visitor": BASIS_VISITOR, "model": BASIS_MODEL, "llm": BASIS_MODEL}
 
-USE_CASE_QUESTION = "What will be inside it, or who is it going to?"
+USE_CASE_QUESTION = "What will you be using these for?"
 EMAIL_QUESTION = "What is the best email to send the quote to?"
 SOFT_EMAIL_QUESTION = (
     "I can send the quote by email when we're done — what address should we use?"
@@ -214,14 +214,18 @@ CONTACT_REFUSAL_RE = re.compile(
 )
 UNSPECIFIED_RE = re.compile(
     r"^\s*(?:"
-    r"(?:i\s+)?(?:don'?t|dont)\s+have(?:\s+(?:a|any|one))?"
-    r"(?:\s+(?:reference|image|design|idea|preferences?)){0,2}"
-    r"|(?:i\s+)?have\s+no\s+(?:preferences?|idea|clue|reference)"
-    r"|(?:i\s+)?(?:don'?t|dont)\s+know|not\s+sure|unsure|no\s+(?:idea|clue|preferences?|reference)"
+    r"(?:i\s+)?(?:still\s+|not\s+yet\s+)?"
+    r"(?:don'?t|dont|do\s+not)\s+have(?:\s+(?:a|any|one|my))?"
+    r"(?:\s+(?:reference|image|design|designs|artwork|file|files|idea|preferences?)){0,3}"
+    r"|(?:i\s+)?have\s+no\s+(?:preferences?|idea|clue|reference|design|designs|artwork)"
+    r"|(?:i\s+)?(?:still\s+)?(?:don'?t|dont|do\s+not)\s+know|not\s+sure|unsure|no\s+(?:idea|clue|preferences?|reference|design|designs)"
     r"|dunno|idk|no|nope|none|nothing(?:\s+specific)?|whatever|anything|any"
     r"|you\s+pick(?:\s+it)?|you\s+decide(?:\s+it)?"
     r"|let\s+(?:the\s+)?team\s+decide(?:\s+it)?"
     r"|(?:the\s+)?team(?:'s)?\s+(?:pick|choice|call|decide)"
+    # Short uncertainty after inbound gloss ("I have no idea", "no idea at all").
+    r"|(?:i\s+)?(?:really\s+)?(?:have\s+)?no\s+(?:idea|clue)(?:\s+at\s+all)?"
+    r"|not\s+a\s+clue"
     r")\s*[.!]*\s*$",
     re.I,
 )
@@ -427,6 +431,8 @@ QUESTION_START_RE = re.compile(
 
 RECOMMENDATION_RE = re.compile(
     r"\b(?:suggest|recommend)\b"
+    r"|\b(?:any|some)\s+(?:suggestions?|recommendations?|ideas?|options?)\b"
+    r"|\b(?:suggestions?|recommendations?|ideas?)\s*\??\s*$"
     r"|\bwhat(?:'s| is) (?:the )?best\b"
     r"|\bwhat (?:packaging|box(?:es)?|bags?|pouches?|materials?|styles?)\b[^.?!]{0,40}\bbest\b"
     r"|\bbest (?:option|choice|fit|box(?:es)?|bags?|pouches?|packaging|materials?|styles?)\b"
@@ -434,6 +440,19 @@ RECOMMENDATION_RE = re.compile(
     r"|\bshould i (?:use|choose|pick|get|go with)\b"
     r"|\bhelp me (?:choose|pick|decide)\b"
     r"|\bwhat (?:packaging|box(?:es)?|bags?|pouches?|materials?|styles?) (?:should|would|do you)\b",
+    re.I,
+)
+
+# After inbound anglicise: "Do you speak Spanish?" / "Can you reply in French?"
+# Require "in" or please-speak forms so "speak pizza" / "answer pizza" never match.
+LANGUAGE_PREFERENCE_RE = re.compile(
+    r"\b(?:do you|can you|are you able to|will you)\s+"
+    r"(?:speak|talk|write|reply|answer|chat|continue)\b"
+    r"|\b(?:speak|talk|write|reply|answer|chat|continue)\s+(?:to me\s+)?in\s+\w+\b"
+    r"|\bplease\s+(?:speak|talk|write|reply|answer|chat)\s+(?:to me\s+)?(?:in\s+)?\w+\b"
+    r"|\b(?:speak|talk|write|reply|answer|chat)\s+(?:to me\s+)?(?:in\s+)?\w+\s+please\b"
+    r"|\bin\s+\w+\s+please\b"
+    r"|\b(?:switch|change)\s+(?:to|into)\s+\w+\b",
     re.I,
 )
 
@@ -679,9 +698,8 @@ def needs_catalogue_options(
             return key
         if key == "style" and re.search(r"\b(?:styles?|kinds?|types?)\b", text, re.I):
             return key
-        # Open catalogue field + generic "options" ask.
-        if is_option_request(text):
-            return key
+        # Open catalogue field + bare "any suggestion?" / "options" ask.
+        return key
     from . import canon
     from .guards import question_as_answer
 
@@ -881,20 +899,97 @@ def normalise_size(text: str) -> str:
     return _spell_units(value)[:60]
 
 
-def parse_quantity(text: str) -> int | None:
-    match = QTY_RE.search(str(text or "").replace(",", ""))
-    if not match:
+_ONES = {
+    "zero": 0,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
+    "nineteen": 19,
+}
+_TENS = {
+    "twenty": 20,
+    "thirty": 30,
+    "forty": 40,
+    "fifty": 50,
+    "sixty": 60,
+    "seventy": 70,
+    "eighty": 80,
+    "ninety": 90,
+}
+
+
+def _english_word_quantity(text: str) -> int | None:
+    """Parse English number-words after inbound anglicise (three hundred → 300)."""
+    tokens = re.findall(r"[a-z]+", str(text or "").lower())
+    if not tokens:
         return None
-    try:
-        value = float(match.group(1))
-    except ValueError:
+    total = 0
+    current = 0
+    matched = False
+    for token in tokens:
+        if token in _ONES:
+            current += _ONES[token]
+            matched = True
+        elif token in _TENS:
+            current += _TENS[token]
+            matched = True
+        elif token == "hundred":
+            current = (current or 1) * 100
+            matched = True
+        elif token in {"thousand", "k"}:
+            current = (current or 1) * 1000
+            total += current
+            current = 0
+            matched = True
+        elif token in {"million"}:
+            current = (current or 1) * 1_000_000
+            total += current
+            current = 0
+            matched = True
+        elif token in {"and", "units", "unit", "pcs", "pieces", "boxes", "bags", "labels"}:
+            continue
+        else:
+            # Unrelated prose — not a pure quantity phrase.
+            if matched:
+                break
+            return None
+    if not matched:
         return None
-    unit = (match.group(2) or "").lower()
-    if unit in {"k", "thousand"}:
-        value *= 1000
+    value = total + current
     if value <= 0 or value > 100_000_000:
         return None
     return int(value)
+
+
+def parse_quantity(text: str) -> int | None:
+    match = QTY_RE.search(str(text or "").replace(",", ""))
+    if match:
+        try:
+            value = float(match.group(1))
+        except ValueError:
+            value = None
+        else:
+            unit = (match.group(2) or "").lower()
+            if unit in {"k", "thousand"}:
+                value *= 1000
+            if value is not None and 0 < value <= 100_000_000:
+                return int(value)
+    return _english_word_quantity(text)
 
 
 def normalize_finish(text: str) -> str | None:
@@ -1208,9 +1303,25 @@ META_QUESTION_RE = re.compile(
 )
 
 
+def asks_language_preference(text: str) -> bool:
+    """Visitor asking which language we can use (after inbound English gloss)."""
+    return bool(LANGUAGE_PREFERENCE_RE.search(str(text or "")))
+
+
+def needs_language_preference_ack(state: "ConversationState", text: str) -> bool:
+    """True once per chat: language ask, and we have not already said yes."""
+    if state.flags.get("language_preference_acked"):
+        return False
+    return asks_language_preference(text)
+
+
 def is_meta_question(text: str) -> bool:
-    """Identity, a complaint, or 'why are you asking' — answer it before any ask."""
-    return asks_if_bot(text) or bool(META_QUESTION_RE.search(str(text or "")))
+    """Identity, language preference, a complaint, or 'why are you asking'."""
+    return (
+        asks_if_bot(text)
+        or asks_language_preference(text)
+        or bool(META_QUESTION_RE.search(str(text or "")))
+    )
 
 
 def is_goodbye(text: str) -> bool:
@@ -1291,9 +1402,34 @@ class Message:
     author: str
     text: str
     at: str = field(default_factory=now_iso)
+    # Visitor-facing translation when the bot transcript line stayed English.
+    shown: str = ""
+    # English gloss of a visitor line for extract / prompts (LLM inbound).
+    english: str = ""
 
     def to_dict(self) -> dict:
-        return {"author": self.author, "text": self.text, "at": self.at}
+        data = {"author": self.author, "text": self.text, "at": self.at}
+        if self.shown:
+            data["shown"] = self.shown
+        if self.english:
+            data["english"] = self.english
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Message":
+        return cls(
+            author=str(data.get("author") or ""),
+            text=str(data.get("text") or ""),
+            at=str(data.get("at") or now_iso()),
+            shown=str(data.get("shown") or ""),
+            english=str(data.get("english") or ""),
+        )
+
+    def for_engine(self) -> str:
+        """Text the English pipeline should read."""
+        if self.author == "visitor" and self.english:
+            return self.english
+        return self.text
 
 
 @dataclass
@@ -1313,14 +1449,21 @@ class ConversationState:
         for key in FIELD_LABELS:
             self.fields.setdefault(key, FieldValue())
 
-    def add(self, author: str, text: str) -> None:
-        self.messages.append(Message(author=author, text=str(text)))
+    def add(self, author: str, text: str, *, shown: str = "", english: str = "") -> None:
+        self.messages.append(
+            Message(
+                author=author,
+                text=str(text),
+                shown=str(shown or ""),
+                english=str(english or ""),
+            )
+        )
         self.updated_at = now_iso()
         if author == "ai":
             self.turn_count += 1
 
     def visitor_texts(self) -> list[str]:
-        return [m.text for m in self.messages if m.author == "visitor"]
+        return [m.for_engine() for m in self.messages if m.author == "visitor"]
 
     def bot_texts(self) -> list[str]:
         return [m.text for m in self.messages if m.author == "ai"]
@@ -1328,7 +1471,7 @@ class ConversationState:
     def last_visitor(self) -> str:
         for message in reversed(self.messages):
             if message.author == "visitor":
-                return message.text
+                return message.for_engine()
         return ""
 
     def last_bot(self) -> str:
@@ -1602,6 +1745,10 @@ class ConversationState:
     def question_for(self, key: str) -> str:
         """Wording for a field the ask-set already selected. The script is one source."""
         if key == "use_case":
+            family = self.family()
+            noun = FAMILY_PRODUCT.get(family, "").strip()
+            if noun:
+                return f"What will you be using the {noun} for?"
             return USE_CASE_QUESTION
         if key == "product":
             return PRODUCT_QUESTION
@@ -1649,6 +1796,15 @@ class ConversationState:
             field_value.status = STATUS_UNKNOWN
             field_value.attempts = min(field_value.attempts, 1)
             repaired.append(key)
+        # Model once suggested product="to be confirmed" and blocked the menu ask.
+        product = self.fields["product"]
+        if product.value and is_to_be_confirmed(product.value):
+            product.value = ""
+            product.raw_visitor_text = ""
+            product.status = STATUS_UNKNOWN
+            product.basis = ""
+            product.attempts = min(product.attempts, 1)
+            repaired.append("product")
         return repaired
 
     def confirm_suggested(self, visitor_text: str) -> list[str]:
@@ -1682,14 +1838,23 @@ class ConversationState:
     def finalize_stalled(self) -> list[str]:
         """Close size asks that cannot progress, so the chat does not empty and stall.
 
-        - Unit follow-up already asked once → waive the number for the team.
+        - Unit follow-up asked and visitor moved on with a long non-unit reply → waive.
+        - Short replies after a unit ask are treated as another unit attempt (re-ask),
+          not a waiver — inbound may still need to anglicise the unit word.
         - Two failed size asks with no value → same waiver (team confirms size).
         """
         noted: list[str] = []
         sizes = self.fields["sizes"]
         if self.size_needs_unit() and self.flags.get("unit_asked"):
-            sizes.status = STATUS_WAIVED
-            noted.append("sizes")
+            last = str(self.last_visitor() or "").strip()
+            # One-token / short answers are still trying to name a unit.
+            if last and len(last.split()) <= 4 and not re.search(
+                r"[@]|@|\d{3,}", last
+            ):
+                self.flags.pop("unit_asked", None)
+            else:
+                sizes.status = STATUS_WAIVED
+                noted.append("sizes")
         elif (
             not sizes.value
             and sizes.status == STATUS_UNKNOWN
@@ -1819,7 +1984,7 @@ class ConversationState:
             persona=str(data.get("persona", "Alex Kane")),
             created_at=str(data.get("created_at", now_iso())),
             updated_at=str(data.get("updated_at", now_iso())),
-            messages=[Message(**item) for item in data.get("messages", [])],
+            messages=[Message.from_dict(item) for item in data.get("messages", [])],
             fields={key: FieldValue.from_dict(value) for key, value in data.get("fields", {}).items()},
             flags=dict(data.get("flags", {})),
             handoff=str(data.get("handoff", "")),
@@ -1850,6 +2015,10 @@ def traceable(
         value_digits = re.sub(r"\D", "", candidate)
         return bool(value_digits) and value_digits in visitor_digits
     if key == "quantity":
+        parsed = parse_quantity(candidate)
+        visitor_parsed = parse_quantity(visitor)
+        if parsed is not None and visitor_parsed is not None:
+            return parsed == visitor_parsed
         number = re.sub(r"[^\d]", "", candidate)
         return bool(number) and number in re.sub(r"[^\d]", "", visitor)
     if key == "skus":
@@ -1860,12 +2029,35 @@ def traceable(
         if pending and UNIT_ONLY_RE.match(visitor) and candidate.startswith(pending):
             return True
         numbers = re.findall(r"\d+(?:\.\d+)?", candidate)
-        return bool(numbers) and all(number in visitor for number in numbers)
+        if numbers and all(number in visitor for number in numbers):
+            return True
+        # Anglicised size line may use words/symbols the normalised value folded.
+        return bool(numbers) and bool(
+            SIZE_DIM_RE.search(normalise_dimension_separators(visitor))
+            or SINGLE_SIZE_RE.search(visitor)
+        )
     if key == "finishes":
         normalized = normalize_finish(candidate)
+        if not normalized:
+            return False
         if normalized == "none":
             return any(word in visitor for word in FINISH_WORDS["none"])
-        return bool(normalized) and normalized in {"matte", "gloss", "soft touch", "spot uv", "foil", "embossing"}
+        # Accept short forms and catalogue phrases ("matte lamination").
+        if normalized in FINISH_WORDS:
+            return True
+        short = {
+            "matte",
+            "gloss",
+            "soft touch",
+            "spot uv",
+            "foil",
+            "embossing",
+            "matte lamination",
+            "gloss lamination",
+            "soft touch lamination",
+            "foil printing",
+        }
+        return normalized in short
     if key == "product":
         # "boxes, bags, labels, or something else" is the menu, not a choice.
         # "or" is also inside the word "morning", so a substring check is not enough.
@@ -1876,6 +2068,16 @@ def traceable(
             return False
         if key == "extras" and candidate.lower() in {"yes", "no", "none", "both", "neither"}:
             return True
+        # Coarse style collapse (3-side seal → flat) must still trace to the visitor's words.
+        if key == "style":
+            visitor_style = normalize_style(visitor_text)
+            candidate_style = normalize_style(candidate)
+            if visitor_style and (
+                visitor_style == candidate_style
+                or visitor_style == candidate.lower().strip()
+                or candidate_style == candidate.lower().strip()
+            ):
+                return True
         tokens = [token for token in re.findall(r"[a-z0-9]+", candidate.lower()) if len(token) > 2]
         if any(token in visitor for token in tokens):
             return True
@@ -1955,6 +2157,9 @@ def apply_field_updates(
         # `raw_visitor_text` is the customer's own wording. A model proposal they
         # have not agreed to has no wording of theirs to carry yet.
         raw_text = incoming if echoed else ("" if basis == BASIS_MODEL else str(visitor_text or "").strip())
+        # Keep raw provenance to this turn's answer — never a chat summary.
+        if key in {"sizes", "quantity", "finishes", "material", "style"} and raw_text:
+            raw_text = raw_text.strip()[:200]
         if not value:
             continue
         if key in {"email", "phone"} and incoming == "declined" and refuses_contact(visitor_text):
@@ -1964,10 +2169,19 @@ def apply_field_updates(
         if key == "email" and not valid_email(incoming):
             rejected[key] = incoming
             continue
+        # Product / contact identity cannot be waived as "to be confirmed" — even
+        # as a model suggestion. That stuck the open ask on a non-choice.
+        if key in {"product", "email", "phone", "name"} and is_to_be_confirmed(value):
+            rejected[key] = value
+            continue
         # Uncertainty waiver: only for the field we just asked. A live model that
         # stamps sizes="to be confirmed" while the visitor answered use case
         # ("coffee beans") must not close size early.
         if key in UNCERTAIN_WAIVE_FIELDS and is_to_be_confirmed(value):
+            # Asking for options/suggestions is not a waiver — offer the catalogue.
+            if wants_recommendation(visitor_text) or is_option_request(visitor_text):
+                rejected[key] = value
+                continue
             # Image OCR / typed brief may waive a field that was not the last ask.
             visitor_confirms = is_to_be_confirmed(visitor_text) or bool(
                 re.search(r"\bto\s*be\s*confirmed\b", str(visitor_text or ""), re.I)
@@ -1979,7 +2193,7 @@ def apply_field_updates(
                 key,
                 TO_BE_CONFIRMED,
                 BASIS_VISITOR,
-                raw=str(visitor_text or "").strip(),
+                raw=str(visitor_text or "").strip()[:200],
                 status=STATUS_WAIVED,
             )
             if key == "sizes":
@@ -2009,20 +2223,37 @@ def apply_field_updates(
             continue
         if key == "style":
             normalized_style = normalize_style(value)
-            if is_question(visitor_text) and not normalized_style and basis == BASIS_VISITOR:
+            catalogue_style = ""
+            if registry is not None:
+                for field_name, canonical in registry.vocabulary_hits(
+                    str(visitor_text or value), state.family()
+                ):
+                    if field_name == "style":
+                        catalogue_style = canonical
+                        break
+            if (
+                is_question(visitor_text)
+                and not normalized_style
+                and not catalogue_style
+                and basis == BASIS_VISITOR
+            ):
                 rejected[key] = value
                 continue
             # "pizza" is what they are packing, not a box style. Keep a free-text
             # answer only when style is the question they were just asked.
             if (
                 not normalized_style
+                and not catalogue_style
                 and not STYLE_HINTS.search(value)
                 and not UNSPECIFIED_RE.search(visitor_text)
                 and (state.last_question != "style" or basis != BASIS_VISITOR)
             ):
                 rejected[key] = value
                 continue
-            if normalized_style:
+            # Prefer the registry label over coarse STYLE_VALUES collapse (flat).
+            if catalogue_style:
+                value = catalogue_style
+            elif normalized_style:
                 value = normalized_style
         if key == "material" and (
             is_question(visitor_text)
@@ -2136,6 +2367,17 @@ def apply_field_updates(
             # and never reaches the quote sheet until the customer confirms it.
             rejected[key] = value
             continue
+        # Provenance for sizes/qty: prefer the concrete span, not a chat summary.
+        if key == "sizes" and raw_text:
+            size_hit = SIZE_DIM_RE.search(normalise_dimension_separators(raw_text)) or SINGLE_SIZE_RE.search(
+                raw_text
+            )
+            if size_hit:
+                raw_text = size_hit.group(0)[:80]
+        if key == "quantity" and raw_text:
+            qty = parse_quantity(raw_text) or parse_quantity(value)
+            if qty is not None:
+                raw_text = str(qty)
         state.set_field(key, value, basis, raw=raw_text)
         field_value = state.fields[key]
         if key == "sizes":
@@ -2204,7 +2446,42 @@ def extract_fields(
 
     use_case = use_case_from(value)
     if use_case and not is_question(value):
-        updates["use_case"] = use_case
+        # Style picks like "3 Side Seal Pouches" must not become use_case="side seal"
+        # via the purpose+product pattern while style (or product) is on the table.
+        style_shaped = normalize_style(value)
+        if last_question == "style" and style_shaped and not re.search(r"\bfor\b", value, re.I):
+            pass
+        elif (
+            style_shaped
+            and last_question in {"", "product", "style"}
+            and not re.search(r"\bfor\b", value, re.I)
+            and family_of(value) != "unknown"
+        ):
+            pass
+        else:
+            updates["use_case"] = use_case
+    elif (
+        last_question == "product"
+        and "product" not in updates
+        and not is_question(value)
+        and not UNSPECIFIED_RE.match(value)
+    ):
+        # "for pizza" / purpose while the product menu is still open — keep product
+        # askable and store what they are packing.
+        for_match = re.match(r"^\s*for\s+(.+?)\s*$", value, re.I)
+        if for_match:
+            purpose = for_match.group(1).strip()
+            if purpose and family_of(purpose) == "unknown":
+                updates["use_case"] = f"for {purpose}"[:80]
+        elif (
+            family == "unknown"
+            and len(value.split()) <= 4
+            and not EMAIL_RE.search(value)
+            and not MATERIAL_HINTS.search(value)
+            and not STYLE_HINTS.search(value)
+            and normalize_finish(value) is None
+        ):
+            updates["use_case"] = value.strip()[:80]
 
     style = normalize_style(value)
     if style and not is_question(value):
@@ -2252,6 +2529,10 @@ def extract_fields(
         if number is not None:
             updates["quantity"] = str(number)
 
+    finish = normalize_finish(value)
+    if finish and (last_question == "finishes" or finish != "none"):
+        updates["finishes"] = finish
+
     material = MATERIAL_HINTS.search(value)
     # A material said while we were asking for a style is still the material.
     # An alternatives ask that happens to name vinyl is not choosing vinyl.
@@ -2264,11 +2545,16 @@ def extract_fields(
         word = material.group(0).lower()
         if word == "metallized":
             word = "metalized"
-        updates.setdefault("material", word)
-
-    finish = normalize_finish(value)
-    if finish and (last_question == "finishes" or finish != "none"):
-        updates["finishes"] = finish
+        # "foil printing" / "foil" as a finish must not also lock material=foil.
+        finish_mentions_foil = bool(
+            finish and re.search(r"\bfoil\b", str(finish), re.I)
+        )
+        if word == "foil" and (
+            last_question == "finishes" or finish_mentions_foil
+        ):
+            pass
+        else:
+            updates.setdefault("material", word)
 
     if last_question == "skus" or re.search(r"\b(designs?|skus?)\b", lowered):
         match = re.search(r"(\d+)\s*(?:designs?|skus?)", lowered)
@@ -2318,7 +2604,23 @@ def extract_fields(
             # hit counts only while that question is the one on the table.
             if field_name == "style" and last_question != "style":
                 continue
+            # Catalogue spelling wins over coarse STYLE_VALUES collapse
+            # ("3 Side Seal Pouches" must not stay as "flat" when the registry names it).
+            if field_name == "style" and last_question == "style":
+                updates["style"] = canonical
+                continue
+            # Foil printing is a finish; registry must not also lock material=foil.
+            if (
+                field_name == "material"
+                and last_question == "finishes"
+                and re.search(r"\bfoil\b", str(canonical), re.I)
+            ):
+                continue
             updates.setdefault(field_name, canonical)
+    # Finish "foil*" must not leave a same-turn material=foil leak.
+    if updates.get("finishes") and re.search(r"\bfoil\b", str(updates["finishes"]), re.I):
+        if str(updates.get("material") or "").strip().lower() == "foil":
+            updates.pop("material", None)
     if last_question == "style" and not normalize_style(value) and not STYLE_HINTS.search(value):
         if any(updates.get(key) for key in ("material", "finishes", "extras")):
             raw_style = str(updates.get("style") or "")

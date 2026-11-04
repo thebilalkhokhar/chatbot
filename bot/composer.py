@@ -11,6 +11,8 @@ from .state import (
     ConversationState,
     STATUS_SUGGESTED,
     asks_if_bot,
+    asks_language_preference,
+    needs_language_preference_ack,
     asks_to_share_reference,
     continue_ask,
     family_of,
@@ -69,7 +71,7 @@ REPHRASES = {
     "skus": "How many separate designs are going on this order?",
     "material": "Is there a particular material or special feature you want included?",
     "extras": "Would you like a zipper or tear notch added?",
-    "use_case": "What are you packing, or what is this order for?",
+    "use_case": "What will you be using these for?",
     "name": "Who am I speaking with?",
     "email": "I can send the quote by email when we're done — what address should we use?",
     "phone": "What number is best if the team needs to reach you?",
@@ -177,6 +179,10 @@ designs, and smaller runs are possible. State that minimum ONLY when they explic
 the minimum or MOQ is, in words like "what is your minimum" or "do you have an MOQ". If they
 just give a quantity such as 300, accept that number and do not mention the minimum, the MOQ,
 1,000, or smaller runs at all.
+
+Always write your reply in English, whatever language the visitor writes in. Read and understand
+their language, but answer in English: your reply is translated into their language before they
+see it, and an English one is what that translation needs.
 
 Style: plain chat text, no markdown, no emoji, roughly 25-60 words. Return only the JSON object
 the schema asks for. The ASK SET is the only list of questions."""
@@ -366,6 +372,28 @@ def heuristic_turn(
             parts.append(question)
             asked = expected[0] if expected else ""
         return Composed(reply=" ".join(parts).strip(), asked=asked, source="heuristic")
+
+    if needs_language_preference_ack(state, visitor):
+        state.flags["language_preference_acked"] = True
+        parts.append(
+            "Yes — I can continue in your language. "
+            "I'll keep the questions focused on what the quote needs."
+        )
+        question = _question_text(state, expected) or state.question_for(
+            (expected[0] if expected else "") or (state.ask_set()[0] if state.ask_set() else "")
+        )
+        if question:
+            parts.append(question)
+            asked = expected[0] if expected else (state.ask_set()[0] if state.ask_set() else "")
+        return Composed(reply=" ".join(parts).strip(), asked=asked, source="heuristic")
+
+    if wants_recommendation(visitor) and state.last_question == "skus":
+        parts.append(
+            "Most first runs use one design; extra artwork versions each count as another design. "
+            "If you do not have artwork yet, say so and we will note that for the team. "
+            "How many total designs do you have?"
+        )
+        return Composed(reply=" ".join(parts).strip(), asked="skus", source="heuristic")
 
     if is_visitor_greeting(visitor):
         question = _question_text(state, expected) or "What are you looking to have made — boxes, bags, labels, or something else?"
@@ -716,7 +744,7 @@ def build_user(
     # `_expected` is the fake-mode sentence for this turn. It is not injected.
     # The ASK SET below is the constraint, and the model chooses within it.
     transcript = "\n".join(
-        f"{'Bot' if message.author == 'ai' else 'Visitor'}: {message.text}"
+        f"{'Bot' if message.author == 'ai' else 'Visitor'}: {message.for_engine()}"
         for message in state.messages[-10:]
         if message.author != "system"
     )
@@ -880,6 +908,34 @@ def build_user(
             "They asked whether you are a bot: use the one disclosure sentence, then continue "
             "with what they were asking about."
             if asked_if_bot
+            else ""
+        ),
+        (
+            "They asked whether you can speak or continue in another language. Answer yes in one "
+            "short sentence (you can help in their language), then ask ONLY the current open "
+            "ASK SET field. Do not restart product selection. Leave proposed_configs empty."
+            if needs_language_preference_ack(state, visitor)
+            else ""
+        ),
+        (
+            "They asked for a suggestion/recommendation on the open style field. List exact "
+            "catalogue styles for this family, emit proposed_configs, asked=style. Do NOT set "
+            "style to \"to be confirmed\" and do not store their suggestion ask as the style value."
+            if (
+                wants_recommendation(visitor)
+                and (
+                    state.last_question == "style"
+                    or str(state.flags.get("offer_options_for") or "") == "style"
+                )
+            )
+            else ""
+        ),
+        (
+            "They asked for a suggestion about designs/artwork. Explain briefly that most first "
+            "runs use one design, extra artwork versions each count as another, and if they have "
+            "no artwork yet they can say so. Then ask how many total designs they have "
+            "(asked=skus). Do not jump to email or handoff."
+            if wants_recommendation(visitor) and state.last_question == "skus"
             else ""
         ),
         (

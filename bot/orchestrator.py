@@ -53,6 +53,8 @@ from .state import (
     needs_catalogue_options,
     valid_email,
     valid_phone,
+    asks_language_preference,
+    needs_language_preference_ack,
     greeting_ack,
     is_context_question,
     is_meta_question,
@@ -66,7 +68,16 @@ from .state import (
     wants_human,
     wants_recommendation,
 )
+from .reply_language import (
+    LANGUAGE_S,
+    SEND_BY_S,
+    language_named_in_preference_ask,
+    normalize_inbound,
+    translate_outbound,
+    turn_language_budget_s,
+)
 from .store import open_state_store
+from .visitor_language import ENGLISH, session_language
 from .vision import VisionResult, analyze_image
 
 log = logging.getLogger("chatbot.orchestrator")
@@ -95,6 +106,8 @@ class TurnResult:
     fields_proposed: list = field(default_factory=list)
     context: dict = field(default_factory=dict)
     goal: dict = field(default_factory=dict)
+    language: str = ENGLISH
+    reply_english: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -119,6 +132,8 @@ class TurnResult:
             "fields_proposed": self.fields_proposed,
             "context": self.context,
             "goal": self.goal,
+            "language": self.language,
+            "reply_english": self.reply_english,
         }
 
 
@@ -680,17 +695,19 @@ class Orchestrator:
         if note:
             return note
         visitor = state.last_visitor()
-        if is_option_request(visitor) or state.flags.get("offer_options_for"):
-            return heuristic_turn(
-                state,
-                visitor,
-                expected,
-                overrides=self.overrides,
-            ).reply
         urgent = self._urgent_ask(state)
-        # A meta-question gets one honest line and the open ask. No topic lecture.
+        # Language / identity first — never the generic meta line or a catalogue dump.
         if asks_if_bot(visitor):
             parts = [disclosure_line(state.persona)]
+            if urgent:
+                parts.append(urgent)
+            return " ".join(parts)
+        if needs_language_preference_ack(state, visitor):
+            state.flags["language_preference_acked"] = True
+            parts = [
+                "Yes — I can continue in your language. "
+                "I'll keep the questions focused on what the quote needs."
+            ]
             if urgent:
                 parts.append(urgent)
             return " ".join(parts)
@@ -707,6 +724,26 @@ class Orchestrator:
             elif urgent:
                 parts.append(urgent)
             return " ".join(parts)
+        if wants_recommendation(visitor) and state.last_question == "skus":
+            parts = [
+                "Most first runs use one design; if you have more artwork versions, "
+                "count each as a design. If you do not have artwork yet, say so and "
+                "we can note that for the team."
+            ]
+            if urgent:
+                parts.append(urgent)
+            return " ".join(parts)
+        if (
+            is_option_request(visitor)
+            or wants_recommendation(visitor)
+            or state.flags.get("offer_options_for")
+        ):
+            return heuristic_turn(
+                state,
+                visitor,
+                expected,
+                overrides=self.overrides,
+            ).reply
         if is_meta_question(visitor):
             parts = ["Fair question — I'll stick to what the quote actually needs."]
             if urgent:
@@ -911,7 +948,11 @@ class Orchestrator:
             if enrichment and enrichment.lower() not in visitor.lower():
                 visitor = f"{visitor} {enrichment}".strip() if visitor else enrichment
 
-        state.add("visitor", visitor)
+        # Keep the visitor's own words on the transcript; extract runs on English.
+        raw_visitor = visitor
+        state.add("visitor", raw_visitor)
+        language, visitor = self._inbound_language(state, raw_visitor, started=started)
+
         asked_before = state.last_question
         was_reachable = state.reachable()
         # English/catalogue spelling once for this turn so topics + extract agree
@@ -1052,6 +1093,7 @@ class Orchestrator:
             and not is_goodbye(visitor)
             and not is_job_pitch(visitor)
             and not asks_if_bot(visitor)
+            and not needs_language_preference_ack(state, visitor)
             and not asks_to_share_reference(visitor)
             and not is_visitor_greeting(visitor)
             and len(visitor.split()) <= 8
@@ -1186,6 +1228,32 @@ class Orchestrator:
                 asked=expected[0] if expected else "",
                 source="heuristic",
             )
+        elif needs_language_preference_ack(state, visitor) and not handoff_reason:
+            # Deterministic yes + open field — avoid live drafts that fail meta guards.
+            composed = heuristic_turn(
+                state,
+                visitor,
+                expected,
+                handoff_reason=handoff_reason,
+                overrides=self.overrides,
+                unclear=unclear,
+            )
+            source = "heuristic"
+        elif (
+            wants_recommendation(visitor)
+            and state.last_question == "skus"
+            and not handoff_reason
+        ):
+            # Designs suggestion: stable English guidance, then re-ask skus.
+            composed = heuristic_turn(
+                state,
+                visitor,
+                expected,
+                handoff_reason=handoff_reason,
+                overrides=self.overrides,
+                unclear=unclear,
+            )
+            source = "heuristic"
         elif self.config.real_llm_enabled and not handoff_reason:
             try:
                 composed = live_turn(
@@ -1469,7 +1537,14 @@ class Orchestrator:
         if re.search(r"\bno standard size\b|\bmade to fit\b", reply, re.I):
             state.flags["size_no_standard_explained"] = True
 
-        state.add("ai", reply)
+        # Transcript stays English for guards/extract; visitor sees the translation.
+        english = reply
+        language = session_language(state.flags)
+        shown = self._outbound_language(state, english, language=language, started=started)
+        state.add("ai", english, shown=shown if shown != english else "")
+        state.flags["language"] = language
+        if shown != english:
+            state.flags["translated"] = True
         self.store.save(state)
         self.store.append_event(
             conversation_id,
@@ -1477,7 +1552,9 @@ class Orchestrator:
             {
                 "channel": channel,
                 "visitor": visitor,
-                "reply": reply,
+                "reply": shown,
+                "reply_english": english if shown != english else "",
+                "language": language,
                 "persona": state.persona,
                 "source": source,
                 "handoff": state.handoff,
@@ -1503,7 +1580,7 @@ class Orchestrator:
         sent_configs = composed.proposed_configs or []
         return TurnResult(
             conversation_id=conversation_id,
-            reply=reply,
+            reply=shown,
             persona=state.persona,
             handoff=state.handoff,
             source=source,
@@ -1530,7 +1607,126 @@ class Orchestrator:
                 include_usage=source in {"live", "live-rewrite"},
             ),
             goal=self._goal_view(state),
+            language=language,
+            reply_english=english if shown != english else "",
         )
+
+    def _language_ms_left(self, started: float) -> float:
+        budget_s = turn_language_budget_s(self.config.timeout_s)
+        # Never starve outbound below one language call when compose ran long.
+        return max(
+            LANGUAGE_S * 1000,
+            (started + max(budget_s, SEND_BY_S) - time.perf_counter()) * 1000,
+        )
+
+    def _inbound_language(
+        self,
+        state: ConversationState,
+        raw_visitor: str,
+        *,
+        started: float,
+    ) -> tuple[str, str]:
+        """Detect language + English gloss via LLM. Returns (language, text_for_extract)."""
+        language = session_language(state.flags)
+        state.flags.pop("inbound_language_skipped", None)
+        state.flags.pop("inbound_gloss_failed", None)
+        state.flags.pop("inbound_anglicised", None)
+        state.flags.pop("translate_skipped", None)
+        if not self.config.real_llm_enabled:
+            state.flags.setdefault("language", language)
+            return language, raw_visitor
+        recent = [
+            message.text
+            for message in state.messages[:-1]
+            if message.author == "visitor" and message.text.strip()
+        ]
+        open_field = str(state.last_question or "").strip()
+        catalogue_terms: list[str] = []
+        if open_field in CATALOGUE_OPTION_FIELDS:
+            slot = "finish" if open_field == "finishes" else open_field
+            family = state.family()
+            if family and family != "unknown":
+                catalogue_terms = list(self.registry.values(family, slot))
+            else:
+                for fam in self.registry.families:
+                    catalogue_terms.extend(self.registry.values(fam, slot))
+        inbound = normalize_inbound(
+            self.llm,
+            raw_visitor,
+            prior_language=language,
+            recent_visitor=recent,
+            open_field=open_field,
+            catalogue_terms=catalogue_terms,
+            ms_left=self._language_ms_left(started),
+        )
+        if inbound is None:
+            state.flags["inbound_language_skipped"] = "timeout_or_error"
+            state.flags["language"] = language
+            return language, raw_visitor
+        language = inbound.language or language
+        english = inbound.english or raw_visitor
+        # Mid-chat "please speak Spanish" must re-stick the session language even
+        # after the first language-preference yes was already sent.
+        named = language_named_in_preference_ask(english)
+        if named:
+            language = named
+        state.flags["language"] = language
+        state.flags["inbound_english"] = english[:200]
+        if english.strip().casefold() != raw_visitor.strip().casefold():
+            state.messages[-1].english = english
+            state.flags["inbound_anglicised"] = True
+        elif language.strip().casefold() != ENGLISH.casefold():
+            # Same spelling already usable in English (loanwords like "pizza", emails).
+            # Only flag a real gloss miss when the raw still looks non-English.
+            if re.search(r"[^\x00-\x7F]", raw_visitor) or not re.fullmatch(
+                r"[A-Za-z0-9][A-Za-z0-9\s.,'\-+@]*",
+                raw_visitor.strip(),
+            ):
+                state.flags["inbound_anglicised"] = False
+                state.flags["inbound_gloss_failed"] = True
+        return language, english
+
+    def _outbound_language(
+        self,
+        state: ConversationState,
+        english: str,
+        *,
+        language: str,
+        started: float,
+    ) -> str:
+        """Translate the English reply into the session language on the way out.
+
+        Returns visitor-facing text. On timeout or fake mode the English goes out.
+        """
+        if language == ENGLISH or not str(english or "").strip():
+            return english
+        if not self.config.real_llm_enabled:
+            state.flags["translate_skipped"] = "fake_mode"
+            return english
+        # Always allow a full language-call window so the first non-English turn
+        # still translates after a slow compose (cajas → English reply bug).
+        ms_left = max(LANGUAGE_S * 1000, self._language_ms_left(started))
+        samples = [
+            message.text
+            for message in state.messages
+            if message.author == "visitor" and message.text.strip()
+        ]
+        translated = translate_outbound(
+            [english],
+            language=language,
+            client=self.llm,
+            visitor_samples=samples,
+            ms_left=ms_left,
+        )
+        if not translated or not translated[0].strip():
+            log.info(
+                "%s: translation not ready in time, sending English",
+                state.id,
+            )
+            state.flags["translate_skipped"] = "timeout_or_error"
+            return english
+        state.flags.pop("translate_skipped", None)
+        return translated[0]
 
     def _draft_record(self, stage: str, composed: Composed, guard: guards.GuardResult) -> dict:
         configs = composed.proposed_configs or []

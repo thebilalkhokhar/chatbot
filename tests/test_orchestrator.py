@@ -1620,7 +1620,7 @@ def test_a_catalogue_dump_is_not_read_back_as_the_order(orchestrator):
     )
     reply = orchestrator._safe_fallback(
         state,
-        ("use_case", "What will be inside it, or who is it going to?"),
+        ("use_case", "What will you be using the bags for?"),
         "",
         guard=guard,
         configs=[

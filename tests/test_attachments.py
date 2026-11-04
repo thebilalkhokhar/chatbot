@@ -518,7 +518,7 @@ def test_vision_unclear_use_case_wording_is_natural(orchestrator):
         state,
         vision,
         {},
-        ("use_case", "What will be inside it, or who is it going to?"),
+        ("use_case", "What will you be using the bags for?"),
     )
     lowered = reply.lower()
     assert "i see the reference image" in lowered

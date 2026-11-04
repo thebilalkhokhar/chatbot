@@ -20,6 +20,8 @@ from .state import (
     ConversationState,
     STATUS_WAIVED,
     asks_if_bot,
+    asks_language_preference,
+    needs_language_preference_ack,
     family_of,
     is_meta_question,
     is_option_request,
@@ -135,6 +137,7 @@ FIELD_PROBES: tuple[tuple[str, re.Pattern[str]], ...] = (
     )),
     ("use_case", re.compile(
         r"\b(?:what (?:will|goes|is going)\s+(?:be\s+)?inside|what are you (?:packing|putting|selling|shipping|sending)|"
+        r"what will you be using\b|"
         r"use case|what is it for|what are they for|who is it going to|retail or (?:shipping|wholesale|online)|"
         r"what (?:kind|type) of (?:product|item))\b",
         re.I,
@@ -292,6 +295,7 @@ ASK_FOCUS_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         r"|\bwhat (?:is|are) (?:this|these|it|they|the \w+)\s+for\b"
         r"|\bwhat (?:will|goes|is going)\s+(?:be\s+)?inside\b"
         r"|\bwhat are you (?:packing|putting|selling|shipping|sending)\b"
+        r"|\bwhat will you be using\b"
         r"|\bwho is it going to\b",
         re.I,
     )),
@@ -1064,6 +1068,26 @@ def scrub_visitor_sku_jargon(text: str) -> str:
     return value
 
 
+def ensure_priority_field_question(
+    reply: str,
+    priority_key: str = "",
+    priority_text: str = "",
+) -> str:
+    """If we must ask a checklist field, do not leave a wrong/technical substitute question."""
+    key = str(priority_key or "").strip()
+    ask = str(priority_text or "").strip()
+    text = str(reply or "").strip()
+    if not key or not ask or not text:
+        return text
+    if asked_field(text) == key:
+        return text
+    lead = [sentence for sentence in _sentences(text) if "?" not in sentence]
+    prefix = re.sub(r"\s+", " ", " ".join(lead)).strip()
+    if prefix and prefix[-1] not in ".!":
+        prefix += "."
+    return f"{prefix} {ask}".strip() if prefix else ask
+
+
 def prepare_reply(
     reply: str,
     visitor: str,
@@ -1083,6 +1107,7 @@ def prepare_reply(
     text = shape_location_flow(text, visitor)
     text = ensure_asked_answers(text, visitor, overrides)
     text = redirect_settled_ask(text, locked_fields, priority_key, priority_text)
+    text = ensure_priority_field_question(text, priority_key, priority_text)
     return enforce_single_question(text, priority_key, priority_text).strip()
 
 
@@ -1130,7 +1155,26 @@ def _check_answer_first(
             f"Use the written answer: {item.answer}",
             visitor_text[:120],
         )
-    if is_meta_question(visitor_text) and not asks_if_bot(visitor_text):
+    if needs_language_preference_ack(state, visitor_text):
+        # Affirm we can continue in their language — not the complaint/why markers.
+        if not re.search(
+            r"\b(?:yes|sure|of course|absolutely|happy to|glad to|"
+            r"can (?:do|help|continue|chat|speak|write|reply)|"
+            r"continue in|in your language|speak\s+\w+|language)\b",
+            reply,
+            re.I,
+        ):
+            result.add(
+                "unanswered_question",
+                BLOCK,
+                "They asked about language; say yes you can continue in their language, "
+                "then ask the open checklist field.",
+                visitor_text[:120],
+            )
+    elif asks_language_preference(visitor_text):
+        # Already affirmed this session — do not treat as a complaint/why.
+        pass
+    elif is_meta_question(visitor_text) and not asks_if_bot(visitor_text):
         if not re.search(r"\b(?:sorry|i hear|understand|fair|of course|happy to explain)\b", reply, re.I):
             result.add(
                 "unanswered_question",
@@ -1139,6 +1183,8 @@ def _check_answer_first(
                 visitor_text[:120],
             )
     if topics:
+        return
+    if asks_language_preference(visitor_text):
         return
     if is_question(visitor_text):
         sentences = _sentences(reply)
@@ -1439,8 +1485,9 @@ def _check_contact_offer(reply: str, visitor: str, result: GuardResult) -> None:
     if HOURS_STATED.search(reply) and "hours" not in topics:
         result.add(
             "contact_offered_unasked",
-            WARN,
-            "Office hours are offerable: false. State them only when they ask.",
+            BLOCK,
+            "Office hours are offerable: false. State them only when they ask. "
+            "Drop the hours sentence and ask only the open checklist field.",
         )
 
 

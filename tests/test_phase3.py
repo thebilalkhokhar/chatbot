@@ -301,9 +301,9 @@ def test_operator_email_blocks_and_hours_wait_to_be_asked():
         state,
         visitor_text="hello",
     )
-    warn = next(issue for issue in hours.issues if issue.code == "contact_offered_unasked")
-    assert warn.severity == "warn"
-    assert hours.ok
+    blocked = next(issue for issue in hours.issues if issue.code == "contact_offered_unasked")
+    assert blocked.severity == "block"
+    assert not hours.ok
 
     asked = guards.check_reply(
         "Our office is open Monday to Friday, 9am to 5pm.",
