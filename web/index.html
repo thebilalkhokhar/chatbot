@@ -1,1835 +1,2648 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Print247 chat</title>
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/favicon.svg">
-<meta name="theme-color" content="#0b0c10">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Print247 chat</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <meta name="theme-color" content="#0b0c10" />
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #0b0c10;
-    --bg-elev: #12141c;
-    --panel: #161922;
-    --panel-2: #1b1f2b;
-    --line: rgba(255, 255, 255, 0.08);
-    --line-strong: rgba(255, 255, 255, 0.12);
-    --ink: #f4f6fb;
-    --muted: #8b93a7;
-    --muted-2: #6b7388;
-    --teal: #4fd1c5;
-    --teal-dim: rgba(79, 209, 197, 0.14);
-    --purple: #7c5cff;
-    --purple-2: #5b3fd4;
-    --purple-glow: rgba(124, 92, 255, 0.45);
-    --green: #3dd68c;
-    --green-dim: rgba(61, 214, 140, 0.14);
-    --amber: #f0b429;
-    --amber-dim: rgba(240, 180, 41, 0.14);
-    --red: #ff7b7b;
-    --bot-bubble: #222634;
-    --block: #ff9b9b;
-    --warn: #ffd479;
-    --info: #9fc7ff;
-    --radius: 18px;
-    --radius-sm: 12px;
-    --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
-    --font: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  }
-  * { box-sizing: border-box; }
-  html, body { height: 100%; }
-  body {
-    margin: 0;
-    font-family: var(--font);
-    color: var(--ink);
-    background:
-      radial-gradient(1200px 600px at 12% -10%, rgba(124, 92, 255, 0.16), transparent 55%),
-      radial-gradient(900px 500px at 95% 0%, rgba(79, 209, 197, 0.1), transparent 50%),
-      radial-gradient(800px 500px at 70% 110%, rgba(91, 63, 212, 0.12), transparent 45%),
-      var(--bg);
-  }
-  button {
-    font: inherit;
-    cursor: pointer;
-    border: 0;
-    border-radius: 999px;
-    padding: 9px 14px;
-    background: var(--teal);
-    color: #06221f;
-    font-weight: 650;
-    font-size: 13px;
-  }
-  button:hover { filter: brightness(1.06); }
-  button:disabled { opacity: .5; cursor: not-allowed; filter: none; }
-  .ghost {
-    background: transparent;
-    color: var(--ink);
-    border: 1px solid var(--line-strong);
-    font-weight: 500;
-  }
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0b0c10;
+        --bg-elev: #12141c;
+        --panel: #161922;
+        --panel-2: #1b1f2b;
+        --line: rgba(255, 255, 255, 0.08);
+        --line-strong: rgba(255, 255, 255, 0.12);
+        --ink: #f4f6fb;
+        --muted: #8b93a7;
+        --muted-2: #6b7388;
+        --teal: #4fd1c5;
+        --teal-dim: rgba(79, 209, 197, 0.14);
+        --purple: #7c5cff;
+        --purple-2: #5b3fd4;
+        --purple-glow: rgba(124, 92, 255, 0.45);
+        --green: #3dd68c;
+        --green-dim: rgba(61, 214, 140, 0.14);
+        --amber: #f0b429;
+        --amber-dim: rgba(240, 180, 41, 0.14);
+        --red: #ff7b7b;
+        --bot-bubble: #222634;
+        --block: #ff9b9b;
+        --warn: #ffd479;
+        --info: #9fc7ff;
+        --radius: 18px;
+        --radius-sm: 12px;
+        --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+        --font: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--ink);
+        background:
+          radial-gradient(
+            1200px 600px at 12% -10%,
+            rgba(124, 92, 255, 0.16),
+            transparent 55%
+          ),
+          radial-gradient(
+            900px 500px at 95% 0%,
+            rgba(79, 209, 197, 0.1),
+            transparent 50%
+          ),
+          radial-gradient(
+            800px 500px at 70% 110%,
+            rgba(91, 63, 212, 0.12),
+            transparent 45%
+          ),
+          var(--bg);
+      }
+      button {
+        font: inherit;
+        cursor: pointer;
+        border: 0;
+        border-radius: 999px;
+        padding: 9px 14px;
+        background: var(--teal);
+        color: #06221f;
+        font-weight: 650;
+        font-size: 13px;
+      }
+      button:hover {
+        filter: brightness(1.06);
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        filter: none;
+      }
+      .ghost {
+        background: transparent;
+        color: var(--ink);
+        border: 1px solid var(--line-strong);
+        font-weight: 500;
+      }
 
-  .topbar {
-    max-width: 1280px;
-    margin: 0 auto;
-    padding: 18px 22px 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    flex-wrap: wrap;
-  }
-  .brand { display: flex; align-items: center; gap: 12px; }
-  .mark {
-    width: 42px; height: 42px;
-    display: grid; place-items: center;
-    flex: 0 0 42px;
-  }
-  .mark img {
-    width: 42px; height: 42px;
-    display: block;
-  }
-  h1 { margin: 0; font-size: 18px; letter-spacing: -.3px; font-weight: 700; }
-  .brand p { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
-  .status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .badge {
-    display: inline-flex; align-items: center; gap: 7px;
-    padding: 6px 11px; border-radius: 999px;
-    font-size: 12px; font-weight: 600; letter-spacing: .15px;
-    background: rgba(255,255,255,0.04);
-    color: var(--muted);
-    border: 1px solid var(--line);
-  }
-  .badge .dot {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: var(--muted-2);
-    box-shadow: 0 0 0 3px rgba(139, 147, 167, 0.12);
-  }
-  .badge.live { color: #b8f5d5; background: rgba(61, 214, 140, 0.08); border-color: rgba(61, 214, 140, 0.22); }
-  .badge.live .dot { background: var(--green); box-shadow: 0 0 0 3px rgba(61, 214, 140, 0.18); }
-  .badge.fake { color: var(--muted); }
-  .badge.dry_run, .badge.shadow { color: #ffe4a3; background: var(--amber-dim); border-color: rgba(240, 180, 41, 0.25); }
-  .badge.dry_run .dot, .badge.shadow .dot { background: var(--amber); }
-  .badge.muted { font-weight: 500; }
-  #new-chat {
-    background: var(--teal);
-    color: #05332c;
-    padding: 9px 16px;
-    box-shadow: 0 8px 22px rgba(79, 209, 197, 0.22);
-  }
-  #new-chat::before { content: "+ "; font-weight: 700; }
+      .topbar {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 18px 22px 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .mark {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        flex: 0 0 42px;
+      }
+      .mark img {
+        width: 42px;
+        height: 42px;
+        display: block;
+      }
+      h1 {
+        margin: 0;
+        font-size: 18px;
+        letter-spacing: -0.3px;
+        font-weight: 700;
+      }
+      .brand p {
+        margin: 2px 0 0;
+        color: var(--muted);
+        font-size: 12.5px;
+      }
+      .status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 6px 11px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.15px;
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--muted);
+        border: 1px solid var(--line);
+      }
+      .badge .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--muted-2);
+        box-shadow: 0 0 0 3px rgba(139, 147, 167, 0.12);
+      }
+      .badge.live {
+        color: #b8f5d5;
+        background: rgba(61, 214, 140, 0.08);
+        border-color: rgba(61, 214, 140, 0.22);
+      }
+      .badge.live .dot {
+        background: var(--green);
+        box-shadow: 0 0 0 3px rgba(61, 214, 140, 0.18);
+      }
+      .badge.fake {
+        color: var(--muted);
+      }
+      .badge.dry_run,
+      .badge.shadow {
+        color: #ffe4a3;
+        background: var(--amber-dim);
+        border-color: rgba(240, 180, 41, 0.25);
+      }
+      .badge.dry_run .dot,
+      .badge.shadow .dot {
+        background: var(--amber);
+      }
+      .badge.muted {
+        font-weight: 500;
+      }
+      #new-chat {
+        background: var(--teal);
+        color: #05332c;
+        padding: 9px 16px;
+        box-shadow: 0 8px 22px rgba(79, 209, 197, 0.22);
+      }
+      #new-chat::before {
+        content: "+ ";
+        font-weight: 700;
+      }
 
-  .layout {
-    max-width: 1280px;
-    margin: 0 auto;
-    padding: 14px 22px 22px;
-    display: flex;
-    align-items: stretch;
-    gap: 16px;
-    height: calc(100vh - 82px);
-    transition:
-      gap 0.42s cubic-bezier(0.22, 1, 0.36, 1),
-      max-width 0.42s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  .layout.panel-collapsed {
-    gap: 0;
-    max-width: 920px;
-  }
+      .layout {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 14px 22px 22px;
+        display: flex;
+        align-items: stretch;
+        gap: 16px;
+        height: calc(100vh - 82px);
+        transition:
+          gap 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+          max-width 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      .layout.panel-collapsed {
+        gap: 0;
+        max-width: 920px;
+      }
 
-  .chat-card, .side-panel {
-    min-height: 0;
-    background: linear-gradient(180deg, rgba(255,255,255,0.03), transparent 28%), var(--panel);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    backdrop-filter: blur(10px);
-  }
-  .chat-card {
-    flex: 1 1 auto;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    transition: flex-basis 0.42s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  .messages {
-    flex: 1; min-height: 0;
-    overflow-y: auto;
-    /* Left room for bot avatars; almost no right inset so visitor sits on the edge. */
-    padding: 22px 4px 14px 22px;
-    display: flex; flex-direction: column; gap: 16px;
-    scroll-behavior: smooth;
-  }
-  .messages::-webkit-scrollbar, .side-scroll::-webkit-scrollbar { width: 8px; }
-  .messages::-webkit-scrollbar-thumb, .side-scroll::-webkit-scrollbar-thumb {
-    background: rgba(255,255,255,0.1); border-radius: 999px;
-  }
+      .chat-card,
+      .side-panel {
+        min-height: 0;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 28%),
+          var(--panel);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
+      }
+      .chat-card {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        transition: flex-basis 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      .messages {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        /* Left room for bot avatars; almost no right inset so visitor sits on the edge. */
+        padding: 22px 12px 14px 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        scroll-behavior: smooth;
+      }
+      .messages::-webkit-scrollbar,
+      .side-scroll::-webkit-scrollbar {
+        width: 8px;
+      }
+      .messages::-webkit-scrollbar-thumb,
+      .side-scroll::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 999px;
+      }
 
-  .msg { display: flex; flex-direction: column; gap: 8px; max-width: 100%; }
-  .msg.bot { align-items: flex-start; }
-  .msg.visitor { align-items: flex-end; }
-  .msg.system { align-items: center; }
-  .msg-row {
-    display: flex;
-    gap: 10px;
-    align-items: flex-end;
-    width: 100%;
-    max-width: 100%;
-  }
-  .msg.visitor .msg-row {
-    flex-direction: row-reverse;
-    justify-content: flex-start;
-  }
-  .avatar {
-    width: 30px; height: 30px; flex: 0 0 30px;
-    border-radius: 50%;
-    display: block;
-    object-fit: cover;
-    background: transparent;
-    box-shadow: 0 0 0 1px rgba(255,255,255,0.1);
-  }
-  .bubble {
-    width: max-content;
-    max-width: min(560px, 85%);
-    flex: 0 0 auto;
-    padding: 11px 14px;
-    border-radius: 16px;
-    line-height: 1.5;
-    white-space: pre-wrap;
-    overflow-wrap: break-word;
-    word-break: normal;
-    font-size: 14px;
-  }
-  .msg.bot .bubble {
-    background: var(--bot-bubble);
-    border: 1px solid var(--line);
-    border-bottom-left-radius: 6px;
-    color: #e8ecf7;
-  }
-  .msg.visitor .bubble {
-    background: linear-gradient(145deg, #7a63f0, #5238c9);
-    color: #fff;
-    border-bottom-right-radius: 6px;
-    box-shadow: 0 8px 22px rgba(82, 56, 201, 0.28);
-    /* Slack only on the left — visitor text always grows from the right. */
-    max-width: min(560px, calc(100% - 48px));
-    margin-left: auto;
-  }
-  .msg.system .bubble {
-    background: rgba(240, 180, 41, 0.1);
-    border: 1px solid rgba(240, 180, 41, 0.28);
-    color: #ffe4a3;
-    border-radius: 999px;
-    font-size: 12.5px;
-    max-width: 92%;
-    text-align: center;
-    padding: 8px 14px;
-  }
-  .meta { font-size: 11px; color: var(--muted-2); padding: 0 4px 0 40px; }
-  .msg.visitor .meta { padding: 0; text-align: right; }
-  /* Attached reference: media card, not a purple text-bubble wrap */
-  .msg.visitor .bubble.with-image {
-    background: transparent;
-    box-shadow: none;
-    padding: 0;
-    gap: 8px;
-    max-width: min(280px, calc(100% - 48px));
-    margin-left: auto;
-    justify-items: end; /* image + caption both flush right */
-  }
-  .bubble.with-image {
-    display: grid;
-    gap: 8px;
-  }
-  .bubble.with-image img {
-    max-width: 280px;
-    max-height: 200px;
-    width: 100%;
-    border-radius: 14px;
-    display: block;
-    object-fit: cover;
-    background: #12141c;
-    border: 1px solid rgba(255,255,255,0.1);
-    box-shadow: 0 12px 28px rgba(0,0,0,0.35);
-  }
-  .bubble.with-image .caption {
-    width: max-content;
-    max-width: 100%;
-    justify-self: end;
-    padding: 9px 12px;
-    border-radius: 14px;
-    border-bottom-right-radius: 6px;
-    background: linear-gradient(145deg, #7a63f0, #5238c9);
-    color: #fff;
-    font-size: 13.5px;
-    line-height: 1.45;
-    box-shadow: 0 8px 22px rgba(82, 56, 201, 0.28);
-  }
-  .typing { display: inline-flex; gap: 5px; align-items: center; padding: 2px 4px; }
-  .typing i {
-    width: 6px; height: 6px; border-radius: 50%;
-    background: #8b93a7; animation: blink 1.2s infinite;
-  }
-  .typing i:nth-child(2) { animation-delay: .15s; }
-  .typing i:nth-child(3) { animation-delay: .3s; }
-  @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+      .msg {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-width: 100%;
+      }
+      .msg.bot {
+        align-items: flex-start;
+      }
+      .msg.visitor {
+        align-items: flex-end;
+      }
+      .msg.system {
+        align-items: center;
+      }
+      .msg-row {
+        display: flex;
+        gap: 10px;
+        align-items: flex-end;
+        width: 100%;
+        max-width: 100%;
+      }
+      .msg.visitor .msg-row {
+        flex-direction: row-reverse;
+        justify-content: flex-start;
+      }
+      .avatar {
+        width: 30px;
+        height: 30px;
+        flex: 0 0 30px;
+        border-radius: 50%;
+        display: block;
+        object-fit: cover;
+        background: transparent;
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+      }
+      .bubble {
+        width: max-content;
+        max-width: min(560px, 85%);
+        flex: 0 0 auto;
+        padding: 11px 14px;
+        border-radius: 16px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        overflow-wrap: break-word;
+        word-break: normal;
+        font-size: 14px;
+      }
+      .msg.bot .bubble {
+        background: var(--bot-bubble);
+        border: 1px solid var(--line);
+        border-bottom-left-radius: 6px;
+        color: #e8ecf7;
+      }
+      .msg.visitor .bubble {
+        background: linear-gradient(145deg, #7a63f0, #5238c9);
+        color: #fff;
+        border-bottom-right-radius: 6px;
+        box-shadow: 0 8px 22px rgba(82, 56, 201, 0.28);
+        /* Slack only on the left — visitor text always grows from the right. */
+        max-width: min(560px, calc(100% - 48px));
+        margin-left: auto;
+      }
+      .msg.system .bubble {
+        background: rgba(240, 180, 41, 0.1);
+        border: 1px solid rgba(240, 180, 41, 0.28);
+        color: #ffe4a3;
+        border-radius: 999px;
+        font-size: 12.5px;
+        max-width: 92%;
+        text-align: center;
+        padding: 8px 14px;
+      }
+      .meta {
+        font-size: 11px;
+        color: var(--muted-2);
+        padding: 0 4px 0 40px;
+      }
+      .msg.visitor .meta {
+        padding: 0;
+        text-align: right;
+      }
+      /* Attached reference: media card, not a purple text-bubble wrap */
+      .msg.visitor .bubble.with-image {
+        background: transparent;
+        box-shadow: none;
+        padding: 0;
+        gap: 8px;
+        max-width: min(280px, calc(100% - 48px));
+        margin-left: auto;
+        justify-items: end; /* image + caption both flush right */
+      }
+      .bubble.with-image {
+        display: grid;
+        gap: 8px;
+      }
+      .bubble.with-image img {
+        max-width: 280px;
+        max-height: 200px;
+        width: 100%;
+        border-radius: 14px;
+        display: block;
+        object-fit: cover;
+        background: #12141c;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+      }
+      .bubble.with-image .caption {
+        width: max-content;
+        max-width: 100%;
+        justify-self: end;
+        padding: 9px 12px;
+        border-radius: 14px;
+        border-bottom-right-radius: 6px;
+        background: linear-gradient(145deg, #7a63f0, #5238c9);
+        color: #fff;
+        font-size: 13.5px;
+        line-height: 1.45;
+        box-shadow: 0 8px 22px rgba(82, 56, 201, 0.28);
+      }
+      .typing {
+        display: inline-flex;
+        gap: 5px;
+        align-items: center;
+        padding: 2px 4px;
+      }
+      .typing i {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #8b93a7;
+        animation: blink 1.2s infinite;
+      }
+      .typing i:nth-child(2) {
+        animation-delay: 0.15s;
+      }
+      .typing i:nth-child(3) {
+        animation-delay: 0.3s;
+      }
+      @keyframes blink {
+        0%,
+        80%,
+        100% {
+          opacity: 0.25;
+        }
+        40% {
+          opacity: 1;
+        }
+      }
 
-  .quick-replies {
-    display: flex; flex-wrap: wrap; gap: 8px;
-    padding-left: 40px;
-  }
-  .chip-btn {
-    background: rgba(255,255,255,0.03);
-    color: var(--ink);
-    border: 1px solid var(--line-strong);
-    border-radius: 999px;
-    padding: 7px 12px;
-    font-size: 12.5px;
-    font-weight: 550;
-  }
-  .chip-btn:hover { border-color: rgba(79, 209, 197, 0.45); background: var(--teal-dim); }
-  .chip-btn.accent {
-    color: var(--teal);
-    border-color: rgba(79, 209, 197, 0.45);
-    background: transparent;
-    display: inline-flex; align-items: center; gap: 6px;
-  }
-  .chip-btn.accent svg { width: 14px; height: 14px; }
+      .quick-replies {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding-left: 40px;
+      }
+      .chip-btn {
+        background: rgba(255, 255, 255, 0.03);
+        color: var(--ink);
+        border: 1px solid var(--line-strong);
+        border-radius: 999px;
+        padding: 7px 12px;
+        font-size: 12.5px;
+        font-weight: 550;
+      }
+      .chip-btn:hover {
+        border-color: rgba(79, 209, 197, 0.45);
+        background: var(--teal-dim);
+      }
+      .chip-btn.accent {
+        color: var(--teal);
+        border-color: rgba(79, 209, 197, 0.45);
+        background: transparent;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .chip-btn.accent svg {
+        width: 14px;
+        height: 14px;
+      }
 
-  .composer {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    padding: 14px 16px 0;
-    border-top: 1px solid var(--line);
-    background: linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.16));
-  }
-  .composer-shell {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    border: 1px solid var(--line-strong);
-    border-radius: 20px;
-    background: rgba(255,255,255,0.035);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
-    transition: border-color 0.18s ease, box-shadow 0.18s ease;
-  }
-  .composer-shell:focus-within {
-    border-color: rgba(79, 209, 197, 0.42);
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.04),
-      0 0 0 3px rgba(79, 209, 197, 0.1);
-  }
-  .composer-shell.has-attach {
-    border-color: rgba(124, 92, 255, 0.35);
-  }
-  .attach-preview {
-    display: none;
-    align-items: center;
-    gap: 12px;
-    margin: 10px 10px 0;
-    padding: 8px 8px 8px 8px;
-    border-radius: 14px;
-    background: rgba(124, 92, 255, 0.08);
-    border: 1px solid rgba(124, 92, 255, 0.2);
-  }
-  .attach-preview.show { display: flex; }
-  .attach-preview .thumb-wrap {
-    position: relative;
-    flex: 0 0 auto;
-  }
-  .attach-preview img {
-    width: 56px;
-    height: 56px;
-    object-fit: cover;
-    border-radius: 10px;
-    display: block;
-    border: 1px solid rgba(255,255,255,0.12);
-    background: #0b0c10;
-  }
-  .attach-preview .meta-col { flex: 1; min-width: 0; }
-  .attach-preview .label {
-    font-size: 10.5px;
-    font-weight: 650;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: #c4b5ff;
-  }
-  .attach-preview .name {
-    margin-top: 3px;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--ink);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .attach-preview .hint {
-    margin-top: 2px;
-    font-size: 11.5px;
-    color: var(--muted);
-  }
-  .attach-preview .clear {
-    width: 32px;
-    height: 32px;
-    flex: 0 0 32px;
-    padding: 0;
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    background: rgba(0,0,0,0.28);
-    color: var(--ink);
-    border: 1px solid rgba(255,255,255,0.1);
-  }
-  .attach-preview .clear:hover {
-    background: rgba(255,123,123,0.18);
-    border-color: rgba(255,123,123,0.35);
-    color: #ffc9c9;
-    filter: none;
-  }
-  .attach-preview .clear svg { width: 14px; height: 14px; }
-  .composer-row {
-    display: flex;
-    gap: 6px;
-    align-items: flex-end;
-    padding: 8px 8px 8px 10px;
-  }
-  .composer-row.multiline { align-items: flex-end; }
-  .icon-btn {
-    width: 38px;
-    height: 38px;
-    flex: 0 0 38px;
-    display: grid;
-    place-items: center;
-    background: rgba(255,255,255,0.04);
-    color: var(--muted);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    padding: 0;
-  }
-  .icon-btn:hover {
-    color: var(--teal);
-    background: var(--teal-dim);
-    border-color: rgba(79, 209, 197, 0.35);
-    filter: none;
-  }
-  .icon-btn.active {
-    color: #c4b5ff;
-    background: rgba(124, 92, 255, 0.14);
-    border-color: rgba(124, 92, 255, 0.35);
-  }
-  .icon-btn svg { width: 18px; height: 18px; }
-  textarea {
-    flex: 1;
-    resize: none;
-    border: 0;
-    border-radius: 10px;
-    padding: 8px 6px;
-    font: inherit;
-    font-size: 14.5px;
-    line-height: 22px;
-    height: 38px;
-    min-height: 38px;
-    max-height: 140px;
-    outline: none;
-    background: transparent;
-    color: var(--ink);
-    overflow-y: hidden;
-  }
-  textarea::placeholder { color: var(--muted-2); }
-  #send {
-    width: 38px;
-    height: 38px;
-    flex: 0 0 38px;
-    border-radius: 12px;
-    padding: 0;
-    display: grid;
-    place-items: center;
-    background: var(--teal);
-    color: #05332c;
-    box-shadow: 0 8px 18px rgba(79, 209, 197, 0.22);
-  }
-  #send:hover { filter: brightness(1.05); }
-  #send:disabled {
-    background: rgba(255,255,255,0.08);
-    color: var(--muted-2);
-    box-shadow: none;
-  }
-  #send svg { width: 18px; height: 18px; }
-  .foot {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 10px 8px 14px;
-    font-size: 11px;
-    color: var(--muted-2);
-  }
+      .composer {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        padding: 14px 16px 0;
+        border-top: 1px solid var(--line);
+        background: linear-gradient(
+          180deg,
+          rgba(0, 0, 0, 0.04),
+          rgba(0, 0, 0, 0.16)
+        );
+      }
+      .composer-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        border: 1px solid var(--line-strong);
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.035);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        transition:
+          border-color 0.18s ease,
+          box-shadow 0.18s ease;
+      }
+      .composer-shell:focus-within {
+        border-color: rgba(79, 209, 197, 0.42);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.04),
+          0 0 0 3px rgba(79, 209, 197, 0.1);
+      }
+      .composer-shell.has-attach {
+        border-color: rgba(124, 92, 255, 0.35);
+      }
+      .attach-preview {
+        display: none;
+        align-items: center;
+        gap: 12px;
+        margin: 10px 10px 0;
+        padding: 8px 8px 8px 8px;
+        border-radius: 14px;
+        background: rgba(124, 92, 255, 0.08);
+        border: 1px solid rgba(124, 92, 255, 0.2);
+      }
+      .attach-preview.show {
+        display: flex;
+      }
+      .attach-preview .thumb-wrap {
+        position: relative;
+        flex: 0 0 auto;
+      }
+      .attach-preview img {
+        width: 56px;
+        height: 56px;
+        object-fit: cover;
+        border-radius: 10px;
+        display: block;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: #0b0c10;
+      }
+      .attach-preview .meta-col {
+        flex: 1;
+        min-width: 0;
+      }
+      .attach-preview .label {
+        font-size: 10.5px;
+        font-weight: 650;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #c4b5ff;
+      }
+      .attach-preview .name {
+        margin-top: 3px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ink);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .attach-preview .hint {
+        margin-top: 2px;
+        font-size: 11.5px;
+        color: var(--muted);
+      }
+      .attach-preview .clear {
+        width: 32px;
+        height: 32px;
+        flex: 0 0 32px;
+        padding: 0;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: rgba(0, 0, 0, 0.28);
+        color: var(--ink);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .attach-preview .clear:hover {
+        background: rgba(255, 123, 123, 0.18);
+        border-color: rgba(255, 123, 123, 0.35);
+        color: #ffc9c9;
+        filter: none;
+      }
+      .attach-preview .clear svg {
+        width: 14px;
+        height: 14px;
+      }
+      .composer-row {
+        display: flex;
+        gap: 6px;
+        align-items: flex-end;
+        padding: 8px 8px 8px 10px;
+      }
+      .composer-row.multiline {
+        align-items: flex-end;
+      }
+      .icon-btn {
+        width: 38px;
+        height: 38px;
+        flex: 0 0 38px;
+        display: grid;
+        place-items: center;
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--muted);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 0;
+      }
+      .icon-btn:hover {
+        color: var(--teal);
+        background: var(--teal-dim);
+        border-color: rgba(79, 209, 197, 0.35);
+        filter: none;
+      }
+      .icon-btn.active {
+        color: #c4b5ff;
+        background: rgba(124, 92, 255, 0.14);
+        border-color: rgba(124, 92, 255, 0.35);
+      }
+      .icon-btn svg {
+        width: 18px;
+        height: 18px;
+      }
+      textarea {
+        flex: 1;
+        resize: none;
+        border: 0;
+        border-radius: 10px;
+        padding: 8px 6px;
+        font: inherit;
+        font-size: 14.5px;
+        line-height: 22px;
+        height: 38px;
+        min-height: 38px;
+        max-height: 140px;
+        outline: none;
+        background: transparent;
+        color: var(--ink);
+        overflow-y: hidden;
+      }
+      textarea::placeholder {
+        color: var(--muted-2);
+      }
+      #send {
+        width: 38px;
+        height: 38px;
+        flex: 0 0 38px;
+        border-radius: 12px;
+        padding: 0;
+        display: grid;
+        place-items: center;
+        background: var(--teal);
+        color: #05332c;
+        box-shadow: 0 8px 18px rgba(79, 209, 197, 0.22);
+      }
+      #send:hover {
+        filter: brightness(1.05);
+      }
+      #send:disabled {
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--muted-2);
+        box-shadow: none;
+      }
+      #send svg {
+        width: 18px;
+        height: 18px;
+      }
+      .foot {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px 8px 14px;
+        font-size: 11px;
+        color: var(--muted-2);
+      }
 
-  .side-panel {
-    flex: 0 0 clamp(300px, 32vw, 420px);
-    width: clamp(300px, 32vw, 420px);
-    max-width: 42vw;
-    display: flex;
-    flex-direction: column;
-    padding: 14px;
-    overflow: hidden;
-    opacity: 1;
-    transform: translateX(0) scale(1);
-    transform-origin: right center;
-    transition:
-      flex-basis 0.42s cubic-bezier(0.22, 1, 0.36, 1),
-      width 0.42s cubic-bezier(0.22, 1, 0.36, 1),
-      max-width 0.42s cubic-bezier(0.22, 1, 0.36, 1),
-      opacity 0.28s ease,
-      transform 0.42s cubic-bezier(0.22, 1, 0.36, 1),
-      padding 0.36s ease,
-      border-color 0.28s ease,
-      box-shadow 0.28s ease;
-  }
-  .layout.panel-collapsed .side-panel {
-    flex-basis: 0;
-    width: 0;
-    max-width: 0;
-    opacity: 0;
-    padding-left: 0;
-    padding-right: 0;
-    border-color: transparent;
-    box-shadow: none;
-    transform: translateX(18px) scale(0.97);
-    pointer-events: none;
-  }
-  .side-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 12px;
-  }
-  .side-head h2 {
-    margin: 0;
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: .2px;
-    color: var(--ink);
-  }
-  .side-head .hint {
-    margin: 2px 0 0;
-    font-size: 11px;
-    color: var(--muted-2);
-  }
-  .panel-close {
-    width: 32px; height: 32px; flex: 0 0 32px;
-    display: grid; place-items: center;
-    border-radius: 10px;
-    padding: 0;
-    background: rgba(255,255,255,0.04);
-    color: var(--muted);
-    border: 1px solid var(--line);
-  }
-  .panel-close:hover { color: var(--ink); background: rgba(255,255,255,0.07); }
-  .panel-close svg { width: 16px; height: 16px; }
-  #panel-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(255,255,255,0.04);
-    color: var(--ink);
-    border: 1px solid var(--line-strong);
-    font-weight: 600;
-    padding: 8px 12px;
-  }
-  #panel-toggle svg {
-    width: 15px; height: 15px;
-    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  #panel-toggle[aria-expanded="true"] {
-    background: rgba(124, 92, 255, 0.14);
-    border-color: rgba(124, 92, 255, 0.35);
-    color: #d7ccff;
-  }
-  #panel-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
-  .tabs {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 4px;
-    padding: 4px;
-    border-radius: 14px;
-    background: rgba(0,0,0,0.28);
-    border: 1px solid var(--line);
-    margin-bottom: 14px;
-  }
-  .tab {
-    background: transparent;
-    color: var(--muted);
-    border-radius: 11px;
-    padding: 9px 8px;
-    font-size: 12.5px;
-    font-weight: 600;
-  }
-  .tab.active {
-    background: linear-gradient(145deg, #8a6bff, #5b3fd4);
-    color: #fff;
-    box-shadow: 0 8px 18px rgba(91, 63, 212, 0.35);
-  }
-  .side-scroll {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    padding-right: 2px;
-  }
-  .empty {
-    color: var(--muted);
-    font-size: 12.5px;
-    padding: 8px 2px;
-  }
+      .side-panel {
+        flex: 0 0 clamp(300px, 32vw, 420px);
+        width: clamp(300px, 32vw, 420px);
+        max-width: 42vw;
+        display: flex;
+        flex-direction: column;
+        padding: 14px;
+        overflow: hidden;
+        opacity: 1;
+        transform: translateX(0) scale(1);
+        transform-origin: right center;
+        transition:
+          flex-basis 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+          width 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+          max-width 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+          opacity 0.28s ease,
+          transform 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+          padding 0.36s ease,
+          border-color 0.28s ease,
+          box-shadow 0.28s ease;
+      }
+      .layout.panel-collapsed .side-panel {
+        flex-basis: 0;
+        width: 0;
+        max-width: 0;
+        opacity: 0;
+        padding-left: 0;
+        padding-right: 0;
+        border-color: transparent;
+        box-shadow: none;
+        transform: translateX(18px) scale(0.97);
+        pointer-events: none;
+      }
+      .side-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+      .side-head h2 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        color: var(--ink);
+      }
+      .side-head .hint {
+        margin: 2px 0 0;
+        font-size: 11px;
+        color: var(--muted-2);
+      }
+      .panel-close {
+        width: 32px;
+        height: 32px;
+        flex: 0 0 32px;
+        display: grid;
+        place-items: center;
+        border-radius: 10px;
+        padding: 0;
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--muted);
+        border: 1px solid var(--line);
+      }
+      .panel-close:hover {
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.07);
+      }
+      .panel-close svg {
+        width: 16px;
+        height: 16px;
+      }
+      #panel-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--ink);
+        border: 1px solid var(--line-strong);
+        font-weight: 600;
+        padding: 8px 12px;
+      }
+      #panel-toggle svg {
+        width: 15px;
+        height: 15px;
+        transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      #panel-toggle[aria-expanded="true"] {
+        background: rgba(124, 92, 255, 0.14);
+        border-color: rgba(124, 92, 255, 0.35);
+        color: #d7ccff;
+      }
+      #panel-toggle[aria-expanded="true"] svg {
+        transform: rotate(180deg);
+      }
+      .tabs {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 4px;
+        padding: 4px;
+        border-radius: 14px;
+        background: rgba(0, 0, 0, 0.28);
+        border: 1px solid var(--line);
+        margin-bottom: 14px;
+      }
+      .tab {
+        background: transparent;
+        color: var(--muted);
+        border-radius: 11px;
+        padding: 9px 8px;
+        font-size: 12.5px;
+        font-weight: 600;
+      }
+      .tab.active {
+        background: linear-gradient(145deg, #8a6bff, #5b3fd4);
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(91, 63, 212, 0.35);
+      }
+      .side-scroll {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding-right: 2px;
+      }
+      .empty {
+        color: var(--muted);
+        font-size: 12.5px;
+        padding: 8px 2px;
+      }
 
-  .status-card {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 14px;
-    align-items: center;
-    padding: 14px;
-    border-radius: 16px;
-    background: linear-gradient(145deg, rgba(91, 63, 212, 0.18), rgba(22, 25, 34, 0.9));
-    border: 1px solid rgba(124, 92, 255, 0.22);
-    margin-bottom: 16px;
-  }
-  .ring {
-    width: 58px; height: 58px;
-    border-radius: 50%;
-    display: grid; place-items: center;
-    background:
-      radial-gradient(circle at center, var(--panel) 58%, transparent 59%),
-      conic-gradient(var(--teal) calc(var(--pct, 0) * 1%), rgba(255,255,255,0.08) 0);
-  }
-  .ring span {
-    font-size: 13px; font-weight: 700; color: var(--ink);
-  }
-  .status-card h3 {
-    margin: 0 0 4px;
-    font-size: 15px;
-    letter-spacing: -.2px;
-  }
-  .status-card p {
-    margin: 0;
-    color: var(--muted);
-    font-size: 12.5px;
-    line-height: 1.45;
-  }
-  .status-card.ready {
-    background: linear-gradient(145deg, rgba(61, 214, 140, 0.14), rgba(22, 25, 34, 0.9));
-    border-color: rgba(61, 214, 140, 0.25);
-  }
-  .status-card.ready .ring {
-    background:
-      radial-gradient(circle at center, var(--panel) 58%, transparent 59%),
-      conic-gradient(var(--green) calc(var(--pct, 0) * 1%), rgba(255,255,255,0.08) 0);
-  }
+      .status-card {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 14px;
+        align-items: center;
+        padding: 14px;
+        border-radius: 16px;
+        background: linear-gradient(
+          145deg,
+          rgba(91, 63, 212, 0.18),
+          rgba(22, 25, 34, 0.9)
+        );
+        border: 1px solid rgba(124, 92, 255, 0.22);
+        margin-bottom: 16px;
+      }
+      .ring {
+        width: 58px;
+        height: 58px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at center, var(--panel) 58%, transparent 59%),
+          conic-gradient(
+            var(--teal) calc(var(--pct, 0) * 1%),
+            rgba(255, 255, 255, 0.08) 0
+          );
+      }
+      .ring span {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--ink);
+      }
+      .status-card h3 {
+        margin: 0 0 4px;
+        font-size: 15px;
+        letter-spacing: -0.2px;
+      }
+      .status-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12.5px;
+        line-height: 1.45;
+      }
+      .status-card.ready {
+        background: linear-gradient(
+          145deg,
+          rgba(61, 214, 140, 0.14),
+          rgba(22, 25, 34, 0.9)
+        );
+        border-color: rgba(61, 214, 140, 0.25);
+      }
+      .status-card.ready .ring {
+        background:
+          radial-gradient(circle at center, var(--panel) 58%, transparent 59%),
+          conic-gradient(
+            var(--green) calc(var(--pct, 0) * 1%),
+            rgba(255, 255, 255, 0.08) 0
+          );
+      }
 
-  .section-label {
-    margin: 0 0 8px;
-    font-size: 11px;
-    letter-spacing: .7px;
-    text-transform: uppercase;
-    color: var(--muted-2);
-    font-weight: 650;
-  }
-  .req-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-  .req-row {
-    display: grid;
-    grid-template-columns: 18px 78px 1fr;
-    gap: 10px;
-    align-items: center;
-    padding: 10px 12px;
-    border-radius: 12px;
-    background: rgba(255,255,255,0.025);
-    border: 1px solid var(--line);
-  }
-  .req-row .ico {
-    width: 18px; height: 18px; border-radius: 50%;
-    display: grid; place-items: center;
-    font-size: 11px; font-weight: 800;
-  }
-  .req-row.ok .ico { background: var(--green-dim); color: var(--green); }
-  .req-row.miss .ico { background: var(--amber-dim); color: var(--amber); }
-  .req-row .label { color: var(--muted); font-size: 12.5px; font-weight: 550; }
-  .req-row .value { font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
-  .req-row.ok .value { color: var(--green); }
-  .req-row.miss .value { color: var(--amber); }
+      .section-label {
+        margin: 0 0 8px;
+        font-size: 11px;
+        letter-spacing: 0.7px;
+        text-transform: uppercase;
+        color: var(--muted-2);
+        font-weight: 650;
+      }
+      .req-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      .req-row {
+        display: grid;
+        grid-template-columns: 18px 78px 1fr;
+        gap: 10px;
+        align-items: center;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.025);
+        border: 1px solid var(--line);
+      }
+      .req-row .ico {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-size: 11px;
+        font-weight: 800;
+      }
+      .req-row.ok .ico {
+        background: var(--green-dim);
+        color: var(--green);
+      }
+      .req-row.miss .ico {
+        background: var(--amber-dim);
+        color: var(--amber);
+      }
+      .req-row .label {
+        color: var(--muted);
+        font-size: 12.5px;
+        font-weight: 550;
+      }
+      .req-row .value {
+        font-size: 12.5px;
+        font-weight: 600;
+        overflow-wrap: anywhere;
+      }
+      .req-row.ok .value {
+        color: var(--green);
+      }
+      .req-row.miss .value {
+        color: var(--amber);
+      }
 
-  .tag-cloud { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
-  .tag {
-    display: inline-flex;
-    padding: 7px 11px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 550;
-    border: 1px solid var(--line-strong);
-    color: var(--muted);
-    background: transparent;
-  }
-  .tag.filled {
-    color: #b8f5d5;
-    border-color: rgba(61, 214, 140, 0.35);
-    background: var(--green-dim);
-  }
-  .tag.suggested {
-    color: #cfc2ff;
-    border-color: rgba(124, 92, 255, 0.35);
-    background: rgba(124, 92, 255, 0.12);
-  }
+      .tag-cloud {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      .tag {
+        display: inline-flex;
+        padding: 7px 11px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 550;
+        border: 1px solid var(--line-strong);
+        color: var(--muted);
+        background: transparent;
+      }
+      .tag.filled {
+        color: #b8f5d5;
+        border-color: rgba(61, 214, 140, 0.35);
+        background: var(--green-dim);
+      }
+      .tag.suggested {
+        color: #cfc2ff;
+        border-color: rgba(124, 92, 255, 0.35);
+        background: rgba(124, 92, 255, 0.12);
+      }
 
-  .side-foot {
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px solid var(--line);
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .side-foot-top {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    align-items: baseline;
-    font-size: 12px;
-    color: var(--muted);
-  }
-  .side-foot-top code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 11px;
-    color: var(--muted-2);
-  }
-  .foot-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid var(--line);
-    color: #c9d0e0;
-    border-radius: 999px;
-    padding: 4px 9px;
-    font-size: 10.5px;
-  }
-  .chip.ok { color: #b8f5d5; border-color: rgba(61, 214, 140, 0.28); background: var(--green-dim); }
+      .side-foot {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .side-foot-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: baseline;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .side-foot-top code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 11px;
+        color: var(--muted-2);
+      }
+      .foot-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .chip {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--line);
+        color: #c9d0e0;
+        border-radius: 999px;
+        padding: 4px 9px;
+        font-size: 10.5px;
+      }
+      .chip.ok {
+        color: #b8f5d5;
+        border-color: rgba(61, 214, 140, 0.28);
+        background: var(--green-dim);
+      }
 
-  .issue {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid var(--line);
-    border-left: 3px solid var(--info);
-    border-radius: 10px;
-    padding: 8px 10px;
-    margin-bottom: 6px;
-  }
-  .issue.block { border-left-color: var(--block); }
-  .issue.warn { border-left-color: var(--warn); }
-  .issue strong { display: block; font-size: 11px; color: #eef1f8; margin-bottom: 2px; }
-  .issue span { display: block; color: #b7bfd2; }
-  .issue code {
-    display: inline-block; margin-top: 5px; padding: 2px 6px;
-    border-radius: 5px; background: rgba(0,0,0,0.35); color: #9fc7a9;
-    font-size: 10.5px; overflow-wrap: anywhere;
-  }
-  .who { display: block; color: var(--muted-2); font-size: 10.5px; margin-bottom: 3px; }
-  .turn {
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    padding: 10px;
-    margin-bottom: 10px;
-    background: rgba(0,0,0,0.18);
-  }
-  .turn h4 { margin: 0 0 8px; font-size: 12.5px; color: #eef1f8; font-weight: 650; }
-  .subhead {
-    margin: 10px 0 6px;
-    font-size: 10px; letter-spacing: .6px; text-transform: uppercase;
-    color: var(--muted-2); font-weight: 650;
-  }
-  .summary { display: flex; flex-wrap: wrap; gap: 6px; }
-  .ask-line { margin: 0 0 4px; color: #c9d0e0; overflow-wrap: anywhere; font-size: 12.5px; }
-  .goal-line, .config-line { margin: 0 0 4px; overflow-wrap: anywhere; font-size: 12.5px; }
-  .goal-line b, .config-line b { color: #eef1f8; font-weight: 650; }
-  .goal-line span, .config-line span { display: block; color: var(--muted); }
-  .state-attested { color: #8fd6a8; }
-  .state-unknown_capability, .state-excluded { color: var(--amber); }
-  .chunk {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid var(--line);
-    border-radius: 8px; padding: 7px 9px;
-    margin-bottom: 5px;
-    font-size: 12px;
-  }
-  .chunk b { color: #e8ecf7; font-weight: 600; }
-  .chunk span { color: var(--muted); }
-  .debug-note { color: var(--muted); font-size: 11px; margin: 0 0 8px; }
+      .issue {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--info);
+        border-radius: 10px;
+        padding: 8px 10px;
+        margin-bottom: 6px;
+      }
+      .issue.block {
+        border-left-color: var(--block);
+      }
+      .issue.warn {
+        border-left-color: var(--warn);
+      }
+      .issue strong {
+        display: block;
+        font-size: 11px;
+        color: #eef1f8;
+        margin-bottom: 2px;
+      }
+      .issue span {
+        display: block;
+        color: #b7bfd2;
+      }
+      .issue code {
+        display: inline-block;
+        margin-top: 5px;
+        padding: 2px 6px;
+        border-radius: 5px;
+        background: rgba(0, 0, 0, 0.35);
+        color: #9fc7a9;
+        font-size: 10.5px;
+        overflow-wrap: anywhere;
+      }
+      .who {
+        display: block;
+        color: var(--muted-2);
+        font-size: 10.5px;
+        margin-bottom: 3px;
+      }
+      .turn {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px;
+        margin-bottom: 10px;
+        background: rgba(0, 0, 0, 0.18);
+      }
+      .turn h4 {
+        margin: 0 0 8px;
+        font-size: 12.5px;
+        color: #eef1f8;
+        font-weight: 650;
+      }
+      .subhead {
+        margin: 10px 0 6px;
+        font-size: 10px;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        color: var(--muted-2);
+        font-weight: 650;
+      }
+      .summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .ask-line {
+        margin: 0 0 4px;
+        color: #c9d0e0;
+        overflow-wrap: anywhere;
+        font-size: 12.5px;
+      }
+      .goal-line,
+      .config-line {
+        margin: 0 0 4px;
+        overflow-wrap: anywhere;
+        font-size: 12.5px;
+      }
+      .goal-line b,
+      .config-line b {
+        color: #eef1f8;
+        font-weight: 650;
+      }
+      .goal-line span,
+      .config-line span {
+        display: block;
+        color: var(--muted);
+      }
+      .state-attested {
+        color: #8fd6a8;
+      }
+      .state-unknown_capability,
+      .state-excluded {
+        color: var(--amber);
+      }
+      .chunk {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 7px 9px;
+        margin-bottom: 5px;
+        font-size: 12px;
+      }
+      .chunk b {
+        color: #e8ecf7;
+        font-weight: 600;
+      }
+      .chunk span {
+        color: var(--muted);
+      }
+      .debug-note {
+        color: var(--muted);
+        font-size: 11px;
+        margin: 0 0 8px;
+      }
 
-  @media (max-width: 980px) {
-    .layout {
-      flex-direction: column;
-      height: auto;
-    }
-    .chat-card { height: calc(100vh - 140px); min-height: 420px; }
-    .side-panel {
-      flex: 0 0 auto;
-      width: 100%;
-      max-width: none;
-      max-height: 560px;
-      transform-origin: top center;
-    }
-    .layout.panel-collapsed .side-panel {
-      flex-basis: 0;
-      width: 100%;
-      max-width: none;
-      max-height: 0;
-      margin: 0;
-      padding-top: 0;
-      padding-bottom: 0;
-      transform: translateY(-10px) scale(0.98);
-    }
-    .bubble { max-width: 88%; }
-  }
-  @media (max-width: 560px) {
-    .topbar, .layout { padding-left: 12px; padding-right: 12px; }
-    .messages { padding: 16px 14px 8px; }
-    .status .badge.muted { display: none; }
-    #panel-toggle .label { display: none; }
-    .foot { flex-direction: column; gap: 2px; }
-    .quick-replies { padding-left: 0; }
-    .meta { padding-left: 4px; }
-    .req-row { grid-template-columns: 18px 68px 1fr; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .layout, .side-panel, #panel-toggle svg { transition: none !important; }
-  }
-</style>
-</head>
-<body>
-<header class="topbar">
-  <div class="brand">
-    <div class="mark" aria-hidden="true"><img src="/favicon.svg" alt=""></div>
-    <div>
-      <h1>Print247 chat</h1>
-      <p>Bot test console.</p>
-    </div>
-  </div>
-  <div class="status">
-    <span id="mode-badge" class="badge muted"><span class="dot"></span><span class="label">loading</span></span>
-    <span id="kb-badge" class="badge muted">KB</span>
-    <button id="panel-toggle" type="button" aria-controls="debug-panel" aria-expanded="true" title="Hide debug panel">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <rect x="3" y="4" width="18" height="16" rx="2"/>
-        <path d="M15 4v16"/>
-      </svg>
-      <span class="label">Debug</span>
-    </button>
-    <button id="new-chat" type="button">New chat</button>
-  </div>
-</header>
+      @media (max-width: 980px) {
+        .layout {
+          flex-direction: column;
+          height: auto;
+        }
+        .chat-card {
+          height: calc(100vh - 140px);
+          min-height: 420px;
+        }
+        .side-panel {
+          flex: 0 0 auto;
+          width: 100%;
+          max-width: none;
+          max-height: 560px;
+          transform-origin: top center;
+        }
+        .layout.panel-collapsed .side-panel {
+          flex-basis: 0;
+          width: 100%;
+          max-width: none;
+          max-height: 0;
+          margin: 0;
+          padding-top: 0;
+          padding-bottom: 0;
+          transform: translateY(-10px) scale(0.98);
+        }
+        .bubble {
+          max-width: 88%;
+        }
+      }
+      @media (max-width: 560px) {
+        .topbar,
+        .layout {
+          padding-left: 12px;
+          padding-right: 12px;
+        }
+        .messages {
+          padding: 16px 14px 8px;
+        }
+        .status .badge.muted {
+          display: none;
+        }
+        #panel-toggle .label {
+          display: none;
+        }
+        .foot {
+          flex-direction: column;
+          gap: 2px;
+        }
+        .quick-replies {
+          padding-left: 0;
+        }
+        .meta {
+          padding-left: 4px;
+        }
+        .req-row {
+          grid-template-columns: 18px 68px 1fr;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .layout,
+        .side-panel,
+        #panel-toggle svg {
+          transition: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark" aria-hidden="true">
+          <img src="/favicon.svg" alt="" />
+        </div>
+        <div>
+          <h1>Print247 chat</h1>
+          <p>Bot test console.</p>
+        </div>
+      </div>
+      <div class="status">
+        <span id="mode-badge" class="badge muted"
+          ><span class="dot"></span><span class="label">loading</span></span
+        >
+        <span id="kb-badge" class="badge muted">KB</span>
+        <button
+          id="panel-toggle"
+          type="button"
+          aria-controls="debug-panel"
+          aria-expanded="true"
+          title="Hide debug panel"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <path d="M15 4v16" />
+          </svg>
+          <span class="label">Debug</span>
+        </button>
+        <button id="new-chat" type="button">New chat</button>
+      </div>
+    </header>
 
-<main class="layout" id="layout">
-  <section class="chat-card">
-    <div id="messages" class="messages" aria-live="polite"></div>
-    <form id="composer" class="composer">
-      <div class="composer-shell" id="composer-shell">
-        <div id="attach-preview" class="attach-preview" hidden>
-          <div class="thumb-wrap">
-            <img id="attach-thumb" alt="Selected reference">
+    <main class="layout" id="layout">
+      <section class="chat-card">
+        <div id="messages" class="messages" aria-live="polite"></div>
+        <form id="composer" class="composer">
+          <div class="composer-shell" id="composer-shell">
+            <div id="attach-preview" class="attach-preview" hidden>
+              <div class="thumb-wrap">
+                <img id="attach-thumb" alt="Selected reference" />
+              </div>
+              <div class="meta-col">
+                <div class="label">Reference</div>
+                <div id="attach-name" class="name">reference image</div>
+                <div class="hint">
+                  Will be sent with your next message · paste also works
+                </div>
+              </div>
+              <button
+                id="attach-clear"
+                class="clear"
+                type="button"
+                title="Remove image"
+                aria-label="Remove image"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.2"
+                  stroke-linecap="round"
+                  aria-hidden="true"
+                >
+                  <path d="M18 6L6 18" />
+                  <path d="M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div class="composer-row">
+              <input
+                id="attach-input"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                hidden
+              />
+              <button
+                id="attach-btn"
+                class="icon-btn"
+                type="button"
+                title="Attach or paste (Ctrl+V) a reference image"
+                aria-label="Attach or paste a reference image"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M21.44 11.05l-8.49 8.49a5.5 5.5 0 01-7.78-7.78l8.49-8.49a3.5 3.5 0 014.95 4.95l-8.5 8.49a1.5 1.5 0 01-2.12-2.12l7.79-7.78"
+                  />
+                </svg>
+              </button>
+              <textarea
+                id="input"
+                rows="1"
+                placeholder="Message Max…"
+                maxlength="4000"
+                autocomplete="off"
+              ></textarea>
+              <button id="send" type="submit" title="Send" aria-label="Send">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.4"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 19V5" />
+                  <path d="M5 12l7-7 7 7" />
+                </svg>
+              </button>
+            </div>
           </div>
-          <div class="meta-col">
-            <div class="label">Reference</div>
-            <div id="attach-name" class="name">reference image</div>
-            <div class="hint">Will be sent with your next message · paste also works</div>
+        </form>
+        <div class="foot">
+          <span id="mode-note">Checking mode...</span>
+          <span>Enter to send · Shift+Enter for new line</span>
+        </div>
+      </section>
+
+      <aside
+        id="debug-panel"
+        class="side-panel"
+        aria-label="Conversation insights"
+      >
+        <div class="side-head">
+          <div>
+            <h2>Debug panel</h2>
+            <p class="hint">Pipeline brief, turns, and guard issues</p>
           </div>
-          <button id="attach-clear" class="clear" type="button" title="Remove image" aria-label="Remove image">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
-              <path d="M18 6L6 18"/><path d="M6 6l12 12"/>
+          <button
+            id="panel-close"
+            class="panel-close"
+            type="button"
+            title="Hide debug panel"
+            aria-label="Hide debug panel"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
         </div>
-        <div class="composer-row">
-          <input id="attach-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
-          <button id="attach-btn" class="icon-btn" type="button" title="Attach or paste (Ctrl+V) a reference image" aria-label="Attach or paste a reference image">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M21.44 11.05l-8.49 8.49a5.5 5.5 0 01-7.78-7.78l8.49-8.49a3.5 3.5 0 014.95 4.95l-8.5 8.49a1.5 1.5 0 01-2.12-2.12l7.79-7.78"/>
-            </svg>
+        <div class="tabs" role="tablist">
+          <button
+            type="button"
+            class="tab active"
+            data-tab="brief"
+            role="tab"
+            aria-selected="true"
+          >
+            Brief
           </button>
-          <textarea id="input" rows="1" placeholder="Message Max…" maxlength="4000" autocomplete="off"></textarea>
-          <button id="send" type="submit" title="Send" aria-label="Send">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 19V5"/><path d="M5 12l7-7 7 7"/>
-            </svg>
+          <button
+            type="button"
+            class="tab"
+            data-tab="turns"
+            role="tab"
+            aria-selected="false"
+          >
+            Turns · 0
+          </button>
+          <button
+            type="button"
+            class="tab"
+            data-tab="issues"
+            role="tab"
+            aria-selected="false"
+          >
+            Issues · 0
           </button>
         </div>
-      </div>
-    </form>
-    <div class="foot">
-      <span id="mode-note">Checking mode...</span>
-      <span>Enter to send · Shift+Enter for new line</span>
-    </div>
-  </section>
+        <div id="debug-empty" class="empty side-scroll">
+          Send a message to see the pipeline output.
+        </div>
+        <div id="panel-brief" class="side-scroll" hidden></div>
+        <div id="panel-turns" class="side-scroll" hidden></div>
+        <div id="panel-issues" class="side-scroll" hidden></div>
+        <div class="side-foot">
+          <div class="side-foot-top">
+            <span id="foot-turn">Waiting for first turn</span>
+            <code id="foot-id"></code>
+          </div>
+          <div id="foot-chips" class="foot-chips"></div>
+        </div>
+      </aside>
+    </main>
 
-  <aside id="debug-panel" class="side-panel" aria-label="Conversation insights">
-    <div class="side-head">
-      <div>
-        <h2>Debug panel</h2>
-        <p class="hint">Pipeline brief, turns, and guard issues</p>
-      </div>
-      <button id="panel-close" class="panel-close" type="button" title="Hide debug panel" aria-label="Hide debug panel">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M18 6L6 18M6 6l12 12"/>
-        </svg>
-      </button>
-    </div>
-    <div class="tabs" role="tablist">
-      <button type="button" class="tab active" data-tab="brief" role="tab" aria-selected="true">Brief</button>
-      <button type="button" class="tab" data-tab="turns" role="tab" aria-selected="false">Turns · 0</button>
-      <button type="button" class="tab" data-tab="issues" role="tab" aria-selected="false">Issues · 0</button>
-    </div>
-    <div id="debug-empty" class="empty side-scroll">Send a message to see the pipeline output.</div>
-    <div id="panel-brief" class="side-scroll" hidden></div>
-    <div id="panel-turns" class="side-scroll" hidden></div>
-    <div id="panel-issues" class="side-scroll" hidden></div>
-    <div class="side-foot">
-      <div class="side-foot-top">
-        <span id="foot-turn">Waiting for first turn</span>
-        <code id="foot-id"></code>
-      </div>
-      <div id="foot-chips" class="foot-chips"></div>
-    </div>
-  </aside>
-</main>
-
-<script>
-(() => {
-  const FIELD_LABELS = {
-    product: "Product",
-    use_case: "For",
-    style: "Style",
-    sizes: "Size",
-    finishes: "Finish",
-    quantity: "Quantity",
-    skus: "Designs",
-    material: "Material",
-    extras: "Extras",
-    name: "Name",
-    email: "Email",
-    phone: "Phone"
-  };
-  const REQUIRED_KEYS = ["product", "sizes", "quantity"];
-  const OPTIONAL_KEYS = ["use_case", "style", "finishes", "skus", "material", "extras", "name", "email", "phone"];
-  const SETTLED = new Set(["visitor", "confirmed", "waived"]);
-  const HANDOFF_TEXT = {
-    human: "A packaging specialist will take over from here.",
-    complex: "Several topics came up, so a specialist will cover the rest.",
-    max_turns: "A specialist will help finish this conversation.",
-    quote: "Everything needed for the quote is collected. The team will email it.",
-    stalled: "A specialist will take over to help with the rest.",
-    declined: "No problem. A specialist can help with the rest."
-  };
-
-  const els = {
-    messages: document.getElementById("messages"),
-    input: document.getElementById("input"),
-    send: document.getElementById("send"),
-    composer: document.getElementById("composer"),
-    composerShell: document.getElementById("composer-shell"),
-    newChat: document.getElementById("new-chat"),
-    modeBadge: document.getElementById("mode-badge"),
-    kbBadge: document.getElementById("kb-badge"),
-    modeNote: document.getElementById("mode-note"),
-    layout: document.getElementById("layout"),
-    debugPanel: document.getElementById("debug-panel"),
-    panelToggle: document.getElementById("panel-toggle"),
-    panelClose: document.getElementById("panel-close"),
-    debugEmpty: document.getElementById("debug-empty"),
-    panelBrief: document.getElementById("panel-brief"),
-    panelTurns: document.getElementById("panel-turns"),
-    panelIssues: document.getElementById("panel-issues"),
-    footTurn: document.getElementById("foot-turn"),
-    footId: document.getElementById("foot-id"),
-    footChips: document.getElementById("foot-chips"),
-    tabs: Array.from(document.querySelectorAll(".tab")),
-    attachInput: document.getElementById("attach-input"),
-    attachBtn: document.getElementById("attach-btn"),
-    attachPreview: document.getElementById("attach-preview"),
-    attachThumb: document.getElementById("attach-thumb"),
-    attachName: document.getElementById("attach-name"),
-    attachClear: document.getElementById("attach-clear")
-  };
-
-  let conversationId = newId();
-  let busy = false;
-  let handedOff = false;
-  let handoffLocked = false;
-  let panelOpen = true;
-  let debugTurns = [];
-  let typingElement = null;
-  let pendingImage = null;
-  let activeTab = "brief";
-  let issueCount = 0;
-  let activePersona = "Max Carter";
-  const PANEL_KEY = "print247.debugPanelOpen";
-
-  const PERSONA_AVATARS = {
-    "alex": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20role%3D%22img%22%20aria-label%3D%22Alex%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%2210%22%20y1%3D%224%22%20x2%3D%2254%22%20y2%3D%2260%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%2357e0c8%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%231fa892%22%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22url%28%23bg%29%22%2F%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2256%22%20rx%3D%2216%22%20ry%3D%2210%22%20fill%3D%22%230e4f47%22%2F%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2228%22%20r%3D%2214%22%20fill%3D%22%23f3c7a0%22%2F%3E%20%3Cpath%20fill%3D%22%231d2433%22%20d%3D%22M18%2024c1.2-10%208-14%2014-14s12.8%204%2014%2014c-2.2-3.8-7-6.2-14-6.2S20.2%2020.2%2018%2024z%22%2F%3E%20%3Ccircle%20cx%3D%2226.5%22%20cy%3D%2228%22%20r%3D%221.6%22%20fill%3D%22%231d2433%22%2F%3E%20%3Ccircle%20cx%3D%2237.5%22%20cy%3D%2228%22%20r%3D%221.6%22%20fill%3D%22%231d2433%22%2F%3E%20%3Cpath%20d%3D%22M27%2034.5c2%201.8%208%201.8%2010%200%22%20fill%3D%22none%22%20stroke%3D%22%23c48a66%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%2F%3E%20%3C%2Fsvg%3E",
-    "brian": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20role%3D%22img%22%20aria-label%3D%22Brian%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%228%22%20y1%3D%224%22%20x2%3D%2256%22%20y2%3D%2260%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%239ef0d4%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%232bb89f%22%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22url%28%23bg%29%22%2F%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2257%22%20rx%3D%2216%22%20ry%3D%2210%22%20fill%3D%22%230f5c52%22%2F%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2228%22%20r%3D%2214%22%20fill%3D%22%23d9a57c%22%2F%3E%20%3Cpath%20fill%3D%22%231a1f2b%22%20d%3D%22M19.5%2022.5c1-7.5%206.8-10.5%2012.5-10.5s11.5%203%2012.5%2010.5c-2.2-2.2-6.5-3.4-12.5-3.4s-10.3%201.2-12.5%203.4z%22%2F%3E%20%3Ccircle%20cx%3D%2226.5%22%20cy%3D%2228%22%20r%3D%221.55%22%20fill%3D%22%231a1f2b%22%2F%3E%20%3Ccircle%20cx%3D%2237.5%22%20cy%3D%2228%22%20r%3D%221.55%22%20fill%3D%22%231a1f2b%22%2F%3E%20%3Cpath%20d%3D%22M28%2034.6c1.6%201.4%206.4%201.4%208%200%22%20fill%3D%22none%22%20stroke%3D%22%23b07a55%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%20%3C%2Fsvg%3E",
-    "ethan": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20role%3D%22img%22%20aria-label%3D%22Ethan%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%228%22%20y1%3D%224%22%20x2%3D%2256%22%20y2%3D%2260%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%238ec5ff%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%233b78e7%22%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22url%28%23bg%29%22%2F%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2257%22%20rx%3D%2216%22%20ry%3D%2210%22%20fill%3D%22%231d4f9a%22%2F%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2228%22%20r%3D%2214%22%20fill%3D%22%23e8b894%22%2F%3E%20%3Cpath%20fill%3D%22%231a2333%22%20d%3D%22M19%2025c1.2-10.5%207.8-15%2013-15s11.8%204.5%2013%2015c-2.5-4.2-7-6.8-13-6.8S21.5%2020.8%2019%2025z%22%2F%3E%20%3Crect%20x%3D%2220.5%22%20y%3D%2225.2%22%20width%3D%2223%22%20height%3D%225.2%22%20rx%3D%222.6%22%20fill%3D%22none%22%20stroke%3D%22%231a2333%22%20stroke-width%3D%221.7%22%2F%3E%20%3Ccircle%20cx%3D%2226.5%22%20cy%3D%2227.8%22%20r%3D%221.35%22%20fill%3D%22%231a2333%22%2F%3E%20%3Ccircle%20cx%3D%2237.5%22%20cy%3D%2227.8%22%20r%3D%221.35%22%20fill%3D%22%231a2333%22%2F%3E%20%3Cpath%20d%3D%22M28%2034.5c1.7%201.5%206.3%201.5%208%200%22%20fill%3D%22none%22%20stroke%3D%22%23bf8662%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%20%3C%2Fsvg%3E",
-    "frank": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20role%3D%22img%22%20aria-label%3D%22Frank%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%228%22%20y1%3D%226%22%20x2%3D%2256%22%20y2%3D%2258%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%238a6bff%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%233d2a9e%22%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22url%28%23bg%29%22%2F%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2257%22%20rx%3D%2217%22%20ry%3D%2211%22%20fill%3D%22%2324185f%22%2F%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2227%22%20r%3D%2214%22%20fill%3D%22%23e2b48f%22%2F%3E%20%3Cpath%20fill%3D%22%23111827%22%20d%3D%22M17%2023c.8-9.5%208.2-14%2015-14s14.2%204.5%2015%2014c-3-5-8.5-7.5-15-7.5S20%2018%2017%2023z%22%2F%3E%20%3Cpath%20fill%3D%22%232a3344%22%20d%3D%22M22%2036.5c2.4%205.5%2017.6%205.5%2020%200-2.8%201.4-7.2%202.1-10%202.1s-7.2-.7-10-2.1z%22%2F%3E%20%3Ccircle%20cx%3D%2226.2%22%20cy%3D%2227%22%20r%3D%221.6%22%20fill%3D%22%23111827%22%2F%3E%20%3Ccircle%20cx%3D%2237.8%22%20cy%3D%2227%22%20r%3D%221.6%22%20fill%3D%22%23111827%22%2F%3E%20%3Cpath%20d%3D%22M28%2033.8h8%22%20fill%3D%22none%22%20stroke%3D%22%23b88462%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%20%3C%2Fsvg%3E",
-    "harry": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20role%3D%22img%22%20aria-label%3D%22Harry%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%2210%22%20y1%3D%224%22%20x2%3D%2254%22%20y2%3D%2258%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23ffd166%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23e08912%22%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22url%28%23bg%29%22%2F%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2257%22%20rx%3D%2216%22%20ry%3D%2210%22%20fill%3D%22%239a5a08%22%2F%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2228%22%20r%3D%2214%22%20fill%3D%22%23f0c4a0%22%2F%3E%20%3Cpath%20fill%3D%22%236b3b12%22%20d%3D%22M18%2024c1.5-10%208.2-14.5%2016.5-14%207.2.4%2011.8%205.2%2013%2012.5-4.5-5.5-9.5-7.8-16.5-7.2-5.2.5-9.5%203.2-13%208.7z%22%2F%3E%20%3Ccircle%20cx%3D%2226.5%22%20cy%3D%2228%22%20r%3D%221.55%22%20fill%3D%22%233a2414%22%2F%3E%20%3Ccircle%20cx%3D%2237.5%22%20cy%3D%2228%22%20r%3D%221.55%22%20fill%3D%22%233a2414%22%2F%3E%20%3Cpath%20d%3D%22M28%2034.8c1.6%201.4%206.4%201.4%208%200%22%20fill%3D%22none%22%20stroke%3D%22%23c89068%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%20%3C%2Fsvg%3E",
-    "hazel": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20role%3D%22img%22%20aria-label%3D%22Hazel%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%228%22%20y1%3D%224%22%20x2%3D%2256%22%20y2%3D%2260%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23d2c4ff%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%237c5cff%22%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22url%28%23bg%29%22%2F%3E%20%3Cpath%20fill%3D%22%232a1b12%22%20d%3D%22M11%2028c3-18%2013-24%2021-24s18%206%2021%2024c-1.5%2012-4%2024-7%2028-2.2-12-5.5-18-14-18s-11.8%206-14%2018c-3-4-5.5-16-7-28z%22%2F%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2257%22%20rx%3D%2215%22%20ry%3D%2210%22%20fill%3D%22%234b2fad%22%2F%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2228%22%20r%3D%2213.5%22%20fill%3D%22%23f4c9a8%22%2F%3E%20%3Cpath%20fill%3D%22%232a1b12%22%20d%3D%22M18%2023c2.8-9%209-12.5%2014-12.5s11.2%203.5%2014%2012.5c-3.5-3.5-8.2-5.2-14-5.2S21.5%2019.5%2018%2023z%22%2F%3E%20%3Ccircle%20cx%3D%2226.5%22%20cy%3D%2228.5%22%20r%3D%221.55%22%20fill%3D%22%232a1b12%22%2F%3E%20%3Ccircle%20cx%3D%2237.5%22%20cy%3D%2228.5%22%20r%3D%221.55%22%20fill%3D%22%232a1b12%22%2F%3E%20%3Cpath%20d%3D%22M28%2035c1.8%201.5%206.2%201.5%208%200%22%20fill%3D%22none%22%20stroke%3D%22%23d19a74%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%20%3C%2Fsvg%3E",
-    "jessica": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20role%3D%22img%22%20aria-label%3D%22Jessica%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%2210%22%20y1%3D%222%22%20x2%3D%2254%22%20y2%3D%2260%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23ff8ec8%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23d9488a%22%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22url%28%23bg%29%22%2F%3E%20%3Cpath%20fill%3D%22%235a2d16%22%20d%3D%22M12%2026c2-16%2012-22%2020-22s18%206%2020%2022c-1%2014-5%2028-8%2030-2-10-5-16-12-16s-10%206-12%2016c-3-2-7-16-8-30z%22%2F%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2257%22%20rx%3D%2215%22%20ry%3D%2210%22%20fill%3D%22%238b2458%22%2F%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2228%22%20r%3D%2213.5%22%20fill%3D%22%23f6d0ae%22%2F%3E%20%3Cpath%20fill%3D%22%235a2d16%22%20d%3D%22M18.5%2022c2.5-8.5%208.8-12%2013.5-12s11%203.5%2013.5%2012c-3.2-3-7.8-4.6-13.5-4.6S21.7%2019%2018.5%2022z%22%2F%3E%20%3Ccircle%20cx%3D%2226.5%22%20cy%3D%2228.5%22%20r%3D%221.55%22%20fill%3D%22%233a2414%22%2F%3E%20%3Ccircle%20cx%3D%2237.5%22%20cy%3D%2228.5%22%20r%3D%221.55%22%20fill%3D%22%233a2414%22%2F%3E%20%3Cpath%20d%3D%22M28%2035c1.8%201.6%206.2%201.6%208%200%22%20fill%3D%22none%22%20stroke%3D%22%23d39a74%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%20%3C%2Fsvg%3E",
-    "max": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20role%3D%22img%22%20aria-label%3D%22Max%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%228%22%20y1%3D%224%22%20x2%3D%2256%22%20y2%3D%2260%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%235ef0a8%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%231f9d63%22%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22url%28%23bg%29%22%2F%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2257%22%20rx%3D%2216%22%20ry%3D%2210%22%20fill%3D%22%230f5a3a%22%2F%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2228%22%20r%3D%2214%22%20fill%3D%22%23efc19a%22%2F%3E%20%3Cpath%20fill%3D%22%23243047%22%20d%3D%22M17%2026c1-11%208.5-16.5%2015-16.5S48%2015%2049%2026c-1.5-2.2-3.2-3-5.2-2.2-1.8.7-2.8-.8-4.6-1.4-2-.7-3.4.8-5.2.8s-3.2-1.5-5.2-.8c-1.8.6-2.8%202.1-4.6%201.4-2-.8-3.7%200-5.2%202.2z%22%2F%3E%20%3Ccircle%20cx%3D%2226.4%22%20cy%3D%2228.2%22%20r%3D%221.6%22%20fill%3D%22%23243047%22%2F%3E%20%3Ccircle%20cx%3D%2237.6%22%20cy%3D%2228.2%22%20r%3D%221.6%22%20fill%3D%22%23243047%22%2F%3E%20%3Cpath%20d%3D%22M27.5%2035c2%201.5%207%201.5%209%200%22%20fill%3D%22none%22%20stroke%3D%22%23c58a64%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%20%3C%2Fsvg%3E",
-    "paul": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20role%3D%22img%22%20aria-label%3D%22Paul%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%2210%22%20y1%3D%224%22%20x2%3D%2254%22%20y2%3D%2258%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23ff9b7b%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23e25530%22%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22url%28%23bg%29%22%2F%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2257%22%20rx%3D%2216%22%20ry%3D%2210%22%20fill%3D%22%239a3018%22%2F%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2228.5%22%20r%3D%2214%22%20fill%3D%22%23f2c7a4%22%2F%3E%20%3Cpath%20fill%3D%22%23c9d2de%22%20d%3D%22M18%2024c.6-9%207.5-13.5%2014-13.5S49.4%2015%2050%2024c-2.8-4-8-6.5-18-6.5S20.8%2020%2018%2024z%22%2F%3E%20%3Ccircle%20cx%3D%2226.4%22%20cy%3D%2228.5%22%20r%3D%221.55%22%20fill%3D%22%232a3344%22%2F%3E%20%3Ccircle%20cx%3D%2237.6%22%20cy%3D%2228.5%22%20r%3D%221.55%22%20fill%3D%22%232a3344%22%2F%3E%20%3Cpath%20d%3D%22M27.5%2035.2c2%201.4%207%201.4%209%200%22%20fill%3D%22none%22%20stroke%3D%22%23c58d68%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%20%3C%2Fsvg%3E"
-  };
-
-  function newId() {
-    if (window.crypto && typeof window.crypto.randomUUID === "function") {
-      return window.crypto.randomUUID();
-    }
-    return "ui-" + Date.now() + "-" + Math.random().toString(16).slice(2);
-  }
-
-  function node(tag, className, text) {
-    const element = document.createElement(tag);
-    if (className) element.className = className;
-    if (text !== undefined && text !== null) element.textContent = text;
-    return element;
-  }
-
-  function personaKey(persona) {
-    const value = String(persona || activePersona || "Max").trim().toLowerCase();
-    return value.split(/\s+/)[0] || "max";
-  }
-
-  function personaAvatar(persona) {
-    const key = personaKey(persona);
-    const img = node("img", "avatar");
-    img.src = PERSONA_AVATARS[key] || PERSONA_AVATARS.max;
-    img.alt = "";
-    img.setAttribute("aria-label", String(persona || activePersona || "Max").trim().split(/\s+/)[0] || "Bot");
-    return img;
-  }
-
-  function fieldMap(turn) {
-    const map = {};
-    const fields = (turn && turn.goal && turn.goal.fields) || [];
-    fields.forEach((field) => {
-      if (field && field.key) map[field.key] = field;
-    });
-    if (!fields.length && turn && turn.known) {
-      Object.keys(turn.known).forEach((key) => {
-        map[key] = {
-          key,
-          label: FIELD_LABELS[key] || key,
-          value: turn.known[key],
-          status: turn.known[key] ? "visitor" : "unknown"
+    <script>
+      (() => {
+        const FIELD_LABELS = {
+          product: "Product",
+          use_case: "For",
+          style: "Style",
+          sizes: "Size",
+          finishes: "Finish",
+          quantity: "Quantity",
+          skus: "Designs",
+          material: "Material",
+          extras: "Extras",
+          name: "Name",
+          email: "Email",
+          phone: "Phone",
         };
-      });
-    }
-    return map;
-  }
+        const REQUIRED_KEYS = ["product", "sizes", "quantity"];
+        const OPTIONAL_KEYS = [
+          "use_case",
+          "style",
+          "finishes",
+          "skus",
+          "material",
+          "extras",
+          "name",
+          "email",
+          "phone",
+        ];
+        const SETTLED = new Set(["visitor", "confirmed", "waived"]);
+        const HANDOFF_TEXT = {
+          human: "A packaging specialist will take over from here.",
+          complex:
+            "Several topics came up, so a specialist will cover the rest.",
+          max_turns: "A specialist will help finish this conversation.",
+          quote:
+            "Everything needed for the quote is collected. The team will email it.",
+          stalled: "A specialist will take over to help with the rest.",
+          declined: "No problem. A specialist can help with the rest.",
+        };
 
-  function isFilled(field) {
-    if (!field) return false;
-    if (field.status && SETTLED.has(field.status) && field.value) return true;
-    if (field.status === "suggested" && field.value) return true;
-    return Boolean(field.value);
-  }
+        const els = {
+          messages: document.getElementById("messages"),
+          input: document.getElementById("input"),
+          send: document.getElementById("send"),
+          composer: document.getElementById("composer"),
+          composerShell: document.getElementById("composer-shell"),
+          newChat: document.getElementById("new-chat"),
+          modeBadge: document.getElementById("mode-badge"),
+          kbBadge: document.getElementById("kb-badge"),
+          modeNote: document.getElementById("mode-note"),
+          layout: document.getElementById("layout"),
+          debugPanel: document.getElementById("debug-panel"),
+          panelToggle: document.getElementById("panel-toggle"),
+          panelClose: document.getElementById("panel-close"),
+          debugEmpty: document.getElementById("debug-empty"),
+          panelBrief: document.getElementById("panel-brief"),
+          panelTurns: document.getElementById("panel-turns"),
+          panelIssues: document.getElementById("panel-issues"),
+          footTurn: document.getElementById("foot-turn"),
+          footId: document.getElementById("foot-id"),
+          footChips: document.getElementById("foot-chips"),
+          tabs: Array.from(document.querySelectorAll(".tab")),
+          attachInput: document.getElementById("attach-input"),
+          attachBtn: document.getElementById("attach-btn"),
+          attachPreview: document.getElementById("attach-preview"),
+          attachThumb: document.getElementById("attach-thumb"),
+          attachName: document.getElementById("attach-name"),
+          attachClear: document.getElementById("attach-clear"),
+        };
 
-  function shortId(value) {
-    const text = String(value || "");
-    if (!text) return "";
-    return text.length > 8 ? text.slice(0, 8) : text;
-  }
+        let conversationId = newId();
+        let busy = false;
+        let handedOff = false;
+        let handoffLocked = false;
+        let panelOpen = true;
+        let debugTurns = [];
+        let typingElement = null;
+        let pendingImage = null;
+        let activeTab = "brief";
+        let issueCount = 0;
+        let activePersona = "Max Carter";
+        const PANEL_KEY = "print247.debugPanelOpen";
 
-  function addMessage(role, text, meta, imageUrl, options) {
-    const wrap = node("div", "msg " + role);
-    const opts = options || {};
+        const PERSONA_AVATARS = {
+          alex: "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20role%3D%22img%22%20aria-label%3D%22Alex%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%2210%22%20y1%3D%224%22%20x2%3D%2254%22%20y2%3D%2260%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%2357e0c8%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%231fa892%22%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22url%28%23bg%29%22%2F%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2256%22%20rx%3D%2216%22%20ry%3D%2210%22%20fill%3D%22%230e4f47%22%2F%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2228%22%20r%3D%2214%22%20fill%3D%22%23f3c7a0%22%2F%3E%20%3Cpath%20fill%3D%22%231d2433%22%20d%3D%22M18%2024c1.2-10%208-14%2014-14s12.8%204%2014%2014c-2.2-3.8-7-6.2-14-6.2S20.2%2020.2%2018%2024z%22%2F%3E%20%3Ccircle%20cx%3D%2226.5%22%20cy%3D%2228%22%20r%3D%221.6%22%20fill%3D%22%231d2433%22%2F%3E%20%3Ccircle%20cx%3D%2237.5%22%20cy%3D%2228%22%20r%3D%221.6%22%20fill%3D%22%231d2433%22%2F%3E%20%3Cpath%20d%3D%22M27%2034.5c2%201.8%208%201.8%2010%200%22%20fill%3D%22none%22%20stroke%3D%22%23c48a66%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%2F%3E%20%3C%2Fsvg%3E",
+          brian:
+            "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20role%3D%22img%22%20aria-label%3D%22Brian%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%228%22%20y1%3D%224%22%20x2%3D%2256%22%20y2%3D%2260%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%239ef0d4%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%232bb89f%22%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22url%28%23bg%29%22%2F%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2257%22%20rx%3D%2216%22%20ry%3D%2210%22%20fill%3D%22%230f5c52%22%2F%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2228%22%20r%3D%2214%22%20fill%3D%22%23d9a57c%22%2F%3E%20%3Cpath%20fill%3D%22%231a1f2b%22%20d%3D%22M19.5%2022.5c1-7.5%206.8-10.5%2012.5-10.5s11.5%203%2012.5%2010.5c-2.2-2.2-6.5-3.4-12.5-3.4s-10.3%201.2-12.5%203.4z%22%2F%3E%20%3Ccircle%20cx%3D%2226.5%22%20cy%3D%2228%22%20r%3D%221.55%22%20fill%3D%22%231a1f2b%22%2F%3E%20%3Ccircle%20cx%3D%2237.5%22%20cy%3D%2228%22%20r%3D%221.55%22%20fill%3D%22%231a1f2b%22%2F%3E%20%3Cpath%20d%3D%22M28%2034.6c1.6%201.4%206.4%201.4%208%200%22%20fill%3D%22none%22%20stroke%3D%22%23b07a55%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%20%3C%2Fsvg%3E",
+          ethan:
+            "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20role%3D%22img%22%20aria-label%3D%22Ethan%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%228%22%20y1%3D%224%22%20x2%3D%2256%22%20y2%3D%2260%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%238ec5ff%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%233b78e7%22%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22url%28%23bg%29%22%2F%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2257%22%20rx%3D%2216%22%20ry%3D%2210%22%20fill%3D%22%231d4f9a%22%2F%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2228%22%20r%3D%2214%22%20fill%3D%22%23e8b894%22%2F%3E%20%3Cpath%20fill%3D%22%231a2333%22%20d%3D%22M19%2025c1.2-10.5%207.8-15%2013-15s11.8%204.5%2013%2015c-2.5-4.2-7-6.8-13-6.8S21.5%2020.8%2019%2025z%22%2F%3E%20%3Crect%20x%3D%2220.5%22%20y%3D%2225.2%22%20width%3D%2223%22%20height%3D%225.2%22%20rx%3D%222.6%22%20fill%3D%22none%22%20stroke%3D%22%231a2333%22%20stroke-width%3D%221.7%22%2F%3E%20%3Ccircle%20cx%3D%2226.5%22%20cy%3D%2227.8%22%20r%3D%221.35%22%20fill%3D%22%231a2333%22%2F%3E%20%3Ccircle%20cx%3D%2237.5%22%20cy%3D%2227.8%22%20r%3D%221.35%22%20fill%3D%22%231a2333%22%2F%3E%20%3Cpath%20d%3D%22M28%2034.5c1.7%201.5%206.3%201.5%208%200%22%20fill%3D%22none%22%20stroke%3D%22%23bf8662%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%20%3C%2Fsvg%3E",
+          frank:
+            "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20role%3D%22img%22%20aria-label%3D%22Frank%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%228%22%20y1%3D%226%22%20x2%3D%2256%22%20y2%3D%2258%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%238a6bff%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%233d2a9e%22%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22url%28%23bg%29%22%2F%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2257%22%20rx%3D%2217%22%20ry%3D%2211%22%20fill%3D%22%2324185f%22%2F%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2227%22%20r%3D%2214%22%20fill%3D%22%23e2b48f%22%2F%3E%20%3Cpath%20fill%3D%22%23111827%22%20d%3D%22M17%2023c.8-9.5%208.2-14%2015-14s14.2%204.5%2015%2014c-3-5-8.5-7.5-15-7.5S20%2018%2017%2023z%22%2F%3E%20%3Cpath%20fill%3D%22%232a3344%22%20d%3D%22M22%2036.5c2.4%205.5%2017.6%205.5%2020%200-2.8%201.4-7.2%202.1-10%202.1s-7.2-.7-10-2.1z%22%2F%3E%20%3Ccircle%20cx%3D%2226.2%22%20cy%3D%2227%22%20r%3D%221.6%22%20fill%3D%22%23111827%22%2F%3E%20%3Ccircle%20cx%3D%2237.8%22%20cy%3D%2227%22%20r%3D%221.6%22%20fill%3D%22%23111827%22%2F%3E%20%3Cpath%20d%3D%22M28%2033.8h8%22%20fill%3D%22none%22%20stroke%3D%22%23b88462%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%20%3C%2Fsvg%3E",
+          harry:
+            "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20role%3D%22img%22%20aria-label%3D%22Harry%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%2210%22%20y1%3D%224%22%20x2%3D%2254%22%20y2%3D%2258%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23ffd166%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23e08912%22%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22url%28%23bg%29%22%2F%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2257%22%20rx%3D%2216%22%20ry%3D%2210%22%20fill%3D%22%239a5a08%22%2F%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2228%22%20r%3D%2214%22%20fill%3D%22%23f0c4a0%22%2F%3E%20%3Cpath%20fill%3D%22%236b3b12%22%20d%3D%22M18%2024c1.5-10%208.2-14.5%2016.5-14%207.2.4%2011.8%205.2%2013%2012.5-4.5-5.5-9.5-7.8-16.5-7.2-5.2.5-9.5%203.2-13%208.7z%22%2F%3E%20%3Ccircle%20cx%3D%2226.5%22%20cy%3D%2228%22%20r%3D%221.55%22%20fill%3D%22%233a2414%22%2F%3E%20%3Ccircle%20cx%3D%2237.5%22%20cy%3D%2228%22%20r%3D%221.55%22%20fill%3D%22%233a2414%22%2F%3E%20%3Cpath%20d%3D%22M28%2034.8c1.6%201.4%206.4%201.4%208%200%22%20fill%3D%22none%22%20stroke%3D%22%23c89068%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%20%3C%2Fsvg%3E",
+          hazel:
+            "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20role%3D%22img%22%20aria-label%3D%22Hazel%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%228%22%20y1%3D%224%22%20x2%3D%2256%22%20y2%3D%2260%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23d2c4ff%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%237c5cff%22%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22url%28%23bg%29%22%2F%3E%20%3Cpath%20fill%3D%22%232a1b12%22%20d%3D%22M11%2028c3-18%2013-24%2021-24s18%206%2021%2024c-1.5%2012-4%2024-7%2028-2.2-12-5.5-18-14-18s-11.8%206-14%2018c-3-4-5.5-16-7-28z%22%2F%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2257%22%20rx%3D%2215%22%20ry%3D%2210%22%20fill%3D%22%234b2fad%22%2F%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2228%22%20r%3D%2213.5%22%20fill%3D%22%23f4c9a8%22%2F%3E%20%3Cpath%20fill%3D%22%232a1b12%22%20d%3D%22M18%2023c2.8-9%209-12.5%2014-12.5s11.2%203.5%2014%2012.5c-3.5-3.5-8.2-5.2-14-5.2S21.5%2019.5%2018%2023z%22%2F%3E%20%3Ccircle%20cx%3D%2226.5%22%20cy%3D%2228.5%22%20r%3D%221.55%22%20fill%3D%22%232a1b12%22%2F%3E%20%3Ccircle%20cx%3D%2237.5%22%20cy%3D%2228.5%22%20r%3D%221.55%22%20fill%3D%22%232a1b12%22%2F%3E%20%3Cpath%20d%3D%22M28%2035c1.8%201.5%206.2%201.5%208%200%22%20fill%3D%22none%22%20stroke%3D%22%23d19a74%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%20%3C%2Fsvg%3E",
+          jessica:
+            "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20role%3D%22img%22%20aria-label%3D%22Jessica%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%2210%22%20y1%3D%222%22%20x2%3D%2254%22%20y2%3D%2260%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23ff8ec8%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23d9488a%22%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22url%28%23bg%29%22%2F%3E%20%3Cpath%20fill%3D%22%235a2d16%22%20d%3D%22M12%2026c2-16%2012-22%2020-22s18%206%2020%2022c-1%2014-5%2028-8%2030-2-10-5-16-12-16s-10%206-12%2016c-3-2-7-16-8-30z%22%2F%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2257%22%20rx%3D%2215%22%20ry%3D%2210%22%20fill%3D%22%238b2458%22%2F%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2228%22%20r%3D%2213.5%22%20fill%3D%22%23f6d0ae%22%2F%3E%20%3Cpath%20fill%3D%22%235a2d16%22%20d%3D%22M18.5%2022c2.5-8.5%208.8-12%2013.5-12s11%203.5%2013.5%2012c-3.2-3-7.8-4.6-13.5-4.6S21.7%2019%2018.5%2022z%22%2F%3E%20%3Ccircle%20cx%3D%2226.5%22%20cy%3D%2228.5%22%20r%3D%221.55%22%20fill%3D%22%233a2414%22%2F%3E%20%3Ccircle%20cx%3D%2237.5%22%20cy%3D%2228.5%22%20r%3D%221.55%22%20fill%3D%22%233a2414%22%2F%3E%20%3Cpath%20d%3D%22M28%2035c1.8%201.6%206.2%201.6%208%200%22%20fill%3D%22none%22%20stroke%3D%22%23d39a74%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%20%3C%2Fsvg%3E",
+          max: "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20role%3D%22img%22%20aria-label%3D%22Max%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%228%22%20y1%3D%224%22%20x2%3D%2256%22%20y2%3D%2260%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%235ef0a8%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%231f9d63%22%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22url%28%23bg%29%22%2F%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2257%22%20rx%3D%2216%22%20ry%3D%2210%22%20fill%3D%22%230f5a3a%22%2F%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2228%22%20r%3D%2214%22%20fill%3D%22%23efc19a%22%2F%3E%20%3Cpath%20fill%3D%22%23243047%22%20d%3D%22M17%2026c1-11%208.5-16.5%2015-16.5S48%2015%2049%2026c-1.5-2.2-3.2-3-5.2-2.2-1.8.7-2.8-.8-4.6-1.4-2-.7-3.4.8-5.2.8s-3.2-1.5-5.2-.8c-1.8.6-2.8%202.1-4.6%201.4-2-.8-3.7%200-5.2%202.2z%22%2F%3E%20%3Ccircle%20cx%3D%2226.4%22%20cy%3D%2228.2%22%20r%3D%221.6%22%20fill%3D%22%23243047%22%2F%3E%20%3Ccircle%20cx%3D%2237.6%22%20cy%3D%2228.2%22%20r%3D%221.6%22%20fill%3D%22%23243047%22%2F%3E%20%3Cpath%20d%3D%22M27.5%2035c2%201.5%207%201.5%209%200%22%20fill%3D%22none%22%20stroke%3D%22%23c58a64%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%20%3C%2Fsvg%3E",
+          paul: "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%20role%3D%22img%22%20aria-label%3D%22Paul%22%3E%20%3Cdefs%3E%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%2210%22%20y1%3D%224%22%20x2%3D%2254%22%20y2%3D%2258%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%20%3Cstop%20offset%3D%220%25%22%20stop-color%3D%22%23ff9b7b%22%2F%3E%3Cstop%20offset%3D%22100%25%22%20stop-color%3D%22%23e25530%22%2F%3E%20%3C%2FlinearGradient%3E%20%3C%2Fdefs%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2232%22%20r%3D%2232%22%20fill%3D%22url%28%23bg%29%22%2F%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2257%22%20rx%3D%2216%22%20ry%3D%2210%22%20fill%3D%22%239a3018%22%2F%3E%20%3Ccircle%20cx%3D%2232%22%20cy%3D%2228.5%22%20r%3D%2214%22%20fill%3D%22%23f2c7a4%22%2F%3E%20%3Cpath%20fill%3D%22%23c9d2de%22%20d%3D%22M18%2024c.6-9%207.5-13.5%2014-13.5S49.4%2015%2050%2024c-2.8-4-8-6.5-18-6.5S20.8%2020%2018%2024z%22%2F%3E%20%3Ccircle%20cx%3D%2226.4%22%20cy%3D%2228.5%22%20r%3D%221.55%22%20fill%3D%22%232a3344%22%2F%3E%20%3Ccircle%20cx%3D%2237.6%22%20cy%3D%2228.5%22%20r%3D%221.55%22%20fill%3D%22%232a3344%22%2F%3E%20%3Cpath%20d%3D%22M27.5%2035.2c2%201.4%207%201.4%209%200%22%20fill%3D%22none%22%20stroke%3D%22%23c58d68%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%20%3C%2Fsvg%3E",
+        };
 
-    if (role === "system") {
-      const bubble = node("div", "bubble", text);
-      wrap.appendChild(bubble);
-      els.messages.appendChild(wrap);
-      els.messages.scrollTop = els.messages.scrollHeight;
-      return wrap;
-    }
+        function newId() {
+          if (window.crypto && typeof window.crypto.randomUUID === "function") {
+            return window.crypto.randomUUID();
+          }
+          return "ui-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+        }
 
-    const row = node("div", "msg-row");
-    if (role === "bot") {
-      row.appendChild(personaAvatar(opts.persona));
-    }
-    const bubble = node("div", "bubble" + (imageUrl ? " with-image" : ""));
-    if (imageUrl) {
-      const img = node("img");
-      img.src = imageUrl;
-      img.alt = "Reference image";
-      bubble.appendChild(img);
-    }
-    if (text) {
-      if (imageUrl) bubble.appendChild(node("div", "caption", text));
-      else bubble.appendChild(document.createTextNode(text));
-    }
-    row.appendChild(bubble);
-    wrap.appendChild(row);
-    if (meta) wrap.appendChild(node("div", "meta", meta));
+        function node(tag, className, text) {
+          const element = document.createElement(tag);
+          if (className) element.className = className;
+          if (text !== undefined && text !== null) element.textContent = text;
+          return element;
+        }
 
-    if (role === "bot" && opts.quickReplies && opts.quickReplies.length) {
-      const chips = node("div", "quick-replies");
-      opts.quickReplies.forEach((item) => {
-        const btn = node("button", "chip-btn" + (item.action === "attach" ? " accent" : ""), item.label);
-        btn.type = "button";
-        if (item.action === "attach") {
-          btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
-          btn.appendChild(document.createTextNode(item.label));
-          btn.addEventListener("click", () => {
-            if (!busy && !handoffLocked) els.attachInput.click();
+        function personaKey(persona) {
+          const value = String(persona || activePersona || "Max")
+            .trim()
+            .toLowerCase();
+          return value.split(/\s+/)[0] || "max";
+        }
+
+        function personaAvatar(persona) {
+          const key = personaKey(persona);
+          const img = node("img", "avatar");
+          img.src = PERSONA_AVATARS[key] || PERSONA_AVATARS.max;
+          img.alt = "";
+          img.setAttribute(
+            "aria-label",
+            String(persona || activePersona || "Max")
+              .trim()
+              .split(/\s+/)[0] || "Bot",
+          );
+          return img;
+        }
+
+        function fieldMap(turn) {
+          const map = {};
+          const fields = (turn && turn.goal && turn.goal.fields) || [];
+          fields.forEach((field) => {
+            if (field && field.key) map[field.key] = field;
           });
-        } else {
-          btn.addEventListener("click", () => {
-            if (busy || handoffLocked) return;
-            els.input.value = item.label;
-            sendMessage();
+          if (!fields.length && turn && turn.known) {
+            Object.keys(turn.known).forEach((key) => {
+              map[key] = {
+                key,
+                label: FIELD_LABELS[key] || key,
+                value: turn.known[key],
+                status: turn.known[key] ? "visitor" : "unknown",
+              };
+            });
+          }
+          return map;
+        }
+
+        function isFilled(field) {
+          if (!field) return false;
+          if (field.status && SETTLED.has(field.status) && field.value)
+            return true;
+          if (field.status === "suggested" && field.value) return true;
+          return Boolean(field.value);
+        }
+
+        function shortId(value) {
+          const text = String(value || "");
+          if (!text) return "";
+          return text.length > 8 ? text.slice(0, 8) : text;
+        }
+
+        function addMessage(role, text, meta, imageUrl, options) {
+          const wrap = node("div", "msg " + role);
+          const opts = options || {};
+
+          if (role === "system") {
+            const bubble = node("div", "bubble", text);
+            wrap.appendChild(bubble);
+            els.messages.appendChild(wrap);
+            els.messages.scrollTop = els.messages.scrollHeight;
+            return wrap;
+          }
+
+          const row = node("div", "msg-row");
+          if (role === "bot") {
+            row.appendChild(personaAvatar(opts.persona));
+          }
+          const bubble = node(
+            "div",
+            "bubble" + (imageUrl ? " with-image" : ""),
+          );
+          if (imageUrl) {
+            const img = node("img");
+            img.src = imageUrl;
+            img.alt = "Reference image";
+            bubble.appendChild(img);
+          }
+          if (text) {
+            if (imageUrl) bubble.appendChild(node("div", "caption", text));
+            else bubble.appendChild(document.createTextNode(text));
+          }
+          row.appendChild(bubble);
+          wrap.appendChild(row);
+          if (meta) wrap.appendChild(node("div", "meta", meta));
+
+          if (role === "bot" && opts.quickReplies && opts.quickReplies.length) {
+            const chips = node("div", "quick-replies");
+            opts.quickReplies.forEach((item) => {
+              const btn = node(
+                "button",
+                "chip-btn" + (item.action === "attach" ? " accent" : ""),
+                item.label,
+              );
+              btn.type = "button";
+              if (item.action === "attach") {
+                btn.innerHTML =
+                  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
+                btn.appendChild(document.createTextNode(item.label));
+                btn.addEventListener("click", () => {
+                  if (!busy && !handoffLocked) els.attachInput.click();
+                });
+              } else {
+                btn.addEventListener("click", () => {
+                  if (busy || handoffLocked) return;
+                  els.input.value = item.label;
+                  sendMessage();
+                });
+              }
+              chips.appendChild(btn);
+            });
+            wrap.appendChild(chips);
+          }
+
+          els.messages.appendChild(wrap);
+          els.messages.scrollTop = els.messages.scrollHeight;
+          return wrap;
+        }
+
+        function addSystem(text) {
+          addMessage("system", text);
+        }
+
+        function extractQuickReplies(turn) {
+          const reply = String((turn && turn.reply) || "");
+          const lower = reply.toLowerCase();
+          const items = [];
+          const productMissing = (() => {
+            const map = fieldMap(turn);
+            return !isFilled(map.product);
+          })();
+
+          if (productMissing && /box|bag|label/.test(lower)) {
+            ["Boxes", "Bags", "Labels", "Something else"].forEach((label) => {
+              if (
+                lower.includes(
+                  label
+                    .toLowerCase()
+                    .replace(" something else", "something else")
+                    .split(" ")[0],
+                ) ||
+                label === "Something else"
+              ) {
+                items.push({ label, action: "send" });
+              }
+            });
+            const uniq = [];
+            const seen = new Set();
+            items.forEach((item) => {
+              if (seen.has(item.label)) return;
+              seen.add(item.label);
+              uniq.push(item);
+            });
+            if (uniq.length) {
+              uniq.push({ label: "Share a reference", action: "attach" });
+              return uniq;
+            }
+          }
+
+          const ask = (turn.goal && turn.goal.ask) || [];
+          if (
+            ask[0] === "product" ||
+            (productMissing &&
+              /looking to have made|what are you looking/.test(lower))
+          ) {
+            return [
+              { label: "Boxes", action: "send" },
+              { label: "Bags", action: "send" },
+              { label: "Labels", action: "send" },
+              { label: "Something else", action: "send" },
+              { label: "Share a reference", action: "attach" },
+            ];
+          }
+          return [];
+        }
+
+        function addBot(turn) {
+          if (turn.persona) activePersona = turn.persona;
+          addMessage(
+            "bot",
+            turn.reply,
+            turn.persona +
+              " · " +
+              turn.source +
+              " · " +
+              turn.elapsed_ms +
+              " ms",
+            null,
+            {
+              persona: turn.persona || activePersona,
+              quickReplies: extractQuickReplies(turn),
+            },
+          );
+        }
+
+        function clearPendingImage() {
+          pendingImage = null;
+          els.attachInput.value = "";
+          els.attachThumb.removeAttribute("src");
+          els.attachPreview.classList.remove("show");
+          els.attachPreview.hidden = true;
+          if (els.composerShell)
+            els.composerShell.classList.remove("has-attach");
+          if (els.attachBtn) els.attachBtn.classList.remove("active");
+        }
+
+        function setPendingImage(file, dataUrl, mime) {
+          pendingImage = {
+            file,
+            dataUrl,
+            mime,
+            base64: dataUrl.split(",", 2)[1] || "",
+          };
+          els.attachThumb.src = dataUrl;
+          els.attachName.textContent = file.name || "reference image";
+          els.attachPreview.hidden = false;
+          els.attachPreview.classList.add("show");
+          if (els.composerShell) els.composerShell.classList.add("has-attach");
+          if (els.attachBtn) els.attachBtn.classList.add("active");
+        }
+
+        function readFileAsDataUrl(file) {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ""));
+            reader.onerror = () =>
+              reject(new Error("Could not read that image."));
+            reader.readAsDataURL(file);
           });
         }
-        chips.appendChild(btn);
-      });
-      wrap.appendChild(chips);
-    }
 
-    els.messages.appendChild(wrap);
-    els.messages.scrollTop = els.messages.scrollHeight;
-    return wrap;
-  }
-
-  function addSystem(text) {
-    addMessage("system", text);
-  }
-
-  function extractQuickReplies(turn) {
-    const reply = String((turn && turn.reply) || "");
-    const lower = reply.toLowerCase();
-    const items = [];
-    const productMissing = (() => {
-      const map = fieldMap(turn);
-      return !isFilled(map.product);
-    })();
-
-    if (productMissing && /box|bag|label/.test(lower)) {
-      ["Boxes", "Bags", "Labels", "Something else"].forEach((label) => {
-        if (lower.includes(label.toLowerCase().replace(" something else", "something else").split(" ")[0]) || label === "Something else") {
-          items.push({ label, action: "send" });
+        async function acceptImageFile(file, label) {
+          if (!file) return false;
+          if (!String(file.type || "").startsWith("image/")) {
+            clearPendingImage();
+            addSystem("Please choose a JPG, PNG, WebP, or GIF image.");
+            return false;
+          }
+          if (file.size > 8 * 1024 * 1024) {
+            clearPendingImage();
+            addSystem("Image is too large (max 8MB).");
+            return false;
+          }
+          try {
+            const dataUrl = await readFileAsDataUrl(file);
+            const named = file.name
+              ? file
+              : new File([file], label || "pasted-image.png", {
+                  type: file.type || "image/png",
+                });
+            setPendingImage(
+              named,
+              dataUrl,
+              named.type || file.type || "image/jpeg",
+            );
+            return true;
+          } catch (error) {
+            clearPendingImage();
+            addSystem(error.message || "Could not read that image.");
+            return false;
+          }
         }
-      });
-      const uniq = [];
-      const seen = new Set();
-      items.forEach((item) => {
-        if (seen.has(item.label)) return;
-        seen.add(item.label);
-        uniq.push(item);
-      });
-      if (uniq.length) {
-        uniq.push({ label: "Share a reference", action: "attach" });
-        return uniq;
-      }
-    }
 
-    const ask = (turn.goal && turn.goal.ask) || [];
-    if (ask[0] === "product" || productMissing && /looking to have made|what are you looking/.test(lower)) {
-      return [
-        { label: "Boxes", action: "send" },
-        { label: "Bags", action: "send" },
-        { label: "Labels", action: "send" },
-        { label: "Something else", action: "send" },
-        { label: "Share a reference", action: "attach" }
-      ];
-    }
-    return [];
-  }
+        function imageFileFromClipboard(clipboardData) {
+          if (!clipboardData) return null;
+          const items = clipboardData.items
+            ? Array.from(clipboardData.items)
+            : [];
+          for (const item of items) {
+            if (
+              item &&
+              item.kind === "file" &&
+              String(item.type || "").startsWith("image/")
+            ) {
+              const file = item.getAsFile();
+              if (file) return file;
+            }
+          }
+          const files = clipboardData.files
+            ? Array.from(clipboardData.files)
+            : [];
+          return (
+            files.find((file) =>
+              String(file.type || "").startsWith("image/"),
+            ) || null
+          );
+        }
 
-  function addBot(turn) {
-    if (turn.persona) activePersona = turn.persona;
-    addMessage(
-      "bot",
-      turn.reply,
-      turn.persona + " · " + turn.source + " · " + turn.elapsed_ms + " ms",
-      null,
-      { persona: turn.persona || activePersona, quickReplies: extractQuickReplies(turn) }
-    );
-  }
+        async function handleImagePaste(event) {
+          if (busy || handoffLocked) return;
+          const file = imageFileFromClipboard(event.clipboardData);
+          if (!file) return;
+          event.preventDefault();
+          await acceptImageFile(file, "pasted-image.png");
+          els.input.focus();
+        }
 
-  function clearPendingImage() {
-    pendingImage = null;
-    els.attachInput.value = "";
-    els.attachThumb.removeAttribute("src");
-    els.attachPreview.classList.remove("show");
-    els.attachPreview.hidden = true;
-    if (els.composerShell) els.composerShell.classList.remove("has-attach");
-    if (els.attachBtn) els.attachBtn.classList.remove("active");
-  }
+        function showTyping() {
+          if (typingElement) return;
+          typingElement = node("div", "msg bot");
+          const row = node("div", "msg-row");
+          row.appendChild(personaAvatar(activePersona));
+          const bubble = node("div", "bubble");
+          const dots = node("span", "typing");
+          for (let i = 0; i < 3; i++) dots.appendChild(node("i"));
+          bubble.appendChild(dots);
+          row.appendChild(bubble);
+          typingElement.appendChild(row);
+          els.messages.appendChild(typingElement);
+          els.messages.scrollTop = els.messages.scrollHeight;
+        }
 
-  function setPendingImage(file, dataUrl, mime) {
-    pendingImage = { file, dataUrl, mime, base64: dataUrl.split(",", 2)[1] || "" };
-    els.attachThumb.src = dataUrl;
-    els.attachName.textContent = file.name || "reference image";
-    els.attachPreview.hidden = false;
-    els.attachPreview.classList.add("show");
-    if (els.composerShell) els.composerShell.classList.add("has-attach");
-    if (els.attachBtn) els.attachBtn.classList.add("active");
-  }
+        function hideTyping() {
+          if (typingElement && typingElement.parentNode)
+            typingElement.parentNode.removeChild(typingElement);
+          typingElement = null;
+        }
 
-  function readFileAsDataUrl(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => reject(new Error("Could not read that image."));
-      reader.readAsDataURL(file);
-    });
-  }
+        function setBusy(value) {
+          busy = value;
+          const locked = value || handoffLocked;
+          els.send.disabled = locked;
+          els.input.disabled = locked;
+          els.attachBtn.disabled = locked;
+          els.attachClear.disabled = locked;
+          if (value) showTyping();
+          else hideTyping();
+        }
 
-  async function acceptImageFile(file, label) {
-    if (!file) return false;
-    if (!String(file.type || "").startsWith("image/")) {
-      clearPendingImage();
-      addSystem("Please choose a JPG, PNG, WebP, or GIF image.");
-      return false;
-    }
-    if (file.size > 8 * 1024 * 1024) {
-      clearPendingImage();
-      addSystem("Image is too large (max 8MB).");
-      return false;
-    }
-    try {
-      const dataUrl = await readFileAsDataUrl(file);
-      const named = file.name
-        ? file
-        : new File([file], label || "pasted-image.png", { type: file.type || "image/png" });
-      setPendingImage(named, dataUrl, named.type || file.type || "image/jpeg");
-      return true;
-    } catch (error) {
-      clearPendingImage();
-      addSystem(error.message || "Could not read that image.");
-      return false;
-    }
-  }
+        function setHandedOff(reason) {
+          handedOff = Boolean(reason);
+          handoffLocked = reason === "quote";
+          const locked = busy || handoffLocked;
+          els.send.disabled = locked;
+          els.input.disabled = locked;
+          els.attachBtn.disabled = locked;
+          els.attachClear.disabled = locked;
+          if (handedOff) {
+            const note = handoffLocked
+              ? ""
+              : " Local demo: you can keep chatting.";
+            addSystem((HANDOFF_TEXT[reason] || HANDOFF_TEXT.human) + note);
+          }
+        }
 
-  function imageFileFromClipboard(clipboardData) {
-    if (!clipboardData) return null;
-    const items = clipboardData.items ? Array.from(clipboardData.items) : [];
-    for (const item of items) {
-      if (item && item.kind === "file" && String(item.type || "").startsWith("image/")) {
-        const file = item.getAsFile();
-        if (file) return file;
-      }
-    }
-    const files = clipboardData.files ? Array.from(clipboardData.files) : [];
-    return files.find((file) => String(file.type || "").startsWith("image/")) || null;
-  }
+        async function post(path, body) {
+          const response = await fetch(path, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          if (!response.ok) throw new Error("HTTP " + response.status);
+          return response.json();
+        }
 
-  async function handleImagePaste(event) {
-    if (busy || handoffLocked) return;
-    const file = imageFileFromClipboard(event.clipboardData);
-    if (!file) return;
-    event.preventDefault();
-    await acceptImageFile(file, "pasted-image.png");
-    els.input.focus();
-  }
+        function setModeBadge(mode) {
+          const label = mode === "live" ? "Live LLM" : mode;
+          els.modeBadge.className = "badge " + mode;
+          els.modeBadge.replaceChildren();
+          els.modeBadge.appendChild(node("span", "dot"));
+          els.modeBadge.appendChild(node("span", "label", label));
+        }
 
-  function showTyping() {
-    if (typingElement) return;
-    typingElement = node("div", "msg bot");
-    const row = node("div", "msg-row");
-    row.appendChild(personaAvatar(activePersona));
-    const bubble = node("div", "bubble");
-    const dots = node("span", "typing");
-    for (let i = 0; i < 3; i++) dots.appendChild(node("i"));
-    bubble.appendChild(dots);
-    row.appendChild(bubble);
-    typingElement.appendChild(row);
-    els.messages.appendChild(typingElement);
-    els.messages.scrollTop = els.messages.scrollHeight;
-  }
+        async function loadHealth() {
+          try {
+            const response = await fetch("/health");
+            const data = await response.json();
+            const mode = data.mode || "unknown";
+            setModeBadge(mode);
+            els.kbBadge.textContent =
+              (data.kb && data.kb.chunks ? data.kb.chunks : 0) + " chunks";
+            els.modeNote.textContent = data.real_llm_enabled
+              ? "Live model: replies cost money"
+              : "Fake mode: heuristic replies, no API calls.";
+          } catch (error) {
+            setModeBadge("offline");
+            els.modeNote.textContent = "Could not read /health.";
+          }
+        }
 
-  function hideTyping() {
-    if (typingElement && typingElement.parentNode) typingElement.parentNode.removeChild(typingElement);
-    typingElement = null;
-  }
+        async function startChat() {
+          handedOff = false;
+          handoffLocked = false;
+          debugTurns = [];
+          activePersona = "Max Carter";
+          clearPendingImage();
+          els.messages.replaceChildren();
+          renderDebug();
+          setBusy(true);
+          try {
+            const turn = await post("/api/start", {
+              conversation_id: conversationId,
+            });
+            if (turn.reply) addBot(turn);
+            if (turn.handoff) setHandedOff(turn.handoff);
+            recordTurn(turn, "");
+          } catch (error) {
+            addSystem("Could not start the chat: " + error.message);
+          } finally {
+            setBusy(false);
+            els.input.focus();
+          }
+        }
 
-  function setBusy(value) {
-    busy = value;
-    const locked = value || handoffLocked;
-    els.send.disabled = locked;
-    els.input.disabled = locked;
-    els.attachBtn.disabled = locked;
-    els.attachClear.disabled = locked;
-    if (value) showTyping(); else hideTyping();
-  }
+        async function sendMessage() {
+          const text = els.input.value.trim();
+          const image = pendingImage;
+          if ((!text && !image) || busy || handoffLocked) return;
+          els.input.value = "";
+          fitInput();
+          clearPendingImage();
+          addMessage(
+            "visitor",
+            text || "Shared a reference image",
+            null,
+            image ? image.dataUrl : null,
+          );
+          setBusy(true);
+          try {
+            const body = { conversation_id: conversationId, text };
+            if (image) {
+              body.image_base64 = image.base64;
+              body.image_mime = image.mime;
+            }
+            const turn = await post("/api/chat", body);
+            if (turn.reply) addBot(turn);
+            if (turn.handoff) setHandedOff(turn.handoff);
+            recordTurn(turn, text || "[shared a reference image]");
+          } catch (error) {
+            addSystem("Request failed: " + error.message);
+          } finally {
+            setBusy(false);
+            els.input.focus();
+          }
+        }
 
-  function setHandedOff(reason) {
-    handedOff = Boolean(reason);
-    handoffLocked = reason === "quote";
-    const locked = busy || handoffLocked;
-    els.send.disabled = locked;
-    els.input.disabled = locked;
-    els.attachBtn.disabled = locked;
-    els.attachClear.disabled = locked;
-    if (handedOff) {
-      const note = handoffLocked ? "" : " Local demo: you can keep chatting.";
-      addSystem((HANDOFF_TEXT[reason] || HANDOFF_TEXT.human) + note);
-    }
-  }
+        function clear(target) {
+          while (target.firstChild) target.removeChild(target.firstChild);
+        }
 
-  async function post(path, body) {
-    const response = await fetch(path, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
-    if (!response.ok) throw new Error("HTTP " + response.status);
-    return response.json();
-  }
+        function clip(text, limit) {
+          const value = String(text || "")
+            .replace(/\s+/g, " ")
+            .trim();
+          if (value.length <= limit) return value;
+          return value.slice(0, limit - 1) + "…";
+        }
 
-  function setModeBadge(mode) {
-    const label = mode === "live" ? "Live LLM" : mode;
-    els.modeBadge.className = "badge " + mode;
-    els.modeBadge.replaceChildren();
-    els.modeBadge.appendChild(node("span", "dot"));
-    els.modeBadge.appendChild(node("span", "label", label));
-  }
+        function turnLabel(turn, index) {
+          if (turn.visitor) return '"' + clip(turn.visitor, 72) + '"';
+          if (index === 0) return "greeting";
+          return "turn " + (index + 1);
+        }
 
-  async function loadHealth() {
-    try {
-      const response = await fetch("/health");
-      const data = await response.json();
-      const mode = data.mode || "unknown";
-      setModeBadge(mode);
-      els.kbBadge.textContent = (data.kb && data.kb.chunks ? data.kb.chunks : 0) + " chunks";
-      els.modeNote.textContent = data.real_llm_enabled
-        ? "Live model: replies cost money"
-        : "Fake mode: heuristic replies, no API calls.";
-    } catch (error) {
-      setModeBadge("offline");
-      els.modeNote.textContent = "Could not read /health.";
-    }
-  }
+        function draftGroups(turn) {
+          if (turn.rejected_drafts && turn.rejected_drafts.length)
+            return turn.rejected_drafts;
+          if (turn.blocked && turn.blocked.length)
+            return [{ stage: "draft", issues: turn.blocked }];
+          return [];
+        }
 
-  async function startChat() {
-    handedOff = false;
-    handoffLocked = false;
-    debugTurns = [];
-    activePersona = "Max Carter";
-    clearPendingImage();
-    els.messages.replaceChildren();
-    renderDebug();
-    setBusy(true);
-    try {
-      const turn = await post("/api/start", { conversation_id: conversationId });
-      if (turn.reply) addBot(turn);
-      if (turn.handoff) setHandedOff(turn.handoff);
-      recordTurn(turn, "");
-    } catch (error) {
-      addSystem("Could not start the chat: " + error.message);
-    } finally {
-      setBusy(false);
-      els.input.focus();
-    }
-  }
+        function issueRow(issue, severity) {
+          const row = node(
+            "div",
+            "issue " + (severity || issue.severity || ""),
+          );
+          row.appendChild(
+            node(
+              "strong",
+              null,
+              (issue.code || "issue") +
+                (issue.severity ? " · " + issue.severity : ""),
+            ),
+          );
+          if (issue.detail) row.appendChild(node("span", null, issue.detail));
+          if (issue.excerpt) row.appendChild(node("code", null, issue.excerpt));
+          return row;
+        }
 
-  async function sendMessage() {
-    const text = els.input.value.trim();
-    const image = pendingImage;
-    if ((!text && !image) || busy || handoffLocked) return;
-    els.input.value = "";
-    fitInput();
-    clearPendingImage();
-    addMessage("visitor", text || "Shared a reference image", null, image ? image.dataUrl : null);
-    setBusy(true);
-    try {
-      const body = { conversation_id: conversationId, text };
-      if (image) {
-        body.image_base64 = image.base64;
-        body.image_mime = image.mime;
-      }
-      const turn = await post("/api/chat", body);
-      if (turn.reply) addBot(turn);
-      if (turn.handoff) setHandedOff(turn.handoff);
-      recordTurn(turn, text || "[shared a reference image]");
-    } catch (error) {
-      addSystem("Request failed: " + error.message);
-    } finally {
-      setBusy(false);
-      els.input.focus();
-    }
-  }
+        function appendIssues(parent, issues, emptyText) {
+          if (!issues || !issues.length) {
+            if (emptyText) parent.appendChild(node("p", "empty", emptyText));
+            return;
+          }
+          issues.forEach((issue) => parent.appendChild(issueRow(issue)));
+        }
 
-  function clear(target) {
-    while (target.firstChild) target.removeChild(target.firstChild);
-  }
+        function appendConfigs(parent, rows) {
+          if (!rows || !rows.length) {
+            parent.appendChild(node("p", "empty", "None."));
+            return;
+          }
+          rows.forEach((item) => {
+            const parts = [];
+            ["style", "material", "finish", "insert", "extras"].forEach(
+              (key) => {
+                const values = item[key];
+                if (values && values.length)
+                  parts.push(key + ": " + values.join(", "));
+              },
+            );
+            const line = node("div", "config-line");
+            const state = item.state || "";
+            line.appendChild(
+              node(
+                "b",
+                state ? "state-" + state : "",
+                (item.family || "config") + (state ? " · " + state : ""),
+              ),
+            );
+            if (parts.length)
+              line.appendChild(
+                document.createTextNode(" — " + parts.join(" · ")),
+              );
+            if (item.reason) line.appendChild(node("span", null, item.reason));
+            parent.appendChild(line);
+          });
+        }
 
-  function clip(text, limit) {
-    const value = String(text || "").replace(/\s+/g, " ").trim();
-    if (value.length <= limit) return value;
-    return value.slice(0, limit - 1) + "…";
-  }
+        function collectAllIssues() {
+          const all = [];
+          debugTurns.forEach((turn, index) => {
+            const label =
+              "Turn " + (index + 1) + " · " + turnLabel(turn, index);
+            // Badge / foot count only what was actually sent — rejected live drafts
+            // used to inflate "24 guard issues" across a short Spanish chat.
+            (turn.issues || []).forEach((issue) => {
+              if ((issue.severity || "") === "warn") return;
+              all.push({
+                label: label + " · sent",
+                issue,
+                severity: issue.severity || "block",
+                group: "sent",
+              });
+            });
+          });
+          return all;
+        }
 
-  function turnLabel(turn, index) {
-    if (turn.visitor) return '"' + clip(turn.visitor, 72) + '"';
-    if (index === 0) return "greeting";
-    return "turn " + (index + 1);
-  }
+        function collectDraftIssues() {
+          const all = [];
+          debugTurns.forEach((turn, index) => {
+            const label =
+              "Turn " + (index + 1) + " · " + turnLabel(turn, index);
+            draftGroups(turn).forEach((draft) => {
+              const stage = draft.stage || "draft";
+              (draft.issues || []).forEach((issue) => {
+                all.push({
+                  label: label + " · " + stage,
+                  issue,
+                  severity: issue.severity || "block",
+                  group: "draft",
+                });
+              });
+            });
+          });
+          return all;
+        }
 
-  function draftGroups(turn) {
-    if (turn.rejected_drafts && turn.rejected_drafts.length) return turn.rejected_drafts;
-    if (turn.blocked && turn.blocked.length) return [{ stage: "draft", issues: turn.blocked }];
-    return [];
-  }
+        function updateTabs() {
+          els.tabs.forEach((tab) => {
+            const name = tab.dataset.tab;
+            const active = name === activeTab;
+            tab.classList.toggle("active", active);
+            tab.setAttribute("aria-selected", active ? "true" : "false");
+            if (name === "turns")
+              tab.textContent = "Turns · " + debugTurns.length;
+            if (name === "issues") tab.textContent = "Issues · " + issueCount;
+            if (name === "brief") tab.textContent = "Brief";
+          });
+        }
 
-  function issueRow(issue, severity) {
-    const row = node("div", "issue " + (severity || issue.severity || ""));
-    row.appendChild(node("strong", null, (issue.code || "issue") + (issue.severity ? " · " + issue.severity : "")));
-    if (issue.detail) row.appendChild(node("span", null, issue.detail));
-    if (issue.excerpt) row.appendChild(node("code", null, issue.excerpt));
-    return row;
-  }
+        function setPanelOpen(open, options) {
+          const opts = options || {};
+          panelOpen = Boolean(open);
+          els.layout.classList.toggle("panel-collapsed", !panelOpen);
+          els.debugPanel.setAttribute(
+            "aria-hidden",
+            panelOpen ? "false" : "true",
+          );
+          els.panelToggle.setAttribute(
+            "aria-expanded",
+            panelOpen ? "true" : "false",
+          );
+          els.panelToggle.title = panelOpen
+            ? "Hide debug panel"
+            : "Show debug panel";
+          const label = els.panelToggle.querySelector(".label");
+          if (label) label.textContent = "Debug";
+          if (!opts.skipStore) {
+            try {
+              localStorage.setItem(PANEL_KEY, panelOpen ? "1" : "0");
+            } catch (_) {}
+          }
+        }
 
-  function appendIssues(parent, issues, emptyText) {
-    if (!issues || !issues.length) {
-      if (emptyText) parent.appendChild(node("p", "empty", emptyText));
-      return;
-    }
-    issues.forEach((issue) => parent.appendChild(issueRow(issue)));
-  }
+        function showActivePanel() {
+          const hasTurns = debugTurns.length > 0;
+          els.debugEmpty.hidden = hasTurns;
+          els.panelBrief.hidden = !(hasTurns && activeTab === "brief");
+          els.panelTurns.hidden = !(hasTurns && activeTab === "turns");
+          els.panelIssues.hidden = !(hasTurns && activeTab === "issues");
+          if (!debugTurns.length) {
+            els.debugEmpty.textContent =
+              "Send a message to see the pipeline output.";
+          }
+        }
 
-  function appendConfigs(parent, rows) {
-    if (!rows || !rows.length) {
-      parent.appendChild(node("p", "empty", "None."));
-      return;
-    }
-    rows.forEach((item) => {
-      const parts = [];
-      ["style", "material", "finish", "insert", "extras"].forEach((key) => {
-        const values = item[key];
-        if (values && values.length) parts.push(key + ": " + values.join(", "));
-      });
-      const line = node("div", "config-line");
-      const state = item.state || "";
-      line.appendChild(node("b", state ? "state-" + state : "", (item.family || "config") + (state ? " · " + state : "")));
-      if (parts.length) line.appendChild(document.createTextNode(" — " + parts.join(" · ")));
-      if (item.reason) line.appendChild(node("span", null, item.reason));
-      parent.appendChild(line);
-    });
-  }
+        function nextAskHint(goal, map) {
+          const ask = (goal && goal.ask) || [];
+          if (!ask.length) {
+            const missing = REQUIRED_KEYS.filter((key) => !isFilled(map[key]));
+            if (!missing.length) return "All quote-blocking fields are filled.";
+            return (
+              "Ask for " +
+              missing
+                .map((key) => (FIELD_LABELS[key] || key).toLowerCase())
+                .join(", then ")
+            );
+          }
+          const labels = ask
+            .slice(0, 2)
+            .map((key) => (FIELD_LABELS[key] || key).toLowerCase());
+          if (labels.length === 1) return "Ask for " + labels[0] + " next.";
+          return "Ask for " + labels[0] + ", then " + labels[1] + ".";
+        }
 
-  function collectAllIssues() {
-    const all = [];
-    debugTurns.forEach((turn, index) => {
-      const label = "Turn " + (index + 1) + " · " + turnLabel(turn, index);
-      // Badge / foot count only what was actually sent — rejected live drafts
-      // used to inflate "24 guard issues" across a short Spanish chat.
-      (turn.issues || []).forEach((issue) => {
-        if ((issue.severity || "") === "warn") return;
-        all.push({ label: label + " · sent", issue, severity: issue.severity || "block", group: "sent" });
-      });
-    });
-    return all;
-  }
+        function renderBrief(latest) {
+          clear(els.panelBrief);
+          const goal = latest.goal || {};
+          const map = fieldMap(latest);
+          const filledRequired = REQUIRED_KEYS.filter((key) =>
+            isFilled(map[key]),
+          ).length;
+          const ready = filledRequired >= REQUIRED_KEYS.length;
+          const pct = Math.round((filledRequired / REQUIRED_KEYS.length) * 100);
 
-  function collectDraftIssues() {
-    const all = [];
-    debugTurns.forEach((turn, index) => {
-      const label = "Turn " + (index + 1) + " · " + turnLabel(turn, index);
-      draftGroups(turn).forEach((draft) => {
-        const stage = draft.stage || "draft";
-        (draft.issues || []).forEach((issue) => {
-          all.push({ label: label + " · " + stage, issue, severity: issue.severity || "block", group: "draft" });
+          const card = node("div", "status-card" + (ready ? " ready" : ""));
+          const ring = node("div", "ring");
+          ring.style.setProperty("--pct", String(pct));
+          ring.appendChild(
+            node("span", null, filledRequired + "/" + REQUIRED_KEYS.length),
+          );
+          card.appendChild(ring);
+          const copy = node("div");
+          copy.appendChild(
+            node("h3", null, ready ? "Quote-ready" : "Not quote-ready"),
+          );
+          const family =
+            goal.family && goal.family !== "unknown"
+              ? String(goal.family).replace(/_/g, " ")
+              : "product";
+          const blurb = ready
+            ? family + " — blocking fields are complete."
+            : (map.product && map.product.value ? map.product.value : family) +
+              " — " +
+              nextAskHint(goal, map);
+          copy.appendChild(node("p", null, blurb));
+          card.appendChild(copy);
+          els.panelBrief.appendChild(card);
+
+          els.panelBrief.appendChild(node("div", "section-label", "Required"));
+          const list = node("div", "req-list");
+          REQUIRED_KEYS.forEach((key) => {
+            const field = map[key] || { key, value: "", status: "unknown" };
+            const filled = isFilled(field);
+            const row = node("div", "req-row " + (filled ? "ok" : "miss"));
+            row.appendChild(node("div", "ico", filled ? "✓" : "!"));
+            row.appendChild(node("div", "label", FIELD_LABELS[key] || key));
+            row.appendChild(
+              node("div", "value", filled ? field.value || "Set" : "Missing"),
+            );
+            list.appendChild(row);
+          });
+          els.panelBrief.appendChild(list);
+
+          els.panelBrief.appendChild(
+            node("div", "section-label", "Captured and optional"),
+          );
+          const tags = node("div", "tag-cloud");
+          OPTIONAL_KEYS.forEach((key) => {
+            const field = map[key];
+            const label = FIELD_LABELS[key] || key;
+            if (field && field.value) {
+              const tag = node(
+                "span",
+                "tag " +
+                  (field.status === "suggested" ? "suggested" : "filled"),
+                label + ": " + field.value,
+              );
+              tags.appendChild(tag);
+            } else {
+              tags.appendChild(node("span", "tag", label));
+            }
+          });
+          els.panelBrief.appendChild(tags);
+
+          if (goal.do_not_ask && goal.do_not_ask.length) {
+            els.panelBrief.appendChild(
+              node("div", "section-label", "Do not ask"),
+            );
+            goal.do_not_ask.forEach((item) => {
+              els.panelBrief.appendChild(
+                node(
+                  "div",
+                  "chunk",
+                  (FIELD_LABELS[item.key] || item.key) +
+                    ': "' +
+                    clip(item.words, 64) +
+                    '"',
+                ),
+              );
+            });
+          }
+        }
+
+        function renderTurn(turn, index) {
+          const card = node("section", "turn");
+          card.appendChild(
+            node(
+              "h4",
+              null,
+              "Turn " + (index + 1) + " · " + turnLabel(turn, index),
+            ),
+          );
+
+          const chips = node("div", "summary");
+          const labels = [
+            "source: " + (turn.source || "none"),
+            "persona: " + (turn.persona || ""),
+            "handoff: " + (turn.handoff || "none"),
+            "elapsed: " + (turn.elapsed_ms || 0) + " ms",
+            "move: " + (turn.move || "none"),
+            "language: " + (turn.language || "English"),
+          ];
+          if (turn.reply_english) labels.push("translated: yes");
+          if (turn.flags && turn.flags.translate_skipped)
+            labels.push("translate: " + turn.flags.translate_skipped);
+          const context = turn.context || {};
+          if (context.tier) labels.push("context: " + context.tier);
+          if (context.primer_tokens)
+            labels.push("primer: " + context.primer_tokens + " tokens");
+          if (context.prompt_chunks)
+            labels.push("chunks in prompt: " + context.prompt_chunks);
+          if (context.prompt_tokens)
+            labels.push("prompt tokens: " + context.prompt_tokens);
+          if (context.completion_tokens)
+            labels.push("completion tokens: " + context.completion_tokens);
+          if (context.cost_usd) labels.push("cost: $" + context.cost_usd);
+          if (context.latency_ms)
+            labels.push("llm: " + context.latency_ms + " ms");
+          if (turn.flags && turn.flags.llm_error)
+            labels.push("llm error: " + turn.flags.llm_error);
+          labels.forEach((label) =>
+            chips.appendChild(node("span", "chip", label)),
+          );
+          card.appendChild(chips);
+
+          if (turn.reply) {
+            card.appendChild(node("p", "ask-line", clip(turn.reply, 220)));
+          }
+
+          card.appendChild(node("div", "subhead", "Sent reply issues"));
+          appendIssues(
+            card,
+            turn.issues,
+            "No guard issues on the reply that was sent.",
+          );
+
+          const drafts = draftGroups(turn);
+          card.appendChild(node("div", "subhead", "Rejected drafts"));
+          if (!drafts.length) {
+            card.appendChild(node("p", "empty", "None."));
+          } else {
+            drafts.forEach((draft) => {
+              card.appendChild(
+                node(
+                  "p",
+                  "ask-line",
+                  (draft.stage || "draft") +
+                    (draft.move ? " · move: " + draft.move : ""),
+                ),
+              );
+              appendIssues(card, draft.issues, "No issues recorded.");
+              if (draft.registry && draft.registry.length)
+                appendConfigs(card, draft.registry);
+              else if (draft.configs && draft.configs.length)
+                appendConfigs(card, draft.configs);
+            });
+          }
+
+          card.appendChild(node("div", "subhead", "Proposed configs"));
+          appendConfigs(
+            card,
+            turn.registry && turn.registry.length
+              ? turn.registry
+              : turn.proposed_configs,
+          );
+
+          card.appendChild(node("div", "subhead", "Goal changes this turn"));
+          const accepted = turn.accepted || {};
+          const rejected = turn.rejected || {};
+          const acceptedKeys = Object.keys(accepted);
+          const rejectedKeys = Object.keys(rejected);
+          if (!acceptedKeys.length && !rejectedKeys.length) {
+            card.appendChild(node("p", "empty", "No field updates this turn."));
+          } else {
+            acceptedKeys.forEach((key) => {
+              card.appendChild(
+                node(
+                  "div",
+                  "chunk",
+                  "accepted " +
+                    (FIELD_LABELS[key] || key) +
+                    ": " +
+                    accepted[key],
+                ),
+              );
+            });
+            rejectedKeys.forEach((key) => {
+              card.appendChild(
+                node(
+                  "div",
+                  "chunk",
+                  "rejected " +
+                    (FIELD_LABELS[key] || key) +
+                    ": " +
+                    rejected[key],
+                ),
+              );
+            });
+          }
+
+          const proposed = turn.fields_proposed || [];
+          if (proposed.length) {
+            card.appendChild(
+              node("div", "subhead", "Fields the model proposed"),
+            );
+            proposed.forEach((item) => {
+              if (!item || typeof item !== "object") return;
+              const bits = [item.key, item.value, item.basis]
+                .filter(Boolean)
+                .join(" · ");
+              if (bits) card.appendChild(node("div", "chunk", bits));
+            });
+          }
+
+          card.appendChild(node("div", "subhead", "Retrieved KB chunks"));
+          const chunks = turn.retrieved || [];
+          if (!chunks.length) {
+            card.appendChild(node("p", "empty", "No KB hit this turn."));
+          } else {
+            chunks.forEach((chunk) => {
+              const row = node("div", "chunk");
+              row.appendChild(
+                node("b", null, (chunk.title || chunk.id || "chunk") + " "),
+              );
+              row.appendChild(
+                node(
+                  "span",
+                  null,
+                  (chunk.id || "") +
+                    (chunk.score != null ? " · score " + chunk.score : ""),
+                ),
+              );
+              card.appendChild(row);
+            });
+          }
+          return card;
+        }
+
+        function renderFoot(latest, allIssues) {
+          clear(els.footChips);
+          if (!latest) {
+            els.footTurn.textContent = "Waiting for first turn";
+            els.footId.textContent = shortId(conversationId);
+            return;
+          }
+          const index = debugTurns.length;
+          els.footTurn.textContent =
+            "Turn " + index + " · " + turnLabel(latest, index - 1);
+          els.footId.textContent = shortId(
+            latest.conversation_id || conversationId,
+          );
+          els.footChips.appendChild(
+            node("span", "chip", latest.source || "unknown"),
+          );
+          els.footChips.appendChild(
+            node("span", "chip", (latest.elapsed_ms || 0) + " ms"),
+          );
+          const guard = node(
+            "span",
+            "chip" + (allIssues.length ? "" : " ok"),
+            allIssues.length +
+              " guard issue" +
+              (allIssues.length === 1 ? "" : "s"),
+          );
+          els.footChips.appendChild(guard);
+          if (latest.move)
+            els.footChips.appendChild(
+              node("span", "chip", "move: " + latest.move),
+            );
+          if (latest.language)
+            els.footChips.appendChild(
+              node("span", "chip", "lang: " + latest.language),
+            );
+          if (latest.flags && latest.flags.inbound_english) {
+            els.footChips.appendChild(
+              node(
+                "span",
+                "chip",
+                "en: " + String(latest.flags.inbound_english).slice(0, 40),
+              ),
+            );
+          }
+          if (latest.flags && latest.flags.inbound_gloss_failed) {
+            els.footChips.appendChild(node("span", "chip", "gloss failed"));
+          }
+          if (latest.reply_english)
+            els.footChips.appendChild(node("span", "chip ok", "translated"));
+          else if (
+            latest.language &&
+            latest.language !== "English" &&
+            latest.flags &&
+            latest.flags.translate_skipped
+          ) {
+            els.footChips.appendChild(
+              node(
+                "span",
+                "chip",
+                "translate: " + latest.flags.translate_skipped,
+              ),
+            );
+          }
+        }
+
+        function recordTurn(turn, visitorText) {
+          debugTurns.push(
+            Object.assign({}, turn, {
+              visitor: (turn && turn.visitor) || visitorText || "",
+            }),
+          );
+          renderDebug();
+        }
+
+        function renderDebug() {
+          const allIssues = collectAllIssues();
+          const draftIssues = collectDraftIssues();
+          issueCount = allIssues.length;
+          updateTabs();
+          renderFoot(
+            debugTurns.length ? debugTurns[debugTurns.length - 1] : null,
+            allIssues,
+          );
+
+          if (!debugTurns.length) {
+            clear(els.panelBrief);
+            clear(els.panelTurns);
+            clear(els.panelIssues);
+            showActivePanel();
+            return;
+          }
+
+          const latest = debugTurns[debugTurns.length - 1];
+          renderBrief(latest);
+
+          clear(els.panelTurns);
+          els.panelTurns.appendChild(
+            node(
+              "p",
+              "debug-note",
+              "Conversation " +
+                (latest.conversation_id || "") +
+                " · " +
+                debugTurns.length +
+                " turns",
+            ),
+          );
+          debugTurns.forEach((turn, index) =>
+            els.panelTurns.appendChild(renderTurn(turn, index)),
+          );
+
+          clear(els.panelIssues);
+          els.panelIssues.appendChild(
+            node("div", "section-label", "Sent blockers · " + allIssues.length),
+          );
+          if (!allIssues.length) {
+            els.panelIssues.appendChild(
+              node("p", "empty", "No blockers on sent replies."),
+            );
+          } else {
+            allIssues.forEach((item) => {
+              const row = issueRow(item.issue, item.severity);
+              row.insertBefore(node("span", "who", item.label), row.firstChild);
+              els.panelIssues.appendChild(row);
+            });
+          }
+          if (draftIssues.length) {
+            els.panelIssues.appendChild(
+              node(
+                "div",
+                "section-label",
+                "Rejected drafts · " + draftIssues.length,
+              ),
+            );
+            els.panelIssues.appendChild(
+              node(
+                "p",
+                "empty",
+                "Not counted in the Issues badge — live drafts that did not ship.",
+              ),
+            );
+            draftIssues.forEach((item) => {
+              const row = issueRow(item.issue, item.severity);
+              row.insertBefore(node("span", "who", item.label), row.firstChild);
+              els.panelIssues.appendChild(row);
+            });
+          }
+
+          // Keep the full goal checklist available under Turns for parity with the old debug panel.
+          const goalBlock = node("section", "turn");
+          goalBlock.appendChild(node("h4", null, "Goal checklist"));
+          const goal = latest.goal || {};
+          goalBlock.appendChild(
+            node("p", "ask-line", "Family: " + (goal.family || "unknown")),
+          );
+          goalBlock.appendChild(
+            node(
+              "p",
+              "ask-line",
+              "Ask set: " +
+                (goal.ask && goal.ask.length
+                  ? goal.ask.join(", ")
+                  : "(nothing)"),
+            ),
+          );
+          goalBlock.appendChild(
+            node(
+              "p",
+              "ask-line",
+              "Missing: " +
+                (goal.missing && goal.missing.length
+                  ? goal.missing.join(", ")
+                  : "none"),
+            ),
+          );
+          const denied = (goal.do_not_ask || []).map(
+            (item) => item.key + ' ("' + clip(item.words, 48) + '")',
+          );
+          goalBlock.appendChild(
+            node(
+              "p",
+              "ask-line",
+              "Do not ask: " +
+                (denied.length ? denied.join(", ") : "(nothing yet)"),
+            ),
+          );
+          (goal.fields || []).forEach((field) => {
+            const line = node("div", "goal-line");
+            line.appendChild(
+              node(
+                "b",
+                null,
+                (field.label || field.key) + ": " + (field.value || "—"),
+              ),
+            );
+            const meta = [
+              field.status || "unknown",
+              field.basis,
+              field.attempts ? field.attempts + " tries" : "",
+            ].filter(Boolean);
+            line.appendChild(node("span", null, meta.join(" · ")));
+            goalBlock.appendChild(line);
+          });
+          if (!goal.fields) {
+            const known = latest.known || {};
+            const keys = Object.keys(known);
+            if (!keys.length)
+              goalBlock.appendChild(
+                node("p", "empty", "No fields collected yet."),
+              );
+            keys.forEach((key) => {
+              goalBlock.appendChild(
+                node(
+                  "div",
+                  "goal-line",
+                  (FIELD_LABELS[key] || key) + ": " + known[key],
+                ),
+              );
+            });
+          }
+          els.panelTurns.insertBefore(
+            goalBlock,
+            els.panelTurns.children[1] || null,
+          );
+
+          showActivePanel();
+        }
+
+        els.composer.addEventListener("submit", (event) => {
+          event.preventDefault();
+          sendMessage();
         });
-      });
-    });
-    return all;
-  }
 
-  function updateTabs() {
-    els.tabs.forEach((tab) => {
-      const name = tab.dataset.tab;
-      const active = name === activeTab;
-      tab.classList.toggle("active", active);
-      tab.setAttribute("aria-selected", active ? "true" : "false");
-      if (name === "turns") tab.textContent = "Turns · " + debugTurns.length;
-      if (name === "issues") tab.textContent = "Issues · " + issueCount;
-      if (name === "brief") tab.textContent = "Brief";
-    });
-  }
+        els.attachBtn.addEventListener("click", () => {
+          if (!busy && !handoffLocked) els.attachInput.click();
+        });
 
-  function setPanelOpen(open, options) {
-    const opts = options || {};
-    panelOpen = Boolean(open);
-    els.layout.classList.toggle("panel-collapsed", !panelOpen);
-    els.debugPanel.setAttribute("aria-hidden", panelOpen ? "false" : "true");
-    els.panelToggle.setAttribute("aria-expanded", panelOpen ? "true" : "false");
-    els.panelToggle.title = panelOpen ? "Hide debug panel" : "Show debug panel";
-    const label = els.panelToggle.querySelector(".label");
-    if (label) label.textContent = "Debug";
-    if (!opts.skipStore) {
-      try { localStorage.setItem(PANEL_KEY, panelOpen ? "1" : "0"); } catch (_) {}
-    }
-  }
+        els.attachClear.addEventListener("click", () => {
+          clearPendingImage();
+          els.input.focus();
+        });
 
-  function showActivePanel() {
-    const hasTurns = debugTurns.length > 0;
-    els.debugEmpty.hidden = hasTurns;
-    els.panelBrief.hidden = !(hasTurns && activeTab === "brief");
-    els.panelTurns.hidden = !(hasTurns && activeTab === "turns");
-    els.panelIssues.hidden = !(hasTurns && activeTab === "issues");
-    if (!debugTurns.length) {
-      els.debugEmpty.textContent = "Send a message to see the pipeline output.";
-    }
-  }
+        els.attachInput.addEventListener("change", async () => {
+          const file = els.attachInput.files && els.attachInput.files[0];
+          if (!file) return;
+          await acceptImageFile(file);
+        });
 
-  function nextAskHint(goal, map) {
-    const ask = (goal && goal.ask) || [];
-    if (!ask.length) {
-      const missing = REQUIRED_KEYS.filter((key) => !isFilled(map[key]));
-      if (!missing.length) return "All quote-blocking fields are filled.";
-      return "Ask for " + missing.map((key) => (FIELD_LABELS[key] || key).toLowerCase()).join(", then ");
-    }
-    const labels = ask.slice(0, 2).map((key) => (FIELD_LABELS[key] || key).toLowerCase());
-    if (labels.length === 1) return "Ask for " + labels[0] + " next.";
-    return "Ask for " + labels[0] + ", then " + labels[1] + ".";
-  }
+        els.input.addEventListener("paste", handleImagePaste);
+        els.composer.addEventListener("paste", handleImagePaste);
 
-  function renderBrief(latest) {
-    clear(els.panelBrief);
-    const goal = latest.goal || {};
-    const map = fieldMap(latest);
-    const filledRequired = REQUIRED_KEYS.filter((key) => isFilled(map[key])).length;
-    const ready = filledRequired >= REQUIRED_KEYS.length;
-    const pct = Math.round((filledRequired / REQUIRED_KEYS.length) * 100);
+        const INPUT_LINE = 22;
 
-    const card = node("div", "status-card" + (ready ? " ready" : ""));
-    const ring = node("div", "ring");
-    ring.style.setProperty("--pct", String(pct));
-    ring.appendChild(node("span", null, filledRequired + "/" + REQUIRED_KEYS.length));
-    card.appendChild(ring);
-    const copy = node("div");
-    copy.appendChild(node("h3", null, ready ? "Quote-ready" : "Not quote-ready"));
-    const family = goal.family && goal.family !== "unknown" ? String(goal.family).replace(/_/g, " ") : "product";
-    const blurb = (ready
-      ? family + " — blocking fields are complete."
-      : (map.product && map.product.value ? map.product.value : family) + " — " + nextAskHint(goal, map));
-    copy.appendChild(node("p", null, blurb));
-    card.appendChild(copy);
-    els.panelBrief.appendChild(card);
+        function fitInput() {
+          const el = els.input;
+          const row = el.closest(".composer-row");
+          el.style.height = INPUT_LINE + "px";
+          const next = Math.min(Math.max(el.scrollHeight, INPUT_LINE), 140);
+          el.style.height = next + "px";
+          el.style.overflowY = next >= 140 ? "auto" : "hidden";
+          if (row) row.classList.toggle("multiline", next > INPUT_LINE + 2);
+        }
 
-    els.panelBrief.appendChild(node("div", "section-label", "Required"));
-    const list = node("div", "req-list");
-    REQUIRED_KEYS.forEach((key) => {
-      const field = map[key] || { key, value: "", status: "unknown" };
-      const filled = isFilled(field);
-      const row = node("div", "req-row " + (filled ? "ok" : "miss"));
-      row.appendChild(node("div", "ico", filled ? "✓" : "!"));
-      row.appendChild(node("div", "label", FIELD_LABELS[key] || key));
-      row.appendChild(node("div", "value", filled ? (field.value || "Set") : "Missing"));
-      list.appendChild(row);
-    });
-    els.panelBrief.appendChild(list);
+        els.input.addEventListener("input", fitInput);
 
-    els.panelBrief.appendChild(node("div", "section-label", "Captured and optional"));
-    const tags = node("div", "tag-cloud");
-    OPTIONAL_KEYS.forEach((key) => {
-      const field = map[key];
-      const label = FIELD_LABELS[key] || key;
-      if (field && field.value) {
-        const tag = node("span", "tag " + (field.status === "suggested" ? "suggested" : "filled"), label + ": " + field.value);
-        tags.appendChild(tag);
-      } else {
-        tags.appendChild(node("span", "tag", label));
-      }
-    });
-    els.panelBrief.appendChild(tags);
+        els.input.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            sendMessage();
+          }
+        });
 
-    if (goal.do_not_ask && goal.do_not_ask.length) {
-      els.panelBrief.appendChild(node("div", "section-label", "Do not ask"));
-      goal.do_not_ask.forEach((item) => {
-        els.panelBrief.appendChild(node("div", "chunk", (FIELD_LABELS[item.key] || item.key) + ': "' + clip(item.words, 64) + '"'));
-      });
-    }
-  }
+        els.newChat.addEventListener("click", () => {
+          conversationId = newId();
+          startChat();
+        });
 
-  function renderTurn(turn, index) {
-    const card = node("section", "turn");
-    card.appendChild(node("h4", null, "Turn " + (index + 1) + " · " + turnLabel(turn, index)));
+        els.panelToggle.addEventListener("click", () =>
+          setPanelOpen(!panelOpen),
+        );
+        els.panelClose.addEventListener("click", () => setPanelOpen(false));
 
-    const chips = node("div", "summary");
-    const labels = [
-      "source: " + (turn.source || "none"),
-      "persona: " + (turn.persona || ""),
-      "handoff: " + (turn.handoff || "none"),
-      "elapsed: " + (turn.elapsed_ms || 0) + " ms",
-      "move: " + (turn.move || "none"),
-      "language: " + (turn.language || "English")
-    ];
-    if (turn.reply_english) labels.push("translated: yes");
-    if (turn.flags && turn.flags.translate_skipped) labels.push("translate: " + turn.flags.translate_skipped);
-    const context = turn.context || {};
-    if (context.tier) labels.push("context: " + context.tier);
-    if (context.primer_tokens) labels.push("primer: " + context.primer_tokens + " tokens");
-    if (context.prompt_chunks) labels.push("chunks in prompt: " + context.prompt_chunks);
-    if (context.prompt_tokens) labels.push("prompt tokens: " + context.prompt_tokens);
-    if (context.completion_tokens) labels.push("completion tokens: " + context.completion_tokens);
-    if (context.cost_usd) labels.push("cost: $" + context.cost_usd);
-    if (context.latency_ms) labels.push("llm: " + context.latency_ms + " ms");
-    if (turn.flags && turn.flags.llm_error) labels.push("llm error: " + turn.flags.llm_error);
-    labels.forEach((label) => chips.appendChild(node("span", "chip", label)));
-    card.appendChild(chips);
+        document.addEventListener("keydown", (event) => {
+          if (
+            event.key === "Escape" &&
+            panelOpen &&
+            !event.target.closest("textarea, input")
+          ) {
+            setPanelOpen(false);
+          }
+        });
 
-    if (turn.reply) {
-      card.appendChild(node("p", "ask-line", clip(turn.reply, 220)));
-    }
+        els.tabs.forEach((tab) => {
+          tab.addEventListener("click", () => {
+            activeTab = tab.dataset.tab;
+            updateTabs();
+            showActivePanel();
+          });
+        });
 
-    card.appendChild(node("div", "subhead", "Sent reply issues"));
-    appendIssues(card, turn.issues, "No guard issues on the reply that was sent.");
+        try {
+          const saved = localStorage.getItem(PANEL_KEY);
+          if (saved === "0") setPanelOpen(false, { skipStore: true });
+          else setPanelOpen(true, { skipStore: true });
+        } catch (_) {
+          setPanelOpen(true, { skipStore: true });
+        }
 
-    const drafts = draftGroups(turn);
-    card.appendChild(node("div", "subhead", "Rejected drafts"));
-    if (!drafts.length) {
-      card.appendChild(node("p", "empty", "None."));
-    } else {
-      drafts.forEach((draft) => {
-        card.appendChild(node("p", "ask-line", (draft.stage || "draft") + (draft.move ? " · move: " + draft.move : "")));
-        appendIssues(card, draft.issues, "No issues recorded.");
-        if (draft.registry && draft.registry.length) appendConfigs(card, draft.registry);
-        else if (draft.configs && draft.configs.length) appendConfigs(card, draft.configs);
-      });
-    }
-
-    card.appendChild(node("div", "subhead", "Proposed configs"));
-    appendConfigs(card, turn.registry && turn.registry.length ? turn.registry : turn.proposed_configs);
-
-    card.appendChild(node("div", "subhead", "Goal changes this turn"));
-    const accepted = turn.accepted || {};
-    const rejected = turn.rejected || {};
-    const acceptedKeys = Object.keys(accepted);
-    const rejectedKeys = Object.keys(rejected);
-    if (!acceptedKeys.length && !rejectedKeys.length) {
-      card.appendChild(node("p", "empty", "No field updates this turn."));
-    } else {
-      acceptedKeys.forEach((key) => {
-        card.appendChild(node("div", "chunk", "accepted " + (FIELD_LABELS[key] || key) + ": " + accepted[key]));
-      });
-      rejectedKeys.forEach((key) => {
-        card.appendChild(node("div", "chunk", "rejected " + (FIELD_LABELS[key] || key) + ": " + rejected[key]));
-      });
-    }
-
-    const proposed = turn.fields_proposed || [];
-    if (proposed.length) {
-      card.appendChild(node("div", "subhead", "Fields the model proposed"));
-      proposed.forEach((item) => {
-        if (!item || typeof item !== "object") return;
-        const bits = [item.key, item.value, item.basis].filter(Boolean).join(" · ");
-        if (bits) card.appendChild(node("div", "chunk", bits));
-      });
-    }
-
-    card.appendChild(node("div", "subhead", "Retrieved KB chunks"));
-    const chunks = turn.retrieved || [];
-    if (!chunks.length) {
-      card.appendChild(node("p", "empty", "No KB hit this turn."));
-    } else {
-      chunks.forEach((chunk) => {
-        const row = node("div", "chunk");
-        row.appendChild(node("b", null, (chunk.title || chunk.id || "chunk") + " "));
-        row.appendChild(node("span", null, (chunk.id || "") + (chunk.score != null ? " · score " + chunk.score : "")));
-        card.appendChild(row);
-      });
-    }
-    return card;
-  }
-
-  function renderFoot(latest, allIssues) {
-    clear(els.footChips);
-    if (!latest) {
-      els.footTurn.textContent = "Waiting for first turn";
-      els.footId.textContent = shortId(conversationId);
-      return;
-    }
-    const index = debugTurns.length;
-    els.footTurn.textContent = "Turn " + index + " · " + turnLabel(latest, index - 1);
-    els.footId.textContent = shortId(latest.conversation_id || conversationId);
-    els.footChips.appendChild(node("span", "chip", latest.source || "unknown"));
-    els.footChips.appendChild(node("span", "chip", (latest.elapsed_ms || 0) + " ms"));
-    const guard = node("span", "chip" + (allIssues.length ? "" : " ok"), allIssues.length + " guard issue" + (allIssues.length === 1 ? "" : "s"));
-    els.footChips.appendChild(guard);
-    if (latest.move) els.footChips.appendChild(node("span", "chip", "move: " + latest.move));
-    if (latest.language) els.footChips.appendChild(node("span", "chip", "lang: " + latest.language));
-    if (latest.flags && latest.flags.inbound_english) {
-      els.footChips.appendChild(node("span", "chip", "en: " + String(latest.flags.inbound_english).slice(0, 40)));
-    }
-    if (latest.flags && latest.flags.inbound_gloss_failed) {
-      els.footChips.appendChild(node("span", "chip", "gloss failed"));
-    }
-    if (latest.reply_english) els.footChips.appendChild(node("span", "chip ok", "translated"));
-    else if (latest.language && latest.language !== "English" && latest.flags && latest.flags.translate_skipped) {
-      els.footChips.appendChild(node("span", "chip", "translate: " + latest.flags.translate_skipped));
-    }
-  }
-
-  function recordTurn(turn, visitorText) {
-    debugTurns.push(Object.assign({}, turn, {
-      visitor: (turn && turn.visitor) || visitorText || ""
-    }));
-    renderDebug();
-  }
-
-  function renderDebug() {
-    const allIssues = collectAllIssues();
-    const draftIssues = collectDraftIssues();
-    issueCount = allIssues.length;
-    updateTabs();
-    renderFoot(debugTurns.length ? debugTurns[debugTurns.length - 1] : null, allIssues);
-
-    if (!debugTurns.length) {
-      clear(els.panelBrief);
-      clear(els.panelTurns);
-      clear(els.panelIssues);
-      showActivePanel();
-      return;
-    }
-
-    const latest = debugTurns[debugTurns.length - 1];
-    renderBrief(latest);
-
-    clear(els.panelTurns);
-    els.panelTurns.appendChild(node("p", "debug-note", "Conversation " + (latest.conversation_id || "") + " · " + debugTurns.length + " turns"));
-    debugTurns.forEach((turn, index) => els.panelTurns.appendChild(renderTurn(turn, index)));
-
-    clear(els.panelIssues);
-    els.panelIssues.appendChild(node("div", "section-label", "Sent blockers · " + allIssues.length));
-    if (!allIssues.length) {
-      els.panelIssues.appendChild(node("p", "empty", "No blockers on sent replies."));
-    } else {
-      allIssues.forEach((item) => {
-        const row = issueRow(item.issue, item.severity);
-        row.insertBefore(node("span", "who", item.label), row.firstChild);
-        els.panelIssues.appendChild(row);
-      });
-    }
-    if (draftIssues.length) {
-      els.panelIssues.appendChild(node("div", "section-label", "Rejected drafts · " + draftIssues.length));
-      els.panelIssues.appendChild(node("p", "empty", "Not counted in the Issues badge — live drafts that did not ship."));
-      draftIssues.forEach((item) => {
-        const row = issueRow(item.issue, item.severity);
-        row.insertBefore(node("span", "who", item.label), row.firstChild);
-        els.panelIssues.appendChild(row);
-      });
-    }
-
-    // Keep the full goal checklist available under Turns for parity with the old debug panel.
-    const goalBlock = node("section", "turn");
-    goalBlock.appendChild(node("h4", null, "Goal checklist"));
-    const goal = latest.goal || {};
-    goalBlock.appendChild(node("p", "ask-line", "Family: " + (goal.family || "unknown")));
-    goalBlock.appendChild(node("p", "ask-line", "Ask set: " + ((goal.ask && goal.ask.length) ? goal.ask.join(", ") : "(nothing)")));
-    goalBlock.appendChild(node("p", "ask-line", "Missing: " + ((goal.missing && goal.missing.length) ? goal.missing.join(", ") : "none")));
-    const denied = (goal.do_not_ask || []).map((item) => item.key + ' ("' + clip(item.words, 48) + '")');
-    goalBlock.appendChild(node("p", "ask-line", "Do not ask: " + (denied.length ? denied.join(", ") : "(nothing yet)")));
-    (goal.fields || []).forEach((field) => {
-      const line = node("div", "goal-line");
-      line.appendChild(node("b", null, (field.label || field.key) + ": " + (field.value || "—")));
-      const meta = [field.status || "unknown", field.basis, field.attempts ? field.attempts + " tries" : ""].filter(Boolean);
-      line.appendChild(node("span", null, meta.join(" · ")));
-      goalBlock.appendChild(line);
-    });
-    if (!goal.fields) {
-      const known = latest.known || {};
-      const keys = Object.keys(known);
-      if (!keys.length) goalBlock.appendChild(node("p", "empty", "No fields collected yet."));
-      keys.forEach((key) => {
-        goalBlock.appendChild(node("div", "goal-line", (FIELD_LABELS[key] || key) + ": " + known[key]));
-      });
-    }
-    els.panelTurns.insertBefore(goalBlock, els.panelTurns.children[1] || null);
-
-    showActivePanel();
-  }
-
-  els.composer.addEventListener("submit", (event) => {
-    event.preventDefault();
-    sendMessage();
-  });
-
-  els.attachBtn.addEventListener("click", () => {
-    if (!busy && !handoffLocked) els.attachInput.click();
-  });
-
-  els.attachClear.addEventListener("click", () => {
-    clearPendingImage();
-    els.input.focus();
-  });
-
-  els.attachInput.addEventListener("change", async () => {
-    const file = els.attachInput.files && els.attachInput.files[0];
-    if (!file) return;
-    await acceptImageFile(file);
-  });
-
-  els.input.addEventListener("paste", handleImagePaste);
-  els.composer.addEventListener("paste", handleImagePaste);
-
-  const INPUT_LINE = 22;
-
-  function fitInput() {
-    const el = els.input;
-    const row = el.closest(".composer-row");
-    el.style.height = INPUT_LINE + "px";
-    const next = Math.min(Math.max(el.scrollHeight, INPUT_LINE), 140);
-    el.style.height = next + "px";
-    el.style.overflowY = next >= 140 ? "auto" : "hidden";
-    if (row) row.classList.toggle("multiline", next > INPUT_LINE + 2);
-  }
-
-  els.input.addEventListener("input", fitInput);
-
-  els.input.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      sendMessage();
-    }
-  });
-
-  els.newChat.addEventListener("click", () => {
-    conversationId = newId();
-    startChat();
-  });
-
-  els.panelToggle.addEventListener("click", () => setPanelOpen(!panelOpen));
-  els.panelClose.addEventListener("click", () => setPanelOpen(false));
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && panelOpen && !event.target.closest("textarea, input")) {
-      setPanelOpen(false);
-    }
-  });
-
-  els.tabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      activeTab = tab.dataset.tab;
-      updateTabs();
-      showActivePanel();
-    });
-  });
-
-  try {
-    const saved = localStorage.getItem(PANEL_KEY);
-    if (saved === "0") setPanelOpen(false, { skipStore: true });
-    else setPanelOpen(true, { skipStore: true });
-  } catch (_) {
-    setPanelOpen(true, { skipStore: true });
-  }
-
-  loadHealth();
-  startChat();
-})();
-</script>
-</body>
+        loadHealth();
+        startChat();
+      })();
+    </script>
+  </body>
 </html>
