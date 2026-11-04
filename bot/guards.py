@@ -12,6 +12,7 @@ from .state import (
     BARE_QTY_RE,
     EMAIL_RE,
     MATERIAL_HINTS,
+    NAMED_QTY_RE,
     PHONE_RE,
     QTY_UNIT_RE,
     SINGLE_SIZE_RE,
@@ -22,6 +23,8 @@ from .state import (
     asks_if_bot,
     asks_language_preference,
     needs_language_preference_ack,
+    asks_size_guidance,
+    asks_term_meaning,
     extract_contact_fields,
     family_of,
     is_meta_question,
@@ -31,6 +34,7 @@ from .state import (
     normalise_dimension_separators,
     normalize_finish,
     normalize_style,
+    parse_quantity,
     use_case_from,
     wants_recommendation,
 )
@@ -215,7 +219,14 @@ def _has_value_token(
         size_text = normalise_dimension_separators(value)
         return bool(SIZE_DIM_RE.search(size_text) or SINGLE_SIZE_RE.search(value))
     if key == "quantity":
-        return bool(QTY_UNIT_RE.search(value) or BARE_QTY_RE.match(value.strip()))
+        # Named qty ("Quantity I need is 350") must count even when the same
+        # multi-field intro also ends with a question ("Any suggestions on styles?").
+        return bool(
+            QTY_UNIT_RE.search(value)
+            or BARE_QTY_RE.match(value.strip())
+            or NAMED_QTY_RE.search(value)
+            or parse_quantity(value) is not None
+        )
     if key == "product":
         return family_of(value) != "unknown"
     if key == "use_case":
@@ -250,7 +261,12 @@ def question_as_answer(
     it is the logged failure that used to fill style and skip the question.
     """
     text = str(visitor_text or "").strip()
-    if not text or _has_value_token(key, text, registry=registry, family=family):
+    if not text:
+        return False
+    # "What does PE mean?" mentions a material token but is not choosing it.
+    if asks_term_meaning(text):
+        return True
+    if _has_value_token(key, text, registry=registry, family=family):
         return False
     if is_question(text) or asks_if_bot(text):
         return True
@@ -1210,6 +1226,9 @@ def _check_recommendation(
 ) -> None:
     if handoff or not wants_recommendation(visitor_text):
         return
+    # Size help is not a catalogue-option recommend — §4.4 forbids inventing a fit.
+    if asks_size_guidance(visitor_text, state.last_question):
+        return
     if RECOMMENDATION_MARKER.search(reply):
         return
     if OPTION_NOUN.search(reply) and re.search(
@@ -1353,6 +1372,66 @@ def _check_sizes(reply: str, state: ConversationState, result: GuardResult) -> N
             BLOCK,
             "There is no standard size; everything is made to fit what goes inside.",
         )
+
+
+def _check_family_style_scope(
+    reply: str,
+    state: ConversationState,
+    result: GuardResult,
+) -> None:
+    """Do not dump another family's style menu while the order family is settled."""
+    family = state.family()
+    if family == "unknown":
+        return
+    foreign = {
+        "bags": r"\bbox styles?\b",
+        "boxes": r"\bbag styles?\b",
+        "labels": r"\b(?:bag|box) styles?\b",
+        "banners": r"\b(?:bag|box|label) styles?\b",
+        "business_cards": r"\b(?:bag|box|label) styles?\b",
+        "print": r"\b(?:bag|box|label) styles?\b",
+    }.get(family)
+    if foreign and re.search(foreign, reply, re.I):
+        result.add(
+            "cross_family_styles",
+            BLOCK,
+            f"The order is {family}: list only that family's styles, not another product family's.",
+        )
+
+
+def _check_size_guidance(
+    reply: str,
+    state: ConversationState,
+    visitor: str,
+    result: GuardResult,
+) -> None:
+    """When they ask for size help, do not only re-ask what size they want."""
+    if not asks_size_guidance(visitor, state.last_question):
+        return
+    # Same-turn "suggest me styles" is answered first; size help can wait one turn.
+    if re.search(r"\bstyles?\b", visitor, re.I) and (
+        wants_recommendation(visitor) or is_option_request(visitor)
+    ):
+        return
+    explained = bool(
+        re.search(
+            r"\bno standard size\b|\bcustom (?:made|size|cut)"
+            r"|\bteam (?:sizes|confirms|will confirm|can confirm)\b"
+            r"|\bmade to fit\b|\bfill weight\b"
+            r"|\bproduct(?:'s)? (?:own )?dimensions?\b"
+            r"|\bdepends on (?:the )?(?:product|what|your)\b",
+            reply,
+            re.I,
+        )
+    )
+    if explained:
+        return
+    result.add(
+        "size_guidance_skipped",
+        BLOCK,
+        "They asked for size help or said they are unsure. Explain there is no standard size "
+        "and ask for product dimensions or fill weight — do not only re-ask what size they want.",
+    )
 
 
 CAPABILITY_VERB = re.compile(
@@ -1706,6 +1785,8 @@ def check_reply(
     _check_greeting(text, state, result, visitor)
     _check_asked_fields(text, state, expected, handoff, result)
     _check_sizes(text, state, result)
+    _check_family_style_scope(text, state, result)
+    _check_size_guidance(text, state, visitor, result)
     _check_dimensions(text, state, visitor, registry, result)
     _check_tier_b_words(text, result)
     _check_contact_offer(text, visitor, result)

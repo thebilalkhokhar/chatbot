@@ -261,6 +261,23 @@ def test_size_help_question_is_answered(orchestrator):
     assert blockers(result) == []
 
 
+def test_size_suggest_after_use_case_does_not_bare_reask(orchestrator):
+    """Unsure + suggest size must explain custom sizing, not only re-ask the size script."""
+    orchestrator.start("c-size-suggest")
+    orchestrator.handle("c-size-suggest", "Bags")
+    orchestrator.handle("c-size-suggest", "coffee beans")
+    result = orchestrator.handle(
+        "c-size-suggest",
+        "I am not sure about this. Can you suggest me size for coffee beans?",
+    )
+    lowered = result.reply.lower()
+    assert "no standard size" in lowered
+    assert "fill weight" in lowered or "dimension" in lowered
+    assert lowered.strip() != "what bag size are you looking for?"
+    assert "what bag size are you looking for?" not in lowered
+    assert blockers(result) == []
+
+
 def test_size_question_after_unknown_size_is_not_blocked(orchestrator):
     orchestrator.start("c-sizeq")
     orchestrator.handle("c-sizeq", "I need mylar bags for 10 gummies")
@@ -573,6 +590,199 @@ def test_give_me_options_on_style_lists_box_styles(orchestrator):
     assert not state.fields["style"].done
     assert "finish" not in lowered or "style" in lowered
     assert result.handoff == ""
+
+
+def test_is_there_another_option_lists_bag_styles(orchestrator):
+    from chatbot.bot.state import STATUS_VISITOR, STATUS_WAIVED, TO_BE_CONFIRMED, is_option_request
+
+    assert is_option_request("is there another option?")
+    orchestrator.start("c-another-opt")
+    state = orchestrator.store.get_or_create("c-another-opt")
+    state.set_field("product", "bags", status=STATUS_VISITOR)
+    state.set_field("use_case", "coffee beans", status=STATUS_VISITOR)
+    state.set_field("sizes", "12 oz", status=STATUS_VISITOR)
+    state.set_field("quantity", "350", status=STATUS_VISITOR)
+    state.flags["soft_email_asked"] = True
+    state.fields["email"].attempts = 1
+    state.last_question = "style"
+    orchestrator.store.save(state)
+    result = orchestrator.handle("c-another-opt", "is there another option?")
+    state = orchestrator.store.get_or_create("c-another-opt")
+    lowered = result.reply.lower()
+    assert "didn't quite catch" not in lowered
+    assert any(
+        token in lowered
+        for token in ("stand", "flat", "mylar", "pouch", "seal", "style")
+    )
+    assert state.fields["style"].value != "is there another option?"
+    assert not state.fields["style"].done
+    assert blockers(result) == []
+
+
+def test_material_meaning_question_is_explained_not_locked(orchestrator):
+    from chatbot.bot.state import (
+        STATUS_VISITOR,
+        STATUS_WAIVED,
+        TO_BE_CONFIRMED,
+        asks_term_meaning,
+        meaning_term,
+    )
+
+    assert asks_term_meaning("PE means?")
+    assert asks_term_meaning("What does PE mean?")
+    assert asks_term_meaning("what is kraft?")
+    assert asks_term_meaning("can you explain metalized?")
+    assert meaning_term("PE means?") == "PE"
+    assert not asks_term_meaning("PE")
+    assert not asks_term_meaning("what's next?")
+    assert not asks_term_meaning("what is the size?")
+
+    orchestrator.start("c-pe-means")
+    state = orchestrator.store.get_or_create("c-pe-means")
+    state.set_field("product", "bags", status=STATUS_VISITOR)
+    state.set_field("use_case", "coffee beans", status=STATUS_VISITOR)
+    state.set_field("sizes", TO_BE_CONFIRMED, status=STATUS_WAIVED)
+    state.set_field("quantity", "350", status=STATUS_VISITOR)
+    state.set_field("style", "Flat Bottom Pouches", status=STATUS_VISITOR)
+    state.set_field("email", "bilal@gmail.com", status=STATUS_VISITOR)
+    state.flags["soft_email_asked"] = True
+    state.last_question = "material"
+    orchestrator.store.save(state)
+    result = orchestrator.handle("c-pe-means", "PE means?")
+    state = orchestrator.store.get_or_create("c-pe-means")
+    lowered = result.reply.lower()
+    assert not state.fields["material"].done
+    assert "noted" not in lowered
+    assert "pe" in lowered
+    assert "material" in lowered or "option" in lowered or "catalogue" in lowered
+    assert "?" in result.reply
+    assert blockers(result) == []
+
+    # Same path for any catalogue term — not PE-specific.
+    result2 = orchestrator.handle("c-pe-means", "what does kraft mean?")
+    state = orchestrator.store.get_or_create("c-pe-means")
+    assert not state.fields["material"].done
+    assert "noted" not in result2.reply.lower()
+    assert "kraft" in result2.reply.lower()
+    assert blockers(result2) == []
+
+
+def test_short_material_code_locks_after_meaning_ask(orchestrator):
+    """PE/PP are real picks after a gloss ask — must settle material (2-letter codes)."""
+    from chatbot.bot.state import STATUS_VISITOR, STATUS_WAIVED, TO_BE_CONFIRMED
+
+    orchestrator.start("c-pe-pick")
+    state = orchestrator.store.get_or_create("c-pe-pick")
+    state.set_field("product", "bags", status=STATUS_VISITOR)
+    state.set_field("use_case", "coffee beans", status=STATUS_VISITOR)
+    state.set_field("sizes", TO_BE_CONFIRMED, status=STATUS_WAIVED)
+    state.set_field("quantity", "350", status=STATUS_VISITOR)
+    state.set_field("style", "Flat Bottom Pouches", status=STATUS_VISITOR)
+    state.set_field("email", "bilal@gmail.com", status=STATUS_VISITOR)
+    state.flags["soft_email_asked"] = True
+    state.last_question = "material"
+    orchestrator.store.save(state)
+
+    orchestrator.handle("c-pe-pick", "PE means?")
+    state = orchestrator.store.get_or_create("c-pe-pick")
+    assert not state.fields["material"].done
+    assert state.last_question == "material"
+
+    result = orchestrator.handle("c-pe-pick", "PE")
+    state = orchestrator.store.get_or_create("c-pe-pick")
+    assert state.fields["material"].done
+    assert str(state.fields["material"].value).lower() in {"pe", "p.e.", "polyethylene"}
+    assert "pe" in str(state.fields["material"].value).lower()
+    assert blockers(result) == []
+    # Shaped catalogue pick stays heuristic — no live draft config mismatch spam.
+    assert result.source == "heuristic"
+    assert not (result.rejected_drafts or [])
+    assert "pe" in result.reply.lower()
+    assert "?" in result.reply
+
+
+def test_extras_prose_stores_feature_not_whole_sentence(orchestrator):
+    from chatbot.bot.state import STATUS_VISITOR, STATUS_WAIVED, TO_BE_CONFIRMED
+
+    orchestrator.start("c-extras-zip")
+    state = orchestrator.store.get_or_create("c-extras-zip")
+    state.set_field("product", "bags", status=STATUS_VISITOR)
+    state.set_field("use_case", "coffee beans", status=STATUS_VISITOR)
+    state.set_field("sizes", TO_BE_CONFIRMED, status=STATUS_WAIVED)
+    state.set_field("quantity", "350", status=STATUS_VISITOR)
+    state.set_field("style", "Flat Bottom Pouches", status=STATUS_VISITOR)
+    state.set_field("material", "pe", status=STATUS_VISITOR)
+    state.set_field("finishes", "matte", status=STATUS_VISITOR)
+    state.set_field("skus", "3", status=STATUS_VISITOR)
+    state.set_field("email", "bilal@gmail.com", status=STATUS_VISITOR)
+    state.flags["soft_email_asked"] = True
+    state.last_question = "extras"
+    orchestrator.store.save(state)
+
+    result = orchestrator.handle("c-extras-zip", "yes, i want to add zipper")
+    state = orchestrator.store.get_or_create("c-extras-zip")
+    extras = str(state.fields["extras"].value or "")
+    assert state.fields["extras"].done
+    assert "zipper" in extras.lower()
+    assert "yes, i want" not in extras.lower()
+    assert extras.lower() != "yes, i want to add zipper"
+    assert blockers(result) == []
+
+
+def test_bags_intro_suggest_styles_stays_on_bag_styles(orchestrator):
+    from chatbot.bot.state import STATUS_WAIVED, TO_BE_CONFIRMED
+
+    orchestrator.start("c-bags-styles-intro")
+    result = orchestrator.handle(
+        "c-bags-styles-intro",
+        "I need bags for my coffee beans, I am not sure about size. "
+        "Quantity i need is 350, suggest me styles.",
+    )
+    state = orchestrator.store.get_or_create("c-bags-styles-intro")
+    lowered = result.reply.lower()
+    assert state.fields["product"].value == "bags"
+    assert state.fields["use_case"].value == "coffee beans"
+    assert state.fields["quantity"].value == "350"
+    assert state.fields["sizes"].value == TO_BE_CONFIRMED
+    assert state.fields["sizes"].status == STATUS_WAIVED
+    assert "need bags for my coffee" not in state.fields["sizes"].raw_visitor_text.lower()
+    denied = dict(state.do_not_ask())
+    assert denied.get("sizes", "").lower() in {
+        TO_BE_CONFIRMED,
+        "not sure about size",
+        "i am not sure about size",
+    }
+    assert "bag styles" in lowered or "stand" in lowered or "flat" in lowered
+    assert "box styles" not in lowered
+    assert "email" not in lowered and "address" not in lowered
+    assert state.last_question == "style"
+    assert state.flags.get("offer_options_for") == "style"
+    assert "style" in state.ask_set()
+    assert state.ask_set() != ["email"]
+    assert result.source == "heuristic"
+    assert not (result.rejected_drafts or [])
+    assert blockers(result) == []
+
+
+def test_bags_intro_keeps_qty_when_gloss_adds_trailing_question(orchestrator):
+    """Inbound anglicise often ends with '?'; named qty + for-clause must still settle."""
+    from chatbot.bot.state import STATUS_WAIVED, TO_BE_CONFIRMED
+
+    gloss = (
+        "I need bags for my coffee beans, I am not sure about size. "
+        "Quantity I need is 350. Any suggestions on styles?"
+    )
+    orchestrator.start("c-bags-gloss-q")
+    result = orchestrator.handle("c-bags-gloss-q", gloss)
+    state = orchestrator.store.get_or_create("c-bags-gloss-q")
+    assert state.fields["product"].value == "bags"
+    assert state.fields["use_case"].value == "coffee beans"
+    assert state.fields["quantity"].value == "350"
+    assert state.fields["sizes"].value == TO_BE_CONFIRMED
+    assert state.fields["sizes"].status == STATUS_WAIVED
+    assert state.last_question == "style"
+    assert "email" not in result.reply.lower()
+    assert blockers(result) == []
 
 
 def test_any_non_style_wording_lists_styles_dynamically(orchestrator):
@@ -948,6 +1158,34 @@ def test_soft_email_no_continues_quote_not_handoff(orchestrator):
     assert state.fields["phone"].value != "declined"
     assert state.ask_set()[0] in {"sizes", "quantity"}
     assert "specialist" not in result.reply.lower()
+    assert "?" in result.reply
+
+
+def test_soft_email_no_after_style_continues_not_handoff(orchestrator):
+    """Soft email can land after style while blockers are already done — 'no' must not hand off."""
+    from chatbot.bot.state import STATUS_VISITOR, STATUS_WAIVED, TO_BE_CONFIRMED
+
+    orchestrator.start("c-soft-after-style")
+    state = orchestrator.store.get_or_create("c-soft-after-style")
+    state.set_field("product", "bags", status=STATUS_VISITOR)
+    state.set_field("use_case", "coffee beans", status=STATUS_VISITOR)
+    state.set_field("sizes", TO_BE_CONFIRMED, status=STATUS_WAIVED)
+    state.set_field("quantity", "350", status=STATUS_VISITOR)
+    state.set_field("style", "Stand Up Pouches", status=STATUS_VISITOR)
+    state.flags["soft_email_asked"] = True
+    state.last_question = "email"
+    orchestrator.store.save(state)
+
+    assert not state.blocking_open()
+    assert state.product_details_open()
+
+    result = orchestrator.handle("c-soft-after-style", "no")
+    state = orchestrator.store.get_or_create("c-soft-after-style")
+    assert result.handoff == "", result.reply
+    assert state.fields["email"].value != "declined"
+    assert state.fields["phone"].value != "declined"
+    assert "specialist" not in result.reply.lower()
+    assert state.ask_set()[0] in {"material", "finishes", "skus", "extras"}
     assert "?" in result.reply
 
 

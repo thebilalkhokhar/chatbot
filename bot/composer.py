@@ -26,9 +26,13 @@ from .state import (
     is_question,
     is_visitor_greeting,
     normalize_finish,
+    asks_size_guidance,
+    asks_term_meaning,
+    meaning_term,
     size_is_unknown,
     valid_email,
     wants_recommendation,
+    field_ask_name,
 )
 
 SINGLE_QUESTION_RULE = (
@@ -319,7 +323,11 @@ def _ack(state: ConversationState, visitor: str) -> str:
         return "Got it."
     if last == "style" and state.fields["style"].value:
         return "Got it."
+    if last == "material" and state.fields["material"].value:
+        return f"Thanks — {state.fields['material'].value} noted."
     if last in {"sizes", "quantity", "skus"} and state.fields[last].value:
+        return "Got it."
+    if last == "finishes" and state.fields["finishes"].value:
         return "Got it."
     if normalize_finish(visitor):
         return "Got it."
@@ -418,6 +426,32 @@ def heuristic_turn(
             "How many total designs do you have?"
         )
         return Composed(reply=" ".join(parts).strip(), asked="skus", source="heuristic")
+
+    if asks_term_meaning(visitor):
+        term = meaning_term(visitor) or "that"
+        open_key = ""
+        if state.last_question in CATALOGUE_OPTION_FIELDS and not state.fields[state.last_question].done:
+            open_key = state.last_question
+        elif expected and expected[0] in CATALOGUE_OPTION_FIELDS:
+            open_key = expected[0]
+        label = field_ask_name(open_key) if open_key else "option"
+        parts.append(
+            f"Good question — {term} is a short name for one of the {label} choices "
+            "on our catalogue list for this order, not a selection yet. "
+            "If you want that option we can use it; otherwise pick another from the list."
+        )
+        follow = ""
+        if open_key:
+            follow = state.question_for(open_key) or (expected[1] if expected else "")
+        elif expected:
+            follow = expected[1]
+        if follow:
+            parts.append(follow)
+        return Composed(
+            reply=" ".join(parts).strip(),
+            asked=open_key or (expected[0] if expected else ""),
+            source="heuristic",
+        )
 
     if is_visitor_greeting(visitor):
         question = _question_text(state, expected) or "What are you looking to have made — boxes, bags, labels, or something else?"
@@ -536,7 +570,9 @@ def heuristic_turn(
             )
             parts.append(follow)
             return Composed(reply=" ".join(parts).strip(), asked="material", source="heuristic")
-        if catalogue and asked_key == "style":
+        if catalogue and (
+            asked_key == "style" or style_suggest or "styles" in topics
+        ):
             follow = state.question_for("style") or "Which of those styles do you want?"
             parts.append(follow)
             return Composed(reply=" ".join(parts).strip(), asked="style", source="heuristic")
@@ -552,21 +588,29 @@ def heuristic_turn(
     ):
         parts.append("No problem — box styles include mailer, gift, kraft and display boxes.")
 
-    if size_is_unknown(visitor) and (
-        state.last_question == "sizes" or re.search(r"\bsizes?\b", visitor, re.I)
+    # Explicit style ask wins this turn; size help waits for the next ask.
+    if asks_size_guidance(visitor, state.last_question) and not (
+        style_suggest or "styles" in topics
     ):
         parts.append(
             "There's no standard size — everything is custom made, and the team "
             "sizes it around your product."
         )
-        if expected and expected[0] != "sizes":
+        use_case = str(state.fields["use_case"].value or "").strip()
+        if use_case:
+            parts.append(
+                "What are the product dimensions, or the fill weight per pack?"
+            )
+        elif expected and expected[0] not in {"", "sizes"}:
             parts.append(_question_text(state, expected))
             asked = expected[0]
-        elif len(visitor.split()) <= 8:
-            parts.append("What are you packing inside it?")
-            asked = "sizes"
-        return Composed(reply=" ".join(parts).strip(), asked=asked, source="heuristic")
-
+            return Composed(reply=" ".join(parts).strip(), asked=asked, source="heuristic")
+        else:
+            parts.append(
+                "What are you packing inside, and roughly how big is each unit "
+                "or the fill weight?"
+            )
+        return Composed(reply=" ".join(parts).strip(), asked="sizes", source="heuristic")
     if is_job_pitch(visitor):
         parts.append("Thanks, but we're not looking for those services.")
         parts.append(_question_text(state, expected) or "What are you looking to have made?")
@@ -671,6 +715,8 @@ def _intent(visitor: str) -> str:
         return "reference_share"
     if refuses_contact(visitor):
         return "refusal"
+    if asks_term_meaning(visitor):
+        return "term_meaning"
     if is_meta_question(visitor):
         return "meta"
     if wants_recommendation(visitor):
@@ -797,15 +843,21 @@ def build_user(
             "1,000 per size, or smaller runs."
         ),
         (
-            "GOAL flag offer_options_for / open Style with no concrete pick: list ONLY exact "
-            "styles from CATALOGUE PRIMER / FAMILY DETAIL for the ACTIVE family. Emit "
-            "proposed_configs for each named style. Do not invent names, do not store their "
-            "message as the style, ask which style they want (asked=style). No finish/SKU/email."
+            "GOAL flag offer_options_for / open Style with no concrete pick / they asked for "
+            "styles: list ONLY exact styles from CATALOGUE PRIMER / FAMILY DETAIL for the ACTIVE "
+            "family (bags → bag styles only; never box or label styles). If they asked for "
+            "another/other/more options after a short list, expand with additional listed styles "
+            "(still catalogue-only). Emit proposed_configs for each named style. Do not invent "
+            "names, do not store their message as the style, ask which style they want "
+            "(asked=style). Do not ask email, size, or quantity on this turn."
             if (
                 str(state.flags.get("offer_options_for") or "") == "style"
                 or (
-                    (is_option_request(visitor) or "styles" in topics)
-                    and state.last_question == "style"
+                    (is_option_request(visitor) or "styles" in topics or wants_recommendation(visitor))
+                    and (
+                        state.last_question == "style"
+                        or re.search(r"\bstyles?\b", visitor, re.I)
+                    )
                 )
             )
             else ""
@@ -892,10 +944,31 @@ def build_user(
             else ""
         ),
         (
+            "They asked what a term means (for example a material, style, or finish name). "
+            "Explain that term briefly in plain packaging language using FACTS / CATALOGUE / "
+            "FAMILY DETAIL when helpful — do NOT treat the term as their selection, do NOT put "
+            "it in fields, and leave proposed_configs empty. Then re-ask the same open ASK SET "
+            f"field ({state.last_question or 'the current open field'})."
+            if asks_term_meaning(visitor)
+            else ""
+        ),
+        (
+            "They are unsure about size or asked you to suggest one. Do NOT invent a size and "
+            "do NOT only re-ask what size they want. Explain briefly that there is no standard "
+            "size — everything is custom and the packaging team confirms the final size around "
+            "their product. If FAMILY DETAIL or CATALOGUE already lists a size row for this use, "
+            "you may cite it once as a guide only (never a guaranteed fit). Then ask for their "
+            "product dimensions or fill weight per pack. Leave sizes empty in fields unless they "
+            "gave a concrete dimension. Leave proposed_configs empty. asked=sizes."
+            if asks_size_guidance(visitor, state.last_question) and not asks_term_meaning(visitor)
+            else ""
+        ),
+        (
             "They are asking for a recommendation: name one specific option from the catalogue, "
             "say in one short clause why it fits, then ask one field from the ASK SET."
             if (
                 wants_recommendation(visitor)
+                and not asks_size_guidance(visitor, state.last_question)
                 and "materials" not in topics
                 and "styles" not in topics
                 and not re.search(r"\b(?:styles?|finishes?)\b", visitor, re.I)

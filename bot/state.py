@@ -256,6 +256,12 @@ BARE_QTY_RE = re.compile(
     r"(?:units?|pcs|pieces)?\s*[.!]?\s*$",
     re.I,
 )
+# "Quantity i need is 350" / "qty: 500" inside a longer intro message.
+NAMED_QTY_RE = re.compile(
+    r"\b(?:quantity|qty)\b[^\d]{0,32}(\d[\d,]*)\b"
+    r"|\b(\d[\d,]*)\b[^\w]{0,12}(?:quantity|qty)\b",
+    re.I,
+)
 EMAIL_RE = re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b")
 # NANP (optional +1) or E.164 (+cc… with optional separators). valid_phone still gates 10–15 digits.
 PHONE_RE = re.compile(
@@ -387,6 +393,18 @@ STYLE_VALUES = (
 MATERIAL_HINTS = re.compile(
     r"\b(pet|mpet|rpet|kraft|foil|metali[sz]ed|paper|cardstock|card stock|corrugated|"
     r"vinyl|bopp|pp|pe|plastic|clear|holographic|silver|gold|white)\b",
+    re.I,
+)
+# Named bag/box extras — pull the feature out of "yes, I want to add a zipper".
+EXTRA_FEATURE_RE = re.compile(
+    r"\b(?:"
+    r"(?:(?:easy[- ]?open|resealable|child[- ]?resistant)\s+)?zippers?"
+    r"|tear[- ]?notch(?:es)?"
+    r"|hang[- ]?holes?"
+    r"|windows?"
+    r"|degassing\s+valves?"
+    r"|valves?"
+    r")\b",
     re.I,
 )
 # Section 3.1: `use_case` is the field v1 has no place for, which is the structural
@@ -662,6 +680,34 @@ def size_is_unknown(text: str) -> bool:
     return bool(SIZE_UNKNOWN_RE.search(str(text or "")))
 
 
+def size_unsure_phrase(text: str) -> str:
+    """Short span for do-not-ask when size is waived as unsure — not the whole dump."""
+    value = str(text or "")
+    match = re.search(
+        r"\b(?:i(?:'m| am)|im)?\s*not sure about (?:the )?sizes?\b"
+        r"|\bnot sure (?:of|about) (?:the )?sizes?\b"
+        r"|\bdon'?t know (?:the |my )?sizes?\b"
+        r"|\bno idea (?:about |of )?(?:the )?sizes?\b"
+        r"|\bany size\b|\byou decide\b",
+        value,
+        re.I,
+    )
+    if match:
+        return re.sub(r"\s+", " ", match.group(0)).strip()[:80]
+    return "not sure about size"
+
+
+def asks_size_guidance(text: str, last_question: str = "") -> bool:
+    """Visitor is unsure about size or asked us to suggest one — not a catalogue pick."""
+    value = str(text or "")
+    if not value:
+        return False
+    mentions_size = bool(re.search(r"\bsizes?\b", value, re.I)) or last_question == "sizes"
+    if not mentions_size:
+        return False
+    return size_is_unknown(value) or wants_recommendation(value) or is_option_request(value)
+
+
 def is_to_be_confirmed(value: str) -> bool:
     """True when a field is explicitly left for the team (LLM or size-unknown path)."""
     folded = re.sub(r"\s+", " ", str(value or "").strip().lower())
@@ -689,6 +735,8 @@ def field_shaped_attempt(
     """True when the message looks like a real attempt to answer this field."""
     value = str(visitor or "").strip()
     if not value:
+        return False
+    if asks_term_meaning(value):
         return False
     if key == "sizes":
         # Concrete size only. "not sure" / "no preference" are waivers handled by
@@ -789,6 +837,10 @@ def needs_catalogue_options(
     ):
         return ""
     if is_question(text) and not is_option_request(text) and not wants_recommendation(text):
+        # "Is there another option?" while style/material/finish is open is still
+        # a catalogue-menu ask — not an off-topic fact question.
+        if re.search(r"\b(?:options?|choices?|alternatives?)\b", text, re.I):
+            return key
         # Real question for us (MOQ, address, …) — answer that path instead.
         return ""
     return key
@@ -1080,6 +1132,50 @@ def normalize_finish(text: str) -> str | None:
     return None
 
 
+def normalize_extras_pick(
+    text: str,
+    *,
+    registry: Any | None = None,
+    family: str = "",
+) -> str | None:
+    """Catalogue extras feature(s), or bare yes/no — never the whole visitor sentence."""
+    value = str(text or "").strip()
+    if not value:
+        return None
+    lowered = value.lower().strip(" .!?")
+    if lowered in {"yes", "no", "none", "both", "neither"}:
+        return lowered
+    if AFFIRMATION_RE.fullmatch(value):
+        return "yes"
+    features: list[str] = []
+    for match in EXTRA_FEATURE_RE.finditer(value):
+        feat = re.sub(r"[-_]+", " ", match.group(0).lower())
+        feat = re.sub(r"\s+", " ", feat).strip()
+        # Singular catalogue form.
+        feat = re.sub(r"\bzippers\b", "zipper", feat)
+        feat = re.sub(r"\b(tear notch)es\b", r"\1", feat)
+        feat = re.sub(r"\b(hang hole)s\b", r"\1", feat)
+        feat = re.sub(r"\bwindows\b", "window", feat)
+        feat = re.sub(r"\b(degassing valve)s\b", r"\1", feat)
+        if feat == "valve":
+            feat = "degassing valve"
+        if feat and feat not in features:
+            features.append(feat)
+    # Multiple named extras stay together ("zipper and tear notch").
+    if len(features) > 1:
+        return ", ".join(features)
+    if registry is not None:
+        for field_name, canonical in registry.vocabulary_hits(value, family):
+            if field_name == "extras" and canonical:
+                return str(canonical).strip()
+    if features:
+        return features[0]
+    # Short freeform extras answer only — not a full chat sentence.
+    if len(value.split()) <= 4 and not is_question(value):
+        return value[:80]
+    return None
+
+
 def _use_case_phrase(raw: str, *, allow_packaging_nouns: bool = False) -> str:
     phrase = re.sub(r"\s+", " ", str(raw or "")).strip(" .,;:")
     words = [word for word in phrase.lower().split() if word not in USE_CASE_STOP_WORDS]
@@ -1322,6 +1418,13 @@ OPTION_REQUEST_RE = re.compile(
     r"|^\s*(?:options?|choices?)\s*[?!.]*\s*$"
     r"|\b(?:any|some|the)\s+(?:options?|choices?)\b"
     r"|\bwhat\s+(?:are\s+)?(?:my|the|our)\s+(?:options?|choices?)\b"
+    r"|\b(?:is there|are there)\s+(?:any\s+)?(?:another|other|more)\s+"
+    r"(?:options?|choices?|styles?|kinds?|types?|finishes?|materials?)?\b"
+    r"|\b(?:another|other|more)\s+(?:options?|choices?|styles?|kinds?|types?|"
+    r"finishes?|materials?|alternatives?)\b"
+    r"|\bany\s+(?:other|more)(?:\s+(?:options?|choices?|styles?|kinds?|types?|"
+    r"finishes?|materials?|alternatives?))?\s*[?!.]*\s*$"
+    r"|\b(?:what|anything)\s+else\s*(?:do you (?:have|offer|make))?\s*[?!.]*\s*$"
     r"|\b(?:other|alternative)\s+materials?\b"
     r"|\bmaterials?\s+other\s+than\b"
     r"|\bsuggest\s+(?:me\s+)?(?:other\s+|alternative\s+)?materials?\b"
@@ -1402,6 +1505,42 @@ def is_meta_question(text: str) -> bool:
         or asks_language_preference(text)
         or bool(META_QUESTION_RE.search(str(text or "")))
     )
+
+
+# "What does PE mean?" / "kraft means?" — gloss ask, not a catalogue pick.
+MEANING_QUESTION_RE = re.compile(
+    r"^\s*what\s+does\s+(.+?)\s+(?:mean|stand for)\s*\??\s*$"
+    r"|^\s*what(?:'s|s|\s+is)\s+(.+?)\s*\??\s*$"
+    r"|^\s*(.+?)\s+means?\s*\??\s*$"
+    r"|^\s*(?:can you|could you|please)\s+(?:explain|define)\s+(.+?)\s*\??\s*$"
+    r"|^\s*(?:explain|define)\s+(.+?)\s*\??\s*$",
+    re.I,
+)
+
+
+_MEANING_NON_TERM_RE = re.compile(
+    r"(?i)^(the|a|an|your|my|our|this|that|it|next|available|possible|better|best)\b"
+)
+
+
+def meaning_term(text: str) -> str:
+    """Subject of a short 'what does X mean' ask, or empty."""
+    match = MEANING_QUESTION_RE.match(str(text or "").strip())
+    if not match:
+        return ""
+    term = next((group for group in match.groups() if group), "")
+    term = re.sub(r"\s+", " ", str(term or "")).strip(" ?.!,;:\"'")
+    if not term or len(term.split()) > 4:
+        return ""
+    # "what is the size?" / "what's next?" are normal questions, not gloss asks.
+    if _MEANING_NON_TERM_RE.match(term):
+        return ""
+    return term
+
+
+def asks_term_meaning(text: str) -> bool:
+    """Visitor asking what a term means — not selecting that term as the answer."""
+    return bool(meaning_term(text))
 
 
 def is_goodbye(text: str) -> bool:
@@ -1765,7 +1904,12 @@ class ConversationState:
             ):
                 keys.insert(0, key)
         # Soft email is the only ask for that one turn (then product questions resume).
-        if self.ready_for_soft_email():
+        # An explicit catalogue-menu ask (styles/materials/finishes) wins over it.
+        offer = str(self.flags.get("offer_options_for") or "").strip()
+        if offer in CATALOGUE_OPTION_FIELDS and not self.fields[offer].done:
+            ordered = [offer] + [key for key in keys if key != offer and key != "email"]
+            return ordered
+        if self.ready_for_soft_email() and offer not in CATALOGUE_OPTION_FIELDS:
             return ["email"]
         return keys
 
@@ -1779,7 +1923,11 @@ class ConversationState:
             # The number is known; the unit is not. Asking which unit is still legal.
             if key == "sizes" and self.size_needs_unit() and not self.flags.get("unit_asked"):
                 continue
-            words = " ".join((value.raw_visitor_text or value.value).split())
+            # Waived / TBC: show the settled token, not the whole multi-field dump.
+            if value.status == STATUS_WAIVED or is_to_be_confirmed(value.value):
+                words = " ".join((value.value or value.raw_visitor_text).split())
+            else:
+                words = " ".join((value.raw_visitor_text or value.value).split())
             if words:
                 denied.append((key, words))
         return denied
@@ -1813,7 +1961,12 @@ class ConversationState:
             )
         if "sizes" in allowed and self.size_needs_unit():
             lines.append(f"Size unit question, verbatim: {self.question_for('sizes')}")
-        if self.ready_for_soft_email() and "email" in allowed:
+        offer = str(self.flags.get("offer_options_for") or "").strip()
+        if (
+            self.ready_for_soft_email()
+            and "email" in allowed
+            and offer not in CATALOGUE_OPTION_FIELDS
+        ):
             lines.append(
                 "Soft email ask (once): product and use case are known — ask for their "
                 "email for the quote now. If they skip, refuse, or answer something else, "
@@ -2161,6 +2314,18 @@ def traceable(
         tokens = [token for token in re.findall(r"[a-z0-9]+", candidate.lower()) if len(token) > 2]
         if any(token in visitor for token in tokens):
             return True
+        # Short catalogue codes (PE, PP, UV): whole-word only — never substring
+        # ("pe" must not match inside "open" / "paper").
+        short_tokens = [
+            token for token in re.findall(r"[a-z0-9]+", candidate.lower()) if len(token) == 2
+        ]
+        if short_tokens and all(
+            re.search(rf"\b{re.escape(token)}\b", visitor) for token in short_tokens
+        ):
+            if key != "material" or MATERIAL_HINTS.search(candidate) or MATERIAL_HINTS.search(
+                visitor_text
+            ):
+                return True
         # Fuzzy catalogue picks: "mail box" → mailer, "kraftt" → kraft. The
         # settled token need not appear verbatim in the visitor text.
         if key in {"style", "material"}:
@@ -2258,22 +2423,34 @@ def apply_field_updates(
         # stamps sizes="to be confirmed" while the visitor answered use case
         # ("coffee beans") must not close size early.
         if key in UNCERTAIN_WAIVE_FIELDS and is_to_be_confirmed(value):
+            # Visitor explicitly said they are unsure about size — allow TBC even
+            # when the same message also asks for styles/options.
+            size_unsure = (
+                key == "sizes"
+                and size_is_unknown(visitor_text)
+                and bool(re.search(r"\bsizes?\b", str(visitor_text or ""), re.I))
+            )
             # Asking for options/suggestions is not a waiver — offer the catalogue.
-            if wants_recommendation(visitor_text) or is_option_request(visitor_text):
+            if (
+                wants_recommendation(visitor_text) or is_option_request(visitor_text)
+            ) and not size_unsure:
                 rejected[key] = value
                 continue
             # Image OCR / typed brief may waive a field that was not the last ask.
             visitor_confirms = is_to_be_confirmed(visitor_text) or bool(
                 re.search(r"\bto\s*be\s*confirmed\b", str(visitor_text or ""), re.I)
             )
-            if key != state.last_question and not visitor_confirms:
+            if key != state.last_question and not visitor_confirms and not size_unsure:
                 rejected[key] = value
                 continue
+            raw_note = str(visitor_text or "").strip()[:200]
+            if key == "sizes" and size_unsure:
+                raw_note = size_unsure_phrase(visitor_text)
             state.set_field(
                 key,
                 TO_BE_CONFIRMED,
                 BASIS_VISITOR,
-                raw=str(visitor_text or "").strip()[:200],
+                raw=raw_note,
                 status=STATUS_WAIVED,
             )
             if key == "sizes":
@@ -2354,10 +2531,23 @@ def apply_field_updates(
                     rejected[key] = value
                     continue
                 value = material_match.group(0)
-        if key == "extras" and is_question(visitor_text) and basis == BASIS_VISITOR:
-            if value.lower() not in {"yes", "no", "none", "both", "neither"}:
-                rejected[key] = value
-                continue
+        if key == "extras":
+            if is_question(visitor_text) and basis == BASIS_VISITOR:
+                if value.lower() not in {"yes", "no", "none", "both", "neither"}:
+                    rejected[key] = value
+                    continue
+            elif basis == BASIS_VISITOR:
+                # LLM / extract may still pass a full sentence — keep the feature only.
+                picked = normalize_extras_pick(
+                    value, registry=registry, family=state.family()
+                ) or normalize_extras_pick(
+                    visitor_text, registry=registry, family=state.family()
+                )
+                if picked:
+                    value = picked
+                elif len(str(value).split()) > 4:
+                    rejected[key] = value
+                    continue
         if key == "sizes":
             if size_has_zero_dimension(value):
                 rejected[key] = value
@@ -2534,7 +2724,12 @@ def extract_fields(
         updates["product"] = FAMILY_PRODUCT.get(family, value.strip()[:60])
 
     use_case = use_case_from(value)
-    if use_case and not is_question(value):
+    # A trailing options ask ("Any suggestions on styles?") must not drop a
+    # clear "for my coffee beans" from the same intro — only skip pure questions.
+    use_case_ok = bool(use_case) and (
+        not is_question(value) or bool(re.search(r"\bfor\b", value, re.I))
+    )
+    if use_case_ok:
         # Style picks like "3 Side Seal Pouches" must not become use_case="side seal"
         # via the purpose+product pattern while style (or product) is on the table.
         style_shaped = normalize_style(value)
@@ -2599,7 +2794,26 @@ def extract_fields(
             # A zero dimension is not a size. Leave the field empty so it is asked again.
             pass
         elif size_is_unknown(value):
-            updates["sizes"] = value.strip()[:60]
+            updates["sizes"] = TO_BE_CONFIRMED
+
+    # "…not sure about size…" in a multi-field dump (product/qty/styles) → TBC,
+    # even when size was not the open question. Pure "suggest me a size" stays open.
+    if (
+        "sizes" not in updates
+        and not state.fields["sizes"].done
+        and size_is_unknown(value)
+        and re.search(r"\bsizes?\b", value, re.I)
+        and not SIZE_DIM_RE.search(size_text)
+        and not SINGLE_SIZE_RE.search(value)
+    ):
+        size_help_only = asks_size_guidance(value, last_question) and not (
+            updates.get("product")
+            or updates.get("quantity")
+            or updates.get("use_case")
+            or re.search(r"\bstyles?\b", value, re.I)
+        )
+        if not size_help_only:
+            updates["sizes"] = TO_BE_CONFIRMED
 
     has_contact = "email" in updates or "phone" in updates
     if last_question == "quantity":
@@ -2609,8 +2823,12 @@ def extract_fields(
     elif not has_contact:
         number: int | None = None
         with_unit = QTY_UNIT_RE.search(value)
+        named = NAMED_QTY_RE.search(value)
         if with_unit:
             number = parse_quantity(with_unit.group(0))
+        elif named:
+            raw_num = next((group for group in named.groups() if group), "")
+            number = parse_quantity(raw_num) if raw_num else None
         elif last_question in {"", "product", "style", "finishes", "material", "extras"}:
             bare = BARE_QTY_RE.match(value)
             if bare:
@@ -2620,17 +2838,23 @@ def extract_fields(
             updates["quantity"] = str(number)
 
     finish = normalize_finish(value)
-    if finish and (last_question == "finishes" or finish != "none"):
+    if (
+        finish
+        and (last_question == "finishes" or finish != "none")
+        and not asks_term_meaning(value)
+    ):
         updates["finishes"] = finish
 
     material = MATERIAL_HINTS.search(value)
     # A material said while we were asking for a style is still the material.
     # An alternatives ask that happens to name vinyl is not choosing vinyl.
+    # "What does PE mean?" is a gloss ask, not a material pick.
     if (
         material
         and len(value.split()) <= 6
         and not wants_recommendation(value)
         and not is_option_request(value)
+        and not asks_term_meaning(value)
     ):
         word = material.group(0).lower()
         if word == "metallized":
@@ -2680,7 +2904,15 @@ def extract_fields(
         # "Yes" confirms a proposal; it does not describe what they are packing.
         elif last_question != "use_case" or not AFFIRMATION_RE.fullmatch(value):
             if not (last_question == "use_case" and is_option_request(value)):
-                updates.setdefault(last_question, value.strip()[:80])
+                if last_question == "extras":
+                    # "yes, i want to add zipper" → zipper — not the whole sentence.
+                    picked = normalize_extras_pick(
+                        value, registry=registry, family=state.family()
+                    )
+                    if picked:
+                        updates.setdefault("extras", picked)
+                else:
+                    updates.setdefault(last_question, value.strip()[:80])
 
     if (
         registry is not None
@@ -2698,6 +2930,14 @@ def extract_fields(
             # ("3 Side Seal Pouches" must not stay as "flat" when the registry names it).
             if field_name == "style" and last_question == "style":
                 updates["style"] = canonical
+                continue
+            # Named extras in prose beat a dumped visitor sentence. Keep
+            # multi-feature picks ("zipper, tear notch") — registry is one slot.
+            if field_name == "extras" and last_question == "extras":
+                current = str(updates.get("extras") or "")
+                if "," in current or re.search(r"\band\b", current, re.I):
+                    continue
+                updates["extras"] = canonical
                 continue
             # Foil printing is a finish; registry must not also lock material=foil.
             if (
@@ -2729,9 +2969,11 @@ def extract_fields(
             updates[last_question] = TO_BE_CONFIRMED
 
     if contact_fields_refused(value, last_question):
-        # Soft early email "no" = skip this ask while size/qty still open.
-        # Closing refuse (order blockers settled) still waives email + phone.
-        soft_email_skip = last_question == "email" and state.blocking_open()
+        # Soft early email "no" = skip while blockers or product details are open.
+        # Closing refuse (checklist otherwise settled) still waives email + phone.
+        soft_email_skip = last_question == "email" and (
+            state.blocking_open() or state.product_details_open()
+        )
         if soft_email_skip:
             state.flags["soft_email_asked"] = True
         else:
@@ -2744,8 +2986,13 @@ def extract_fields(
         and last_question in CATALOGUE_OPTION_FIELDS
         and not wants_recommendation(raw)
         and not is_option_request(raw)
+        and not asks_term_meaning(raw)
     ):
         updates.setdefault(last_question, catalogue_fuzzy)
+
+    if asks_term_meaning(value):
+        for key in ("material", "style", "finishes", "extras"):
+            updates.pop(key, None)
 
     if is_plain(value):
         state.flags["plain"] = True

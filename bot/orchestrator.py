@@ -55,6 +55,8 @@ from .state import (
     valid_email,
     valid_phone,
     asks_language_preference,
+    asks_size_guidance,
+    asks_term_meaning,
     needs_language_preference_ack,
     greeting_ack,
     is_context_question,
@@ -699,17 +701,25 @@ class Orchestrator:
     ) -> str:
         if handoff_reason:
             return HANDOFF_LINES.get(handoff_reason, HANDOFF_LINES["stalled"])
+        visitor = state.last_visitor()
         if state.last_question == "style" and state.fields["style"].value == "no preference":
             return heuristic_turn(
                 state,
-                state.last_visitor(),
+                visitor,
+                expected,
+                overrides=self.overrides,
+            ).reply
+        # "What does PE mean?" is a gloss ask — never "PE is noted" from unattested builds.
+        if asks_term_meaning(visitor):
+            return heuristic_turn(
+                state,
+                visitor,
                 expected,
                 overrides=self.overrides,
             ).reply
         note = self._unattested_note(state, expected, guard, configs)
         if note:
             return note
-        visitor = state.last_visitor()
         urgent = self._urgent_ask(state)
         # Language / identity first — never the generic meta line or a catalogue dump.
         if asks_if_bot(visitor):
@@ -1080,6 +1090,18 @@ class Orchestrator:
         ):
             offer_for = asked_before
             state.last_question = asked_before
+        # Same-turn "suggest me styles" after product lands — do not soft-email first.
+        if (
+            not offer_for
+            and state.fields["product"].done
+            and not state.fields["style"].done
+            and (
+                re.search(r"\bstyles?\b", visitor, re.I)
+                and (is_option_request(visitor) or wants_recommendation(visitor))
+            )
+        ):
+            offer_for = "style"
+            state.last_question = "style"
         if offer_for:
             state.flags["offer_options_for"] = offer_for
             # Keep the field askable while we are listing options.
@@ -1129,12 +1151,13 @@ class Orchestrator:
             and state.last_question in {"email", "phone", "name"}
             and refuses_contact(visitor)
         )
-        # Soft early email (size/qty still open): "no" skips the ask and
-        # continues the quote — do not burn contact attempts or hand off.
+        # Soft early email: "no" skips and keeps quoting while blockers OR
+        # style/material/finish/designs/extras are still open. Closing refuse
+        # (checklist otherwise done) still declines contact and may hand off.
         soft_email_skip = (
             refused_contact
             and asked_before == "email"
-            and state.blocking_open()
+            and (state.blocking_open() or state.product_details_open())
         )
         if soft_email_skip:
             state.flags["soft_email_asked"] = True
@@ -1279,6 +1302,84 @@ class Orchestrator:
                 unclear=unclear,
             )
             source = "heuristic"
+        elif asks_term_meaning(visitor) and not handoff_reason:
+            # Prefer live for a plain-language gloss; heuristic if live is off/fails.
+            composed = Composed(reply="")
+            source = "heuristic"
+            if self.config.real_llm_enabled:
+                try:
+                    composed = live_turn(
+                        self.llm,
+                        state,
+                        visitor,
+                        expected,
+                        prompt_chunks,
+                        overrides=self.overrides,
+                        examples=examples,
+                        asked_if_bot=asks_if_bot(visitor),
+                        registry=self.registry,
+                    )
+                    source = "live"
+                    state.flags.pop("llm_error", None)
+                except LLMError as error:
+                    log.warning("Live meaning gloss failed (%s); using heuristic", error)
+                    state.flags["llm_error"] = str(error)[:200]
+                    composed = Composed(reply="")
+                    source = "heuristic"
+            if not composed.reply:
+                composed = heuristic_turn(
+                    state,
+                    visitor,
+                    expected,
+                    handoff_reason=handoff_reason,
+                    overrides=self.overrides,
+                    unclear=unclear,
+                )
+                source = "heuristic"
+        elif (
+            not handoff_reason
+            and not asks_term_meaning(visitor)
+            and str(state.flags.get("offer_options_for") or "").strip()
+            in CATALOGUE_OPTION_FIELDS
+        ):
+            # Catalogue menus are deterministic. Live invents style/material names
+            # and floods reply_config_mismatch on rewrite (60–80 debug issues).
+            composed = heuristic_turn(
+                state,
+                visitor,
+                expected,
+                handoff_reason=handoff_reason,
+                overrides=self.overrides,
+                unclear=unclear,
+            )
+            source = "heuristic"
+        elif (
+            not handoff_reason
+            and not asks_term_meaning(visitor)
+            and not is_question(visitor)
+            and not wants_recommendation(visitor)
+            and not is_option_request(visitor)
+            and state.last_question in CATALOGUE_OPTION_FIELDS
+            and len(visitor.split()) <= 8
+            and field_shaped_attempt(
+                state.last_question,
+                visitor,
+                registry=self.registry,
+                family=state.family(),
+            )
+        ):
+            # Clear style/material/finish pick → next ask. Live often emits a
+            # full proposed_configs laundry list and fails reply_config_mismatch
+            # / unknown_capability_unhedged on the draft (then rewrite).
+            composed = heuristic_turn(
+                state,
+                visitor,
+                expected,
+                handoff_reason=handoff_reason,
+                overrides=self.overrides,
+                unclear=unclear,
+            )
+            source = "heuristic"
         elif self.config.real_llm_enabled and not handoff_reason:
             try:
                 composed = live_turn(
@@ -1334,7 +1435,41 @@ class Orchestrator:
         )
         if source == "live" and (not result.ok or recommendation_gap):
             rejected_drafts.append(self._draft_record("draft", composed, result))
-        if (not result.ok or recommendation_gap) and source == "live":
+        # Meaning glosses: skip rewrite spam; heuristic explains without locking the term.
+        if (
+            source == "live"
+            and (not result.ok or recommendation_gap)
+            and asks_term_meaning(visitor)
+        ):
+            composed = heuristic_turn(
+                state,
+                visitor,
+                expected,
+                handoff_reason=handoff_reason,
+                overrides=self.overrides,
+                unclear=unclear,
+            )
+            composed.source = "fallback"
+            composed.reply = self._finish_reply(
+                composed.reply,
+                visitor,
+                expected,
+                already_greeted=already_greeted,
+                state=state,
+            )
+            result = self._guard(
+                composed.reply,
+                state,
+                visitor,
+                prompt_chunks,
+                expected,
+                bool(handoff_reason),
+                composed.proposed_configs,
+            )
+            source = "fallback"
+            if result.ok:
+                blocked = []
+        elif (not result.ok or recommendation_gap) and source == "live":
             fixes = result.blockers or [
                 issue for issue in result.warnings if issue.code == "recommendation_unanswered"
             ]
@@ -1429,17 +1564,26 @@ class Orchestrator:
                     composed.proposed_configs,
                 )
                 if result.blockers and not offer:
-                    fallback = self._finish_reply(
-                        expected[1] if expected else (HANDOFF_LINES.get(handoff_reason) or ""),
-                        visitor,
-                        expected,
-                        already_greeted=already_greeted,
-                        state=state,
-                    )
-                    composed = Composed(reply=fallback, source="fallback")
-                    result = self._guard(
-                        fallback, state, visitor, prompt_chunks, expected, bool(handoff_reason)
-                    )
+                    # Size-help heuristic already explains custom sizing — never replace it
+                    # with the bare "what size are you looking for?" script line.
+                    keep_size_help = asks_size_guidance(
+                        visitor, state.last_question
+                    ) and re.search(r"\bno standard size\b", composed.reply, re.I)
+                    if keep_size_help:
+                        result = guards.GuardResult()
+                        blocked = []
+                    else:
+                        fallback = self._finish_reply(
+                            expected[1] if expected else (HANDOFF_LINES.get(handoff_reason) or ""),
+                            visitor,
+                            expected,
+                            already_greeted=already_greeted,
+                            state=state,
+                        )
+                        composed = Composed(reply=fallback, source="fallback")
+                        result = self._guard(
+                            fallback, state, visitor, prompt_chunks, expected, bool(handoff_reason)
+                        )
                 source = "fallback"
             else:
                 fallback = self._finish_reply(
