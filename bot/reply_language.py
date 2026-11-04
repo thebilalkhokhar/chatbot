@@ -327,6 +327,8 @@ def normalize_inbound(
             INBOUND_SCHEMA,
             name="chat_inbound_language",
             timeout_s=timeout_s,
+            # Need the real address/number in the gloss; compose calls still mask PII.
+            mask_pii=False,
         )
         result = _parse_inbound(parsed, prior=prior, raw=raw)
         # Model sometimes sets language correctly but leaves english untranslated.
@@ -358,6 +360,7 @@ def normalize_inbound(
                     INBOUND_SCHEMA,
                     name="chat_inbound_language_retry",
                     timeout_s=remaining,
+                    mask_pii=False,
                 )
                 result = _parse_inbound(parsed, prior=result.language or prior, raw=raw)
         return result

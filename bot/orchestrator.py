@@ -40,6 +40,7 @@ from .state import (
     UNIT_ONLY_RE,
     ConversationState,
     apply_field_updates,
+    extract_contact_fields,
     asks_if_bot,
     asks_to_share_reference,
     continue_ask,
@@ -398,14 +399,28 @@ class Orchestrator:
 
     def _offslot_ack(self, state: ConversationState, accepted: dict[str, str], asked: str) -> str:
         """Acknowledge a field given while another question was open."""
-        phone = str(accepted.get("phone") or "").strip()
+        noted: list[str] = []
+        name = str(accepted.get("name") or "").strip()
         email = str(accepted.get("email") or "").strip()
-        if phone and asked != "phone" and valid_phone(phone):
-            follow = self._offslot_followup(state, asked)
-            return f"Thanks — I've got your number. {follow}".strip()
+        phone = str(accepted.get("phone") or "").strip()
+        if name and asked != "name":
+            noted.append("name")
         if email and asked != "email" and valid_email(email):
+            noted.append("email")
+        if phone and asked != "phone" and valid_phone(phone):
+            noted.append("number")
+        if noted:
             follow = self._offslot_followup(state, asked)
-            return f"Thanks — I've got your email. {follow}".strip()
+            if len(noted) >= 2:
+                lead = "Thanks — I've got everything you shared."
+            elif noted[0] == "name":
+                first = name.split()[0]
+                lead = f"Thanks, {first}."
+            elif noted[0] == "email":
+                lead = "Thanks — I've got your email."
+            else:
+                lead = "Thanks — I've got your number."
+            return f"{lead} {follow}".strip()
         if asked != "style" or state.fields["style"].done:
             return ""
         values = [str(accepted[key]) for key in ("material", "finishes", "extras") if accepted.get(key)]
@@ -967,8 +982,18 @@ class Orchestrator:
         )
         confirmed = state.confirm_suggested(visitor)
         extracted = extract_fields(visitor, state.last_question, state, registry=self.registry)
+        # Contact details must come from the visitor's raw words. Inbound LLM calls
+        # mask emails to [EMAIL], so the English gloss can drop them — raw wins.
+        contacts = extract_contact_fields(raw_visitor)
+        extracted.update(contacts)
+        # Traceable checks need the raw contact spans and any English gloss together.
+        trace_text = visitor
+        if contacts and raw_visitor.strip() and raw_visitor.strip() not in visitor:
+            trace_text = f"{visitor} {raw_visitor}".strip()
+        elif contacts:
+            trace_text = raw_visitor
         accepted, rejected = apply_field_updates(
-            state, extracted, visitor, registry=self.registry
+            state, extracted, trace_text, registry=self.registry
         )
         for key in confirmed:
             accepted[key] = state.fields[key].value

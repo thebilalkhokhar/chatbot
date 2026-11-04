@@ -264,6 +264,86 @@ PHONE_RE = re.compile(
     r"|\+\d(?:[\s.\-]?\d){7,14}"
     r")(?!\d)"
 )
+# Informal intros: "my name is Bilal", "I am Bilal", "hey Bilal here", "this is Bilal".
+NAME_INTRO_RE = re.compile(
+    r"(?:"
+    r"(?:my\s+)?name\s*(?:is|:)\s+([A-Za-z][\w'-]{1,40})"
+    r"|i(?:\s+am|'m)\s+([A-Za-z][\w'-]{1,40})"
+    r"|this\s+is\s+([A-Za-z][\w'-]{1,40})"
+    r"|it(?:'s|\s+is)\s+([A-Za-z][\w'-]{1,40})"
+    r"|call\s+me\s+([A-Za-z][\w'-]{1,40})"
+    r"|(?:^|[,;]\s*|(?:hi|hello|hey)\s+)([A-Za-z][\w'-]{1,40})\s+here\b"
+    r"|([A-Za-z][\w'-]{1,40})\s+speaking\b"
+    r")",
+    re.I,
+)
+NAME_INTRO_BLOCKLIST = frozenset(
+    {
+        "a",
+        "an",
+        "the",
+        "not",
+        "so",
+        "just",
+        "also",
+        "still",
+        "here",
+        "there",
+        "looking",
+        "interested",
+        "calling",
+        "trying",
+        "wanting",
+        "needing",
+        "hoping",
+        "writing",
+        "reaching",
+        "asking",
+        "packing",
+        "putting",
+        "selling",
+        "buying",
+        "ordering",
+        "sending",
+        "seeking",
+        "from",
+        "with",
+        "based",
+        "available",
+        "ready",
+        "new",
+        "your",
+        "their",
+        "me",
+        "us",
+        "we",
+        "you",
+        "someone",
+        "somebody",
+        "anyone",
+        "anybody",
+        "everyone",
+        "regarding",
+        "about",
+        "for",
+        "email",
+        "phone",
+        "number",
+        "mobile",
+        "cell",
+        "boxes",
+        "bags",
+        "labels",
+        "stickers",
+        "pouches",
+        "banners",
+        "cards",
+        "packaging",
+        "printing",
+        "quote",
+        "order",
+    }
+)
 FINISH_WORDS = {
     # Longer catalogue forms first so "matte lamination" does not collapse to "matte".
     "matte lamination": ("matte lamination",),
@@ -2398,6 +2478,24 @@ def apply_field_updates(
     return accepted, rejected
 
 
+def extract_contact_fields(text: str) -> dict[str, str]:
+    """Pull email, phone, and name from the visitor's own words (any open question)."""
+    value = str(text or "")
+    updates: dict[str, str] = {}
+    email = EMAIL_RE.search(value)
+    if email and valid_email(email.group(0)):
+        updates["email"] = email.group(0)
+    phone = PHONE_RE.search(value)
+    if phone:
+        updates["phone"] = phone.group(0)
+    name = NAME_INTRO_RE.search(value)
+    if name:
+        token = next((group for group in name.groups() if group), "").strip()
+        if token and token.casefold() not in NAME_INTRO_BLOCKLIST:
+            updates["name"] = token[:60]
+    return updates
+
+
 def extract_fields(
     text: str,
     last_question: str,
@@ -2421,24 +2519,15 @@ def extract_fields(
     size_text = normalise_dimension_separators(value)
     updates: dict[str, str] = {}
 
-    email = EMAIL_RE.search(value)
-    if email and valid_email(email.group(0)):
-        updates["email"] = email.group(0)
-    phone = PHONE_RE.search(value)
-    if phone and not email:
-        updates["phone"] = phone.group(0)
-    elif (
-        not email
+    updates.update(extract_contact_fields(value))
+    if (
+        "phone" not in updates
         and last_question == "phone"
         and looks_like_contact(value.strip())
         and valid_phone(value.strip())
     ):
         # Bare intl / digit-run answers when we just asked for their number.
         updates["phone"] = value.strip()
-
-    name = re.search(r"\bmy name is\s+([A-Za-z][\w'-]+)", value, re.I)
-    if name:
-        updates["name"] = name.group(1)
 
     family = family_of(value)
     if family != "unknown" and (not is_question(value) or not state.fields["product"].done):
@@ -2512,11 +2601,12 @@ def extract_fields(
         elif size_is_unknown(value):
             updates["sizes"] = value.strip()[:60]
 
+    has_contact = "email" in updates or "phone" in updates
     if last_question == "quantity":
         number = parse_quantity(value)
-        if number is not None and not email and not phone:
+        if number is not None and not has_contact:
             updates["quantity"] = str(number)
-    elif not email and not phone:
+    elif not has_contact:
         number: int | None = None
         with_unit = QTY_UNIT_RE.search(value)
         if with_unit:

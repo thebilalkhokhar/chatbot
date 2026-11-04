@@ -147,6 +147,55 @@ def test_skus_wrong_question_replaced_with_designs_ask():
     assert "article" not in fixed.lower()
 
 
+def test_intro_message_stores_name_email_and_phone():
+    from chatbot.bot.state import extract_contact_fields
+
+    text = (
+        "hi, I am bilal, my email is bilal@gmail.com and my phone number is +923134432915"
+    )
+    contacts = extract_contact_fields(text)
+    assert contacts.get("name", "").lower() == "bilal"
+    assert contacts.get("email") == "bilal@gmail.com"
+    assert contacts.get("phone") == "+923134432915"
+
+    state = ConversationState(id="contact-intro", persona="Alex Kane")
+    state.last_question = "product"
+    updates = extract_fields(text, "product", state)
+    updates.update(extract_contact_fields(text))
+    accepted, rejected = apply_field_updates(state, updates, text)
+    assert accepted.get("name", "").lower() == "bilal"
+    assert accepted.get("email") == "bilal@gmail.com"
+    assert accepted.get("phone") == "+923134432915"
+    assert "email" not in rejected
+    assert "phone" not in rejected
+
+
+def test_i_am_looking_is_not_a_name():
+    from chatbot.bot.state import extract_contact_fields
+
+    assert "name" not in extract_contact_fields("I am looking for boxes")
+
+
+def test_hey_name_here_stores_name_with_email_and_phone():
+    from chatbot.bot.state import extract_contact_fields
+
+    text = "hey bilal here, my email is bilal@gmail.com and my phone number is +923134432915"
+    contacts = extract_contact_fields(text)
+    assert contacts.get("name", "").lower() == "bilal"
+    assert contacts.get("email") == "bilal@gmail.com"
+    assert contacts.get("phone") == "+923134432915"
+
+    for phrase in (
+        "bilal here",
+        "this is bilal",
+        "it's bilal",
+        "call me bilal",
+        "name: bilal",
+        "bilal speaking",
+    ):
+        assert extract_contact_fields(phrase).get("name", "").lower() == "bilal"
+
+
 def test_three_side_seal_pouches_locks_catalogue_style_not_flat():
     registry = Registry.load(KB_DIR)
     state = ConversationState(id="3ss", persona="Alex Kane")

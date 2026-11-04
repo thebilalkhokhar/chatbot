@@ -285,6 +285,30 @@ def disclosure_line(persona_name: str) -> str:
 
 def _ack(state: ConversationState, visitor: str) -> str:
     last = state.last_question
+    # Several contact details in one message → one broad thanks, not only "number".
+    contact_hits = sum(
+        1
+        for key, check in (
+            ("name", bool(str(state.fields["name"].value or "").strip())),
+            ("email", valid_email(state.fields["email"].value)),
+            ("phone", bool(str(state.fields["phone"].value or "").strip())),
+        )
+        if check and (
+            key in visitor.lower()
+            or (
+                key == "name"
+                and re.search(
+                    r"\b(?:i am|i'm|my name is|this is|call me|name\s*(?:is|:)|speaking)\b|\bhere\b",
+                    visitor,
+                    re.I,
+                )
+            )
+            or (key == "email" and "@" in visitor)
+            or (key == "phone" and re.search(r"\+?\d[\d\s().\-]{6,}\d", visitor))
+        )
+    )
+    if contact_hits >= 2:
+        return "Thanks — I've got everything you shared."
     if last == "name" and state.fields["name"].value:
         return f"Thanks, {state.fields['name'].value.split()[0]}."
     if last == "email" and valid_email(state.fields["email"].value):

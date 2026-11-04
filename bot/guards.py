@@ -22,6 +22,7 @@ from .state import (
     asks_if_bot,
     asks_language_preference,
     needs_language_preference_ack,
+    extract_contact_fields,
     family_of,
     is_meta_question,
     is_option_request,
@@ -209,7 +210,7 @@ def _has_value_token(
     if key == "phone":
         return bool(PHONE_RE.search(value))
     if key == "name":
-        return bool(re.search(r"\bmy name is\s+[A-Za-z]", value, re.I))
+        return "name" in extract_contact_fields(value)
     if key == "sizes":
         size_text = normalise_dimension_separators(value)
         return bool(SIZE_DIM_RE.search(size_text) or SINGLE_SIZE_RE.search(value))

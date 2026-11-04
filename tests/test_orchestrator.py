@@ -825,6 +825,22 @@ def test_early_phone_is_acknowledged_then_product_ask(orchestrator):
     assert blockers(result) == []
 
 
+def test_multi_contact_ack_says_everything_shared(orchestrator):
+    orchestrator.start("c-multi-contact")
+    result = orchestrator.handle(
+        "c-multi-contact",
+        "hi, i am bilal, my email is bilal@gmail.com and my phone number is +923134432915",
+    )
+    assert result.accepted.get("name") == "bilal"
+    assert result.accepted.get("email") == "bilal@gmail.com"
+    assert result.accepted.get("phone") == "+923134432915"
+    lowered = result.reply.lower()
+    assert "everything you shared" in lowered
+    assert "got your number" not in lowered
+    assert "box" in lowered
+    assert result.reply.count("?") == 1
+
+
 def test_quote_close_does_not_dump_the_facility_or_phone(orchestrator):
     orchestrator.start("c-quote-close")
     for text in (

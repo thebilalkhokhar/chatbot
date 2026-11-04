@@ -61,12 +61,15 @@ def build_payload(
     schema: dict,
     *,
     name: str = "chat_reply",
+    mask_pii: bool = True,
 ) -> dict:
+    system_text = mask(system) if mask_pii else system
+    user_text = mask(user) if mask_pii else user
     payload = {
         "model": config.model,
         "messages": [
-            {"role": "system", "content": mask(system)},
-            {"role": "user", "content": mask(user)},
+            {"role": "system", "content": system_text},
+            {"role": "user", "content": user_text},
         ],
         "response_format": {
             "type": "json_schema",
@@ -166,10 +169,13 @@ class LLMClient:
         *,
         name: str = "chat_reply",
         timeout_s: float | None = None,
+        mask_pii: bool = True,
     ) -> dict:
         if not self.config.real_llm_enabled:
             raise LLMError("Real LLM calls are disabled; BOT_MODE=fake or BOT_ALLOW_LIVE=0")
-        payload = build_payload(self.config, system, user, schema, name=name)
+        payload = build_payload(
+            self.config, system, user, schema, name=name, mask_pii=mask_pii
+        )
         started = time.perf_counter()
         self._reserve_call()
         try:
