@@ -74,6 +74,7 @@ from .state import (
 from .reply_language import (
     LANGUAGE_S,
     SEND_BY_S,
+    heuristic_language_preference_gloss,
     language_named_in_preference_ask,
     normalize_inbound,
     translate_outbound,
@@ -1380,6 +1381,39 @@ class Orchestrator:
                 unclear=unclear,
             )
             source = "heuristic"
+        elif soft_email_skip:
+            # Soft-email "no" must continue the quote ask — never a live style dump.
+            composed = heuristic_turn(
+                state,
+                visitor,
+                expected,
+                handoff_reason=handoff_reason,
+                overrides=self.overrides,
+                unclear=unclear,
+            )
+            source = "heuristic"
+        elif (
+            self.config.real_llm_enabled
+            and not handoff_reason
+            and language.casefold() != ENGLISH.casefold()
+            and len(visitor.split()) <= 8
+            and not is_question(visitor)
+            and not wants_recommendation(visitor)
+            and not is_option_request(visitor)
+            and not asks_term_meaning(visitor)
+        ):
+            # Short catalogue answers in a non-English session: keep the turn on
+            # heuristic so outbound translate still has a full language window
+            # (live + rewrite was starving translate → English replies).
+            composed = heuristic_turn(
+                state,
+                visitor,
+                expected,
+                handoff_reason=handoff_reason,
+                overrides=self.overrides,
+                unclear=unclear,
+            )
+            source = "heuristic"
         elif self.config.real_llm_enabled and not handoff_reason:
             try:
                 composed = live_turn(
@@ -1469,6 +1503,14 @@ class Orchestrator:
             source = "fallback"
             if result.ok:
                 blocked = []
+        elif (
+            (not result.ok or recommendation_gap)
+            and source == "live"
+            and language.casefold() != ENGLISH.casefold()
+        ):
+            # Non-English: skip paid rewrite so outbound translate still runs.
+            # Heuristic fallback is applied below when result stays blocked.
+            pass
         elif (not result.ok or recommendation_gap) and source == "live":
             fixes = result.blockers or [
                 issue for issue in result.warnings if issue.code == "recommendation_unanswered"
@@ -1802,6 +1844,16 @@ class Orchestrator:
         state.flags.pop("inbound_anglicised", None)
         state.flags.pop("translate_skipped", None)
         if not self.config.real_llm_enabled:
+            # Fake/live-off still needs ¿Hablas…? → language sticky for tests + offline.
+            glossed = heuristic_language_preference_gloss(raw_visitor)
+            if glossed:
+                language, english = glossed
+                state.flags["language"] = language
+                state.flags["inbound_english"] = english[:200]
+                state.flags["inbound_anglicised"] = True
+                if state.messages:
+                    state.messages[-1].english = english
+                return language, english
             state.flags.setdefault("language", language)
             return language, raw_visitor
         recent = [
@@ -1829,6 +1881,16 @@ class Orchestrator:
             ms_left=self._language_ms_left(started),
         )
         if inbound is None:
+            # ¿Hablas español? must still hit language-ack when the gloss LLM fails.
+            glossed = heuristic_language_preference_gloss(raw_visitor)
+            if glossed:
+                language, english = glossed
+                state.flags["language"] = language
+                state.flags["inbound_english"] = english[:200]
+                state.flags["inbound_language_skipped"] = "timeout_or_error"
+                state.flags["inbound_anglicised"] = True
+                state.messages[-1].english = english
+                return language, english
             state.flags["inbound_language_skipped"] = "timeout_or_error"
             state.flags["language"] = language
             return language, raw_visitor
@@ -1836,9 +1898,16 @@ class Orchestrator:
         english = inbound.english or raw_visitor
         # Mid-chat "please speak Spanish" must re-stick the session language even
         # after the first language-preference yes was already sent.
-        named = language_named_in_preference_ask(english)
+        named = language_named_in_preference_ask(english) or language_named_in_preference_ask(
+            raw_visitor
+        )
         if named:
             language = named
+        # Raw language chip with a bad gloss → force the English ack path.
+        if asks_language_preference(raw_visitor) and not asks_language_preference(english):
+            glossed = heuristic_language_preference_gloss(raw_visitor)
+            if glossed:
+                language, english = glossed[0] or language, glossed[1]
         state.flags["language"] = language
         state.flags["inbound_english"] = english[:200]
         if english.strip().casefold() != raw_visitor.strip().casefold():

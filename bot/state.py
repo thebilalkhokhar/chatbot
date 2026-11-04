@@ -355,11 +355,12 @@ FINISH_WORDS = {
     "matte lamination": ("matte lamination",),
     "gloss lamination": ("gloss lamination",),
     "soft touch lamination": ("soft touch lamination", "soft-touch lamination"),
-    "foil printing": ("foil printing", "foil stamping"),
-    "spot uv": ("spot uv", "spot-uv"),
-    "matte": ("matte", "matt"),
-    "gloss": ("gloss", "glass", "glossy"),
-    "soft touch": ("soft touch", "soft-touch", "suede"),
+    "foil printing": ("foil printing", "foil stamping", "impresion en foil", "impresión en foil"),
+    "spot uv": ("spot uv", "spot-uv", "uv localizado"),
+    # "mate" is Spanish/loan for matte — keep before inbound gloss runs.
+    "matte": ("matte", "matt", "mate"),
+    "gloss": ("gloss", "glass", "glossy", "brillo"),
+    "soft touch": ("soft touch", "soft-touch", "suede", "tacto suave"),
     "foil": ("foil", "gold foil", "silver foil"),
     "embossing": ("emboss", "embossing"),
     "none": ("none", "no finish", "no preference", "whatever", "standard"),
@@ -396,23 +397,51 @@ MATERIAL_HINTS = re.compile(
     re.I,
 )
 # Named bag/box extras — pull the feature out of "yes, I want to add a zipper".
+# Include common visitor-language synonyms so a missed inbound gloss still locks
+# the catalogue English form (cremallera → zipper), not the raw foreign word.
 EXTRA_FEATURE_RE = re.compile(
     r"\b(?:"
     r"(?:(?:easy[- ]?open|resealable|child[- ]?resistant)\s+)?zippers?"
+    r"|cremalleras?"
+    r"|fermetures?\s+(?:eclair|éclair)"
+    r"|rei[sß]verschl(?:uss|üsse)?"
     r"|tear[- ]?notch(?:es)?"
+    r"|muescas?(?:\s+de\s+rasgado)?"
     r"|hang[- ]?holes?"
     r"|windows?"
+    r"|ventanas?"
     r"|degassing\s+valves?"
     r"|valves?"
+    r"|valvulas?"
+    r"|válvulas?"
     r")\b",
     re.I,
 )
+EXTRA_ALIAS_TO_CANONICAL = {
+    "cremallera": "zipper",
+    "cremalleras": "zipper",
+    "fermeture eclair": "zipper",
+    "fermeture éclair": "zipper",
+    "reizverschluss": "zipper",
+    "reißverschluss": "zipper",
+    "muesca": "tear notch",
+    "muescas": "tear notch",
+    "muesca de rasgado": "tear notch",
+    "ventana": "window",
+    "ventanas": "window",
+    "valvula": "degassing valve",
+    "valvulas": "degassing valve",
+    "válvula": "degassing valve",
+    "válvulas": "degassing valve",
+}
 # Section 3.1: `use_case` is the field v1 has no place for, which is the structural
 # reason the bot never asks what is being packed. Two shapes of answer: a sales
 # channel, or the thing that goes inside.
 USE_CASE_TAIL = (
     r"([a-z0-9][a-z0-9 &'\-]{1,48}?)"
-    r"(?=\s*(?:[,.!?]|\band\b|\bbut\b|\bso\b|\bbecause\b|\bin\b|\bwith\b|\bthat\b|"
+    # Include ; and : — multi-clause intros often separate with semicolons
+    # ("bags for coffee beans; not sure about size").
+    r"(?=\s*(?:[,.;:?!]|\band\b|\bbut\b|\bso\b|\bbecause\b|\bin\b|\bwith\b|\bthat\b|"
     r"\bplease\b|\bthanks\b|"
     # Stop before labelled brief fields so OCR lines like
     # "labels for coffee pouches QUANTITY: 250" keep "coffee pouches".
@@ -543,6 +572,12 @@ RECOMMENDATION_RE = re.compile(
 
 # After inbound anglicise: "Do you speak Spanish?" / "Can you reply in French?"
 # Require "in" or please-speak forms so "speak pizza" / "answer pizza" never match.
+# Also match common raw chips ("¿Hablas español?") when inbound gloss times out.
+_LANGUAGE_NAME = (
+    r"(?:espa[nñ]ol|spanish|fran[cç]ais|french|deutsch|german|english|ingl[eé]s|"
+    r"italiano|italian|portugu[eê]s|portuguese|arabic|chinese|mandarin|hindi|urdu|"
+    r"nederlands|dutch|polski|polish|turkce|turkish|russian|japanese|korean)"
+)
 LANGUAGE_PREFERENCE_RE = re.compile(
     r"\b(?:do you|can you|are you able to|will you)\s+"
     r"(?:speak|talk|write|reply|answer|chat|continue)\b"
@@ -550,7 +585,12 @@ LANGUAGE_PREFERENCE_RE = re.compile(
     r"|\bplease\s+(?:speak|talk|write|reply|answer|chat)\s+(?:to me\s+)?(?:in\s+)?\w+\b"
     r"|\b(?:speak|talk|write|reply|answer|chat)\s+(?:to me\s+)?(?:in\s+)?\w+\s+please\b"
     r"|\bin\s+\w+\s+please\b"
-    r"|\b(?:switch|change)\s+(?:to|into)\s+\w+\b",
+    r"|\b(?:switch|change)\s+(?:to|into)\s+\w+\b"
+    r"|\b(?:hablas|habla|habláis|parlez[- ]vous|parles[- ]tu|sprechen\s+sie|sprichst\s+du|"
+    r"falas?|parli|parlate)\b.{0,24}\b" + _LANGUAGE_NAME + r"\b"
+    r"|\b(?:puedes|puede|kannst\s+du)\s+(?:hablar|sprechen|schreiben)\b.{0,24}\b"
+    + _LANGUAGE_NAME
+    + r"\b",
     re.I,
 )
 
@@ -1127,7 +1167,8 @@ def parse_quantity(text: str) -> int | None:
 def normalize_finish(text: str) -> str | None:
     lowered = str(text or "").lower()
     for label, words in FINISH_WORDS.items():
-        if any(word in lowered for word in words):
+        # Word boundaries — "mate" must not match inside "material".
+        if any(re.search(rf"\b{re.escape(word)}\b", lowered) for word in words):
             return label
     return None
 
@@ -1151,6 +1192,7 @@ def normalize_extras_pick(
     for match in EXTRA_FEATURE_RE.finditer(value):
         feat = re.sub(r"[-_]+", " ", match.group(0).lower())
         feat = re.sub(r"\s+", " ", feat).strip()
+        feat = EXTRA_ALIAS_TO_CANONICAL.get(feat, feat)
         # Singular catalogue form.
         feat = re.sub(r"\bzippers\b", "zipper", feat)
         feat = re.sub(r"\b(tear notch)es\b", r"\1", feat)

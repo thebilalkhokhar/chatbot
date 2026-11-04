@@ -1287,10 +1287,25 @@
     const all = [];
     debugTurns.forEach((turn, index) => {
       const label = "Turn " + (index + 1) + " · " + turnLabel(turn, index);
-      (turn.issues || []).forEach((issue) => all.push({ label: label + " · sent", issue, severity: issue.severity }));
+      // Badge / foot count only what was actually sent — rejected live drafts
+      // used to inflate "24 guard issues" across a short Spanish chat.
+      (turn.issues || []).forEach((issue) => {
+        if ((issue.severity || "") === "warn") return;
+        all.push({ label: label + " · sent", issue, severity: issue.severity || "block", group: "sent" });
+      });
+    });
+    return all;
+  }
+
+  function collectDraftIssues() {
+    const all = [];
+    debugTurns.forEach((turn, index) => {
+      const label = "Turn " + (index + 1) + " · " + turnLabel(turn, index);
       draftGroups(turn).forEach((draft) => {
         const stage = draft.stage || "draft";
-        (draft.issues || []).forEach((issue) => all.push({ label: label + " · " + stage, issue, severity: "block" }));
+        (draft.issues || []).forEach((issue) => {
+          all.push({ label: label + " · " + stage, issue, severity: issue.severity || "block", group: "draft" });
+        });
       });
     });
     return all;
@@ -1531,6 +1546,7 @@
 
   function renderDebug() {
     const allIssues = collectAllIssues();
+    const draftIssues = collectDraftIssues();
     issueCount = allIssues.length;
     updateTabs();
     renderFoot(debugTurns.length ? debugTurns[debugTurns.length - 1] : null, allIssues);
@@ -1551,11 +1567,20 @@
     debugTurns.forEach((turn, index) => els.panelTurns.appendChild(renderTurn(turn, index)));
 
     clear(els.panelIssues);
-    els.panelIssues.appendChild(node("div", "section-label", "All issues · " + allIssues.length));
+    els.panelIssues.appendChild(node("div", "section-label", "Sent blockers · " + allIssues.length));
     if (!allIssues.length) {
-      els.panelIssues.appendChild(node("p", "empty", "No guard issues in this chat."));
+      els.panelIssues.appendChild(node("p", "empty", "No blockers on sent replies."));
     } else {
       allIssues.forEach((item) => {
+        const row = issueRow(item.issue, item.severity);
+        row.insertBefore(node("span", "who", item.label), row.firstChild);
+        els.panelIssues.appendChild(row);
+      });
+    }
+    if (draftIssues.length) {
+      els.panelIssues.appendChild(node("div", "section-label", "Rejected drafts · " + draftIssues.length));
+      els.panelIssues.appendChild(node("p", "empty", "Not counted in the Issues badge — live drafts that did not ship."));
+      draftIssues.forEach((item) => {
         const row = issueRow(item.issue, item.severity);
         row.insertBefore(node("span", "who", item.label), row.firstChild);
         els.panelIssues.appendChild(row);

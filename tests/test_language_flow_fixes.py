@@ -308,6 +308,29 @@ def test_speak_pizza_is_not_language_preference():
     assert asks_language_preference("Do you speak Spanish?")
     assert asks_language_preference("Can you reply in French?")
     assert asks_language_preference("speak in German")
+    assert asks_language_preference("¿Hablas español?")
+    assert asks_language_preference("Hablas español?")
+    assert asks_language_preference("Parlez-vous français?")
+
+
+def test_hablas_espanol_heuristic_says_yes(orchestrator: Orchestrator):
+    orchestrator.start("c-hablas")
+    result = orchestrator.handle("c-hablas", "¿Hablas español?")
+    lowered = result.reply.lower()
+    assert "yes" in lowered
+    assert "language" in lowered or "continue" in lowered
+    assert result.source == "heuristic"
+    state = orchestrator.store.get_or_create("c-hablas")
+    assert (state.flags.get("language") or "").lower() == "spanish"
+
+
+def test_heuristic_language_preference_gloss_from_raw():
+    from chatbot.bot.reply_language import heuristic_language_preference_gloss
+
+    glossed = heuristic_language_preference_gloss("¿Hablas español?")
+    assert glossed is not None
+    assert glossed[0] == "Spanish"
+    assert asks_language_preference(glossed[1])
 
 
 def test_inbound_rejects_language_pref_bleed():

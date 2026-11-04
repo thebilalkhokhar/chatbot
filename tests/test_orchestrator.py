@@ -729,6 +729,24 @@ def test_extras_prose_stores_feature_not_whole_sentence(orchestrator):
     assert blockers(result) == []
 
 
+def test_bags_intro_semicolon_keeps_use_case(orchestrator):
+    """Clause breaks with ';' (common after Spanish gloss) must still lock use_case."""
+    from chatbot.bot.state import TO_BE_CONFIRMED
+
+    orchestrator.start("c-bags-semi")
+    orchestrator.handle(
+        "c-bags-semi",
+        "I need bags for my coffee beans; I am not sure what size to choose. "
+        "I need a quantity of 350 units; could you suggest some styles?",
+    )
+    state = orchestrator.store.get_or_create("c-bags-semi")
+    assert state.fields["product"].value == "bags"
+    assert state.fields["use_case"].value == "coffee beans"
+    assert state.fields["quantity"].value == "350"
+    assert state.fields["sizes"].value == TO_BE_CONFIRMED
+    assert state.last_question == "style"
+
+
 def test_bags_intro_suggest_styles_stays_on_bag_styles(orchestrator):
     from chatbot.bot.state import STATUS_WAIVED, TO_BE_CONFIRMED
 

@@ -884,3 +884,25 @@ def test_two_failed_size_asks_waive_instead_of_empty_ask_set():
     assert state.fields["sizes"].value == "to be confirmed"
     assert not state.blocking_open()
     assert state.next_question() is not None
+
+
+def test_use_case_survives_semicolon_clause_break():
+    """Spanish/gloss intros often use ';' — must not drop 'for my coffee beans'."""
+    from chatbot.bot.state import normalize_finish, normalize_extras_pick, field_shaped_attempt
+
+    text = (
+        "I need bags for my coffee beans; I am not sure what size to choose. "
+        "I need a quantity of 350 units; could you suggest some styles?"
+    )
+    assert use_case_from(text) == "coffee beans"
+    state = make_state(text)
+    updates = extract_fields(text, "", state)
+    assert updates.get("product") == "bags"
+    assert updates.get("use_case") == "coffee beans"
+    assert updates.get("quantity") == "350"
+
+    assert normalize_finish("mate") == "matte"
+    assert normalize_finish("material") is None  # mate must not match inside material
+    assert field_shaped_attempt("finishes", "mate")
+    assert normalize_extras_pick("cremallera") == "zipper"
+    assert normalize_extras_pick("zipper and tear notch") == "zipper, tear notch"

@@ -147,7 +147,12 @@ _NAMED_LANGUAGE_IN_ASK = re.compile(
     r"|(?:speak|talk|write|reply|answer|chat)\s+(?:to me\s+)?(?:in\s+)?([A-Za-z][A-Za-z\-]+)\s+please"
     r"|(?:speak|talk|write|reply|answer|chat)\s+(?:to me\s+)?in\s+([A-Za-z][A-Za-z\-]+)"
     r"|\bin\s+([A-Za-z][A-Za-z\-]+)\s+please\b"
-    r"|\b(?:switch|change)\s+(?:to|into)\s+([A-Za-z][A-Za-z\-]+)\b",
+    r"|\b(?:switch|change)\s+(?:to|into)\s+([A-Za-z][A-Za-z\-]+)\b"
+    # Raw chips: "¿Hablas español?", "Parlez-vous français?"
+    r"|\b(?:hablas|habla|parlez[- ]vous|parles[- ]tu|sprechen\s+sie|sprichst\s+du|"
+    r"falas?|parli|parlate|puedes|puede|kannst\s+du)\b.{0,24}\b"
+    r"(espa[nñ]ol|spanish|fran[cç]ais|french|deutsch|german|english|ingl[eé]s|"
+    r"italiano|italian|portugu[eê]s|portuguese|arabic|chinese|mandarin|hindi|urdu)\b",
     re.I,
 )
 _NAMED_LANGUAGE_SKIP = frozenset(
@@ -168,6 +173,29 @@ _NAMED_LANGUAGE_SKIP = frozenset(
         "english",  # asking "speak English?" keeps English via prior/default
     }
 )
+_LANGUAGE_ENDONYM_TO_ENGLISH = {
+    "español": "Spanish",
+    "espanol": "Spanish",
+    "spanish": "Spanish",
+    "français": "French",
+    "francais": "French",
+    "french": "French",
+    "deutsch": "German",
+    "german": "German",
+    "inglés": "English",
+    "ingles": "English",
+    "english": "English",
+    "italiano": "Italian",
+    "italian": "Italian",
+    "português": "Portuguese",
+    "portugues": "Portuguese",
+    "portuguese": "Portuguese",
+    "arabic": "Arabic",
+    "chinese": "Chinese",
+    "mandarin": "Mandarin",
+    "hindi": "Hindi",
+    "urdu": "Urdu",
+}
 
 
 def language_named_in_preference_ask(english: str) -> str:
@@ -178,7 +206,19 @@ def language_named_in_preference_ask(english: str) -> str:
     name = next((group for group in match.groups() if group), "")
     if not name or name.casefold() in _NAMED_LANGUAGE_SKIP:
         return ""
+    mapped = _LANGUAGE_ENDONYM_TO_ENGLISH.get(name.casefold())
+    if mapped:
+        return mapped
     return name[0].upper() + name[1:]
+
+
+def heuristic_language_preference_gloss(raw: str) -> tuple[str, str] | None:
+    """When inbound LLM times out, still route ¿Hablas…? to the language-ack path."""
+    value = str(raw or "").strip()
+    if not value or not asks_language_preference(value):
+        return None
+    named = language_named_in_preference_ask(value) or "Spanish"
+    return named, f"Do you speak {named}?"
 
 
 def _looks_like_language_ask_raw(raw: str) -> bool:
