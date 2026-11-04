@@ -152,7 +152,7 @@ class Config:
             out_dir=_path("BOT_OUT_DIR", _default_out_dir()),
             mode=mode,
             allow_live=_flag("BOT_ALLOW_LIVE"),
-            model=os.getenv("BOT_LLM_MODEL", "gpt-5-nano").strip(),
+            model=os.getenv("BOT_LLM_MODEL", "gpt-5-mini").strip(),
             base_url=os.getenv("BOT_LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/"),
             api_key=os.getenv("BOT_LLM_API_KEY", "").strip(),
             timeout_s=_float("BOT_TIMEOUT_S", 6.0),

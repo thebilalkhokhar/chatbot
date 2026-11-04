@@ -57,7 +57,7 @@ Live turns use a deterministic **catalogue primer** (from the capability registr
 | --- | --- |
 | Runtime | Python ≥ 3.11 |
 | HTTP | FastAPI + Uvicorn |
-| LLM | OpenAI-compatible API (default text: `gpt-5-nano`, vision: `gpt-4o-mini`) |
+| LLM | OpenAI-compatible API (default text: `gpt-5-mini`, vision: `gpt-4o-mini`) |
 | KB search | In-process BM25 over chunked markdown (no vector DB) |
 | State | SQLite locally; Postgres when `DATABASE_URL` / `POSTGRES_URL` / `BOT_DATABASE_URL` is set |
 | Attachments | Local `data/uploads`, or Vercel Blob when a blob token is set |
@@ -203,7 +203,7 @@ Create `chatbot/.env` (gitignored). Example:
 BOT_MODE=fake
 BOT_ALLOW_LIVE=0
 BOT_LLM_API_KEY=
-BOT_LLM_MODEL=gpt-5-nano
+BOT_LLM_MODEL=gpt-5-mini
 BOT_VISION_MODEL=gpt-4o-mini
 BOT_LLM_BASE_URL=https://api.openai.com/v1
 BOT_TIMEOUT_S=6
@@ -335,7 +335,7 @@ Source of truth: [`bot/config.py`](./bot/config.py). `load_dotenv()` reads `chat
 | --- | --- | --- |
 | `BOT_MODE` | `fake` | `fake` \| `live` \| `dry_run` \| `shadow` |
 | `BOT_ALLOW_LIVE` | off | Required for any paid LLM call |
-| `BOT_LLM_MODEL` | `gpt-5-nano` | Text model |
+| `BOT_LLM_MODEL` | `gpt-5-mini` | Text model |
 | `BOT_VISION_MODEL` | `gpt-4o-mini` | Image analysis |
 | `BOT_LLM_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible |
 | `BOT_LLM_API_KEY` | empty | |

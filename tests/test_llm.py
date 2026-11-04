@@ -15,6 +15,7 @@ from chatbot.bot.llm import (
 
 def test_reasoning_model_detection():
     assert is_reasoning_model("gpt-5-nano")
+    assert is_reasoning_model("gpt-5-mini")
     assert is_reasoning_model("gpt-5.2-mini")
     assert is_reasoning_model("o4-mini")
     assert not is_reasoning_model("gpt-4o-mini")
@@ -24,7 +25,7 @@ def test_reasoning_model_detection():
 def test_gpt5_payload_omits_temperature_and_uses_completion_tokens(config):
     payload = build_payload(config, "system", "user", REPLY_SCHEMA)
 
-    assert payload["model"] == "gpt-5-nano"
+    assert payload["model"] == "gpt-5-mini"
     assert payload["response_format"]["type"] == "json_schema"
     assert "temperature" not in payload
     assert "max_tokens" not in payload

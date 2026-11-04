@@ -29,7 +29,7 @@ def config(tmp_path: Path) -> Config:
         out_dir=tmp_path / "out",
         mode="fake",
         allow_live=False,
-        model="gpt-5-nano",
+        model="gpt-5-mini",
         base_url="https://api.openai.com/v1",
         api_key="",
         timeout_s=2.0,
