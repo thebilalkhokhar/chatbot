@@ -47,7 +47,7 @@ def test_call_cap_stops_before_the_next_request(config, monkeypatch):
     monkeypatch.setattr(
         client,
         "_post",
-        lambda payload: {
+        lambda payload, timeout_s=None: {
             "model": "gpt-5-nano",
             "choices": [{"message": {"content": '{"reply": "ok", "asked": "", "fields": {}}'}}],
             "usage": {},

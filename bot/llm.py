@@ -107,7 +107,7 @@ class LLMClient:
                 raise LLMError(f"LLM call cap reached (BOT_MAX_LLM_CALLS={cap})")
             self.calls += 1
 
-    def _post(self, payload: dict) -> dict:
+    def _post(self, payload: dict, *, timeout_s: float | None = None) -> dict:
         import httpx
 
         url = f"{self.config.base_url}/chat/completions"
@@ -115,8 +115,9 @@ class LLMClient:
             "Authorization": f"Bearer {self.config.api_key}",
             "Content-Type": "application/json",
         }
+        timeout = self.config.timeout_s if timeout_s is None else timeout_s
         try:
-            with httpx.Client(timeout=self.config.timeout_s) as client:
+            with httpx.Client(timeout=timeout) as client:
                 response = client.post(url, headers=headers, json=payload)
         except httpx.HTTPError as error:
             raise LLMError(f"LLM request failed: {error}") from error
@@ -124,26 +125,7 @@ class LLMClient:
             raise LLMError(f"LLM returned {response.status_code}: {response.text[:300]}")
         return response.json()
 
-    def complete_json(self, system: str, user: str, schema: dict, *, name: str = "chat_reply") -> dict:
-        if not self.config.real_llm_enabled:
-            raise LLMError("Real LLM calls are disabled; BOT_MODE=fake or BOT_ALLOW_LIVE=0")
-        payload = build_payload(self.config, system, user, schema, name=name)
-        started = time.perf_counter()
-        self._reserve_call()
-        try:
-            body = self._post(payload)
-        except LLMError as error:
-            message = str(error).lower()
-            if "400" in message and ("schema" in message or "response_format" in message):
-                payload["response_format"] = {"type": "json_object"}
-                self._reserve_call()
-                body = self._post(payload)
-            else:
-                raise
-        try:
-            raw = body["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError) as error:
-            raise LLMError(f"Unexpected LLM response: {body}") from error
+    def _record_usage(self, body: dict, *, name: str, started: float) -> None:
         usage = body.get("usage") or {}
         elapsed = int((time.perf_counter() - started) * 1000)
         billed = cost_usd(body.get("model") or self.config.model, usage)
@@ -161,6 +143,9 @@ class LLMClient:
             usage.get("total_tokens", "?"),
             billed,
         )
+
+    @staticmethod
+    def _parse_object(raw: object) -> dict:
         text = str(raw or "").strip()
         if text.startswith("```"):
             text = text.strip("`")
@@ -172,6 +157,73 @@ class LLMClient:
         if not isinstance(parsed, dict):
             raise LLMError(f"LLM returned JSON that is not an object: {text[:300]}")
         return parsed
+
+    def complete_json(
+        self,
+        system: str,
+        user: str,
+        schema: dict,
+        *,
+        name: str = "chat_reply",
+        timeout_s: float | None = None,
+    ) -> dict:
+        if not self.config.real_llm_enabled:
+            raise LLMError("Real LLM calls are disabled; BOT_MODE=fake or BOT_ALLOW_LIVE=0")
+        payload = build_payload(self.config, system, user, schema, name=name)
+        started = time.perf_counter()
+        self._reserve_call()
+        try:
+            body = self._post(payload, timeout_s=timeout_s)
+        except LLMError as error:
+            message = str(error).lower()
+            if "400" in message and ("schema" in message or "response_format" in message):
+                payload["response_format"] = {"type": "json_object"}
+                self._reserve_call()
+                body = self._post(payload, timeout_s=timeout_s)
+            else:
+                raise
+        try:
+            raw = body["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as error:
+            raise LLMError(f"Unexpected LLM response: {body}") from error
+        self._record_usage(body, name=name, started=started)
+        return self._parse_object(raw)
+
+    def complete_object(
+        self,
+        system: str,
+        user: str,
+        *,
+        name: str = "json_object",
+        timeout_s: float | None = None,
+        temperature: float = 0.0,
+    ) -> dict:
+        """Free-form JSON object (no reply schema). Used for outbound translation."""
+        if not self.config.real_llm_enabled:
+            raise LLMError("Real LLM calls are disabled; BOT_MODE=fake or BOT_ALLOW_LIVE=0")
+        payload: dict = {
+            "model": self.config.model,
+            "messages": [
+                {"role": "system", "content": mask(system)},
+                {"role": "user", "content": mask(user)},
+            ],
+            "response_format": {"type": "json_object"},
+        }
+        if is_reasoning_model(self.config.model):
+            payload["max_completion_tokens"] = 800
+            payload["reasoning_effort"] = "minimal"
+        else:
+            payload["temperature"] = temperature
+            payload["max_tokens"] = 800
+        started = time.perf_counter()
+        self._reserve_call()
+        body = self._post(payload, timeout_s=timeout_s)
+        try:
+            raw = body["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as error:
+            raise LLMError(f"Unexpected LLM response: {body}") from error
+        self._record_usage(body, name=name, started=started)
+        return self._parse_object(raw)
 
 
 _BASIS_ENUM = ["canon", "catalogue", "model_knowledge", "visitor", ""]

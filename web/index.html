@@ -1413,8 +1413,11 @@
       "persona: " + (turn.persona || ""),
       "handoff: " + (turn.handoff || "none"),
       "elapsed: " + (turn.elapsed_ms || 0) + " ms",
-      "move: " + (turn.move || "none")
+      "move: " + (turn.move || "none"),
+      "language: " + (turn.language || "English")
     ];
+    if (turn.reply_english) labels.push("translated: yes");
+    if (turn.flags && turn.flags.translate_skipped) labels.push("translate: " + turn.flags.translate_skipped);
     const context = turn.context || {};
     if (context.tier) labels.push("context: " + context.tier);
     if (context.primer_tokens) labels.push("primer: " + context.primer_tokens + " tokens");
@@ -1506,6 +1509,17 @@
     const guard = node("span", "chip" + (allIssues.length ? "" : " ok"), allIssues.length + " guard issue" + (allIssues.length === 1 ? "" : "s"));
     els.footChips.appendChild(guard);
     if (latest.move) els.footChips.appendChild(node("span", "chip", "move: " + latest.move));
+    if (latest.language) els.footChips.appendChild(node("span", "chip", "lang: " + latest.language));
+    if (latest.flags && latest.flags.inbound_english) {
+      els.footChips.appendChild(node("span", "chip", "en: " + String(latest.flags.inbound_english).slice(0, 40)));
+    }
+    if (latest.flags && latest.flags.inbound_gloss_failed) {
+      els.footChips.appendChild(node("span", "chip", "gloss failed"));
+    }
+    if (latest.reply_english) els.footChips.appendChild(node("span", "chip ok", "translated"));
+    else if (latest.language && latest.language !== "English" && latest.flags && latest.flags.translate_skipped) {
+      els.footChips.appendChild(node("span", "chip", "translate: " + latest.flags.translate_skipped));
+    }
   }
 
   function recordTurn(turn, visitorText) {
