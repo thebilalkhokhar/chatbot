@@ -207,10 +207,10 @@
     color: #e8ecf7;
   }
   .msg.visitor .bubble {
-    background: linear-gradient(145deg, #8a6bff, #5b3fd4);
+    background: linear-gradient(145deg, #7a63f0, #5238c9);
     color: #fff;
     border-bottom-right-radius: 6px;
-    box-shadow: 0 0 0 1px rgba(124, 92, 255, 0.35), 0 10px 28px var(--purple-glow);
+    box-shadow: 0 8px 22px rgba(82, 56, 201, 0.28);
   }
   .msg.system .bubble {
     background: rgba(240, 180, 41, 0.1);
@@ -224,10 +224,40 @@
   }
   .meta { font-size: 11px; color: var(--muted-2); padding: 0 4px 0 40px; }
   .msg.visitor .meta { padding: 0 4px; text-align: right; }
-  .bubble.with-image { display: grid; gap: 8px; }
+  /* Attached reference: media card, not a purple text-bubble wrap */
+  .msg.visitor .bubble.with-image {
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+    gap: 8px;
+    max-width: min(280px, 85%);
+  }
+  .bubble.with-image {
+    display: grid;
+    gap: 8px;
+  }
   .bubble.with-image img {
-    max-width: 220px; max-height: 160px; border-radius: 10px;
-    display: block; object-fit: cover;
+    max-width: 280px;
+    max-height: 200px;
+    width: 100%;
+    border-radius: 14px;
+    display: block;
+    object-fit: cover;
+    background: #12141c;
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.35);
+  }
+  .bubble.with-image .caption {
+    width: max-content;
+    max-width: 100%;
+    padding: 9px 12px;
+    border-radius: 14px;
+    border-bottom-right-radius: 6px;
+    background: linear-gradient(145deg, #7a63f0, #5238c9);
+    color: #fff;
+    font-size: 13.5px;
+    line-height: 1.45;
+    box-shadow: 0 8px 22px rgba(82, 56, 201, 0.28);
   }
   .typing { display: inline-flex; gap: 5px; align-items: center; padding: 2px 4px; }
   .typing i {
@@ -261,70 +291,139 @@
   .chip-btn.accent svg { width: 14px; height: 14px; }
 
   .composer {
-    display: flex; flex-direction: column; gap: 8px;
-    padding: 12px 16px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 14px 16px 0;
     border-top: 1px solid var(--line);
-    background: rgba(0,0,0,0.12);
+    background: linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.16));
+  }
+  .composer-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid var(--line-strong);
+    border-radius: 20px;
+    background: rgba(255,255,255,0.035);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  }
+  .composer-shell:focus-within {
+    border-color: rgba(79, 209, 197, 0.42);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.04),
+      0 0 0 3px rgba(79, 209, 197, 0.1);
+  }
+  .composer-shell.has-attach {
+    border-color: rgba(124, 92, 255, 0.35);
   }
   .attach-preview {
     display: none;
     align-items: center;
-    gap: 10px;
-    padding: 8px 10px;
-    border: 1px solid var(--line-strong);
+    gap: 12px;
+    margin: 10px 10px 0;
+    padding: 8px 8px 8px 8px;
     border-radius: 14px;
-    background: rgba(255,255,255,0.03);
+    background: rgba(124, 92, 255, 0.08);
+    border: 1px solid rgba(124, 92, 255, 0.2);
   }
   .attach-preview.show { display: flex; }
+  .attach-preview .thumb-wrap {
+    position: relative;
+    flex: 0 0 auto;
+  }
   .attach-preview img {
-    width: 48px; height: 48px; object-fit: cover;
-    border-radius: 8px; border: 1px solid var(--line);
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 10px;
+    display: block;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: #0b0c10;
   }
   .attach-preview .meta-col { flex: 1; min-width: 0; }
+  .attach-preview .label {
+    font-size: 10.5px;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #c4b5ff;
+  }
   .attach-preview .name {
-    font-size: 12.5px; font-weight: 600; color: var(--ink);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-top: 3px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .attach-preview .hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .attach-preview .hint {
+    margin-top: 2px;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
   .attach-preview .clear {
-    background: transparent; color: var(--muted);
-    border: 1px solid var(--line-strong); padding: 6px 10px; font-weight: 500;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+    padding: 0;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: rgba(0,0,0,0.28);
+    color: var(--ink);
+    border: 1px solid rgba(255,255,255,0.1);
   }
+  .attach-preview .clear:hover {
+    background: rgba(255,123,123,0.18);
+    border-color: rgba(255,123,123,0.35);
+    color: #ffc9c9;
+    filter: none;
+  }
+  .attach-preview .clear svg { width: 14px; height: 14px; }
   .composer-row {
-    display: flex; gap: 8px; align-items: center;
-    padding: 4px 6px;
-    border: 1px solid var(--line-strong);
-    border-radius: 999px;
-    background: rgba(255,255,255,0.03);
-  }
-  .composer-row:focus-within {
-    border-color: rgba(79, 209, 197, 0.45);
-    box-shadow: 0 0 0 3px rgba(79, 209, 197, 0.1);
-  }
-  .composer-row.multiline {
+    display: flex;
+    gap: 6px;
     align-items: flex-end;
-    border-radius: 22px;
+    padding: 8px 8px 8px 10px;
   }
+  .composer-row.multiline { align-items: flex-end; }
   .icon-btn {
-    width: 36px; height: 36px; flex: 0 0 36px;
-    display: grid; place-items: center;
-    background: transparent; color: var(--muted);
-    border: 0; border-radius: 50%;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    display: grid;
+    place-items: center;
+    background: rgba(255,255,255,0.04);
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 12px;
     padding: 0;
   }
-  .icon-btn:hover { color: var(--ink); background: rgba(255,255,255,0.05); }
+  .icon-btn:hover {
+    color: var(--teal);
+    background: var(--teal-dim);
+    border-color: rgba(79, 209, 197, 0.35);
+    filter: none;
+  }
+  .icon-btn.active {
+    color: #c4b5ff;
+    background: rgba(124, 92, 255, 0.14);
+    border-color: rgba(124, 92, 255, 0.35);
+  }
   .icon-btn svg { width: 18px; height: 18px; }
   textarea {
     flex: 1;
     resize: none;
     border: 0;
-    border-radius: 12px;
-    padding: 6px 4px;
+    border-radius: 10px;
+    padding: 8px 6px;
     font: inherit;
-    font-size: 14px;
+    font-size: 14.5px;
     line-height: 22px;
-    height: 22px;
-    min-height: 22px;
+    height: 38px;
+    min-height: 38px;
     max-height: 140px;
     outline: none;
     background: transparent;
@@ -333,20 +432,31 @@
   }
   textarea::placeholder { color: var(--muted-2); }
   #send {
-    width: 36px; height: 36px; flex: 0 0 36px;
-    border-radius: 50%;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    border-radius: 12px;
     padding: 0;
-    display: grid; place-items: center;
+    display: grid;
+    place-items: center;
     background: var(--teal);
     color: #05332c;
-    box-shadow: 0 8px 18px rgba(79, 209, 197, 0.25);
+    box-shadow: 0 8px 18px rgba(79, 209, 197, 0.22);
+  }
+  #send:hover { filter: brightness(1.05); }
+  #send:disabled {
+    background: rgba(255,255,255,0.08);
+    color: var(--muted-2);
+    box-shadow: none;
   }
   #send svg { width: 18px; height: 18px; }
   .foot {
-    display: flex; justify-content: space-between; gap: 10px;
-    padding: 10px 18px 14px;
-    font-size: 11px; color: var(--muted-2);
-    background: rgba(0,0,0,0.12);
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 8px 14px;
+    font-size: 11px;
+    color: var(--muted-2);
   }
 
   .side-panel {
@@ -711,27 +821,36 @@
   <section class="chat-card">
     <div id="messages" class="messages" aria-live="polite"></div>
     <form id="composer" class="composer">
-      <div id="attach-preview" class="attach-preview" hidden>
-        <img id="attach-thumb" alt="Selected reference">
-        <div class="meta-col">
-          <div id="attach-name" class="name">reference image</div>
-          <div class="hint">Reference image for the quote</div>
+      <div class="composer-shell" id="composer-shell">
+        <div id="attach-preview" class="attach-preview" hidden>
+          <div class="thumb-wrap">
+            <img id="attach-thumb" alt="Selected reference">
+          </div>
+          <div class="meta-col">
+            <div class="label">Reference</div>
+            <div id="attach-name" class="name">reference image</div>
+            <div class="hint">Will be sent with your next message · paste also works</div>
+          </div>
+          <button id="attach-clear" class="clear" type="button" title="Remove image" aria-label="Remove image">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+              <path d="M18 6L6 18"/><path d="M6 6l12 12"/>
+            </svg>
+          </button>
         </div>
-        <button id="attach-clear" class="clear" type="button">Remove</button>
-      </div>
-      <div class="composer-row">
-        <input id="attach-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
-        <button id="attach-btn" class="icon-btn" type="button" title="Attach or paste (Ctrl+V) a reference image" aria-label="Attach or paste a reference image">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M21.44 11.05l-8.49 8.49a5.5 5.5 0 01-7.78-7.78l8.49-8.49a3.5 3.5 0 014.95 4.95l-8.5 8.49a1.5 1.5 0 01-2.12-2.12l7.79-7.78"/>
-          </svg>
-        </button>
-        <textarea id="input" rows="1" placeholder="Message Max, or paste a reference image" maxlength="4000" autocomplete="off"></textarea>
-        <button id="send" type="submit" title="Send" aria-label="Send">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 19V5"/><path d="M5 12l7-7 7 7"/>
-          </svg>
-        </button>
+        <div class="composer-row">
+          <input id="attach-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+          <button id="attach-btn" class="icon-btn" type="button" title="Attach or paste (Ctrl+V) a reference image" aria-label="Attach or paste a reference image">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21.44 11.05l-8.49 8.49a5.5 5.5 0 01-7.78-7.78l8.49-8.49a3.5 3.5 0 014.95 4.95l-8.5 8.49a1.5 1.5 0 01-2.12-2.12l7.79-7.78"/>
+            </svg>
+          </button>
+          <textarea id="input" rows="1" placeholder="Message Max…" maxlength="4000" autocomplete="off"></textarea>
+          <button id="send" type="submit" title="Send" aria-label="Send">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 19V5"/><path d="M5 12l7-7 7 7"/>
+            </svg>
+          </button>
+        </div>
       </div>
     </form>
     <div class="foot">
@@ -804,6 +923,7 @@
     input: document.getElementById("input"),
     send: document.getElementById("send"),
     composer: document.getElementById("composer"),
+    composerShell: document.getElementById("composer-shell"),
     newChat: document.getElementById("new-chat"),
     modeBadge: document.getElementById("mode-badge"),
     kbBadge: document.getElementById("kb-badge"),
@@ -936,7 +1056,10 @@
       img.alt = "Reference image";
       bubble.appendChild(img);
     }
-    if (text) bubble.appendChild(document.createTextNode(text));
+    if (text) {
+      if (imageUrl) bubble.appendChild(node("div", "caption", text));
+      else bubble.appendChild(document.createTextNode(text));
+    }
     row.appendChild(bubble);
     wrap.appendChild(row);
     if (meta) wrap.appendChild(node("div", "meta", meta));
@@ -1031,6 +1154,8 @@
     els.attachThumb.removeAttribute("src");
     els.attachPreview.classList.remove("show");
     els.attachPreview.hidden = true;
+    if (els.composerShell) els.composerShell.classList.remove("has-attach");
+    if (els.attachBtn) els.attachBtn.classList.remove("active");
   }
 
   function setPendingImage(file, dataUrl, mime) {
@@ -1039,6 +1164,8 @@
     els.attachName.textContent = file.name || "reference image";
     els.attachPreview.hidden = false;
     els.attachPreview.classList.add("show");
+    if (els.composerShell) els.composerShell.classList.add("has-attach");
+    if (els.attachBtn) els.attachBtn.classList.add("active");
   }
 
   function readFileAsDataUrl(file) {
