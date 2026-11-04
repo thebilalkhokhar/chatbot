@@ -12,8 +12,10 @@ from dataclasses import dataclass
 
 from .llm import LLMClient, LLMError
 from .state import (
+    TO_BE_CONFIRMED,
     UNCERTAIN_WAIVE_FIELDS,
     is_field_waiver_value,
+    is_finish_none_token,
     is_to_be_confirmed,
 )
 
@@ -56,6 +58,9 @@ def waiver_fields_reasked(
     if not focus or focus not in UNCERTAIN_WAIVE_FIELDS:
         return ""
     value = str((fields or {}).get(focus) or "").strip()
+    # Catalogue finish "none" is a no-coating waiver, not a settled coating pick.
+    if focus == "finishes" and is_finish_none_token(value):
+        value = TO_BE_CONFIRMED
     if not is_field_waiver_value(value):
         return ""
     asked_key = str(asked or "").strip()
@@ -86,6 +91,8 @@ def _judge_system() -> str:
             "asks that field or offers more alternatives for it.",
             "- A field is marked suggested and they declined / said no preference without "
             "asking for alternatives, but the draft keeps pushing that same suggestion.",
+            "- Finish fields: catalogue \"none\" means no coating / team confirms — if the "
+            "draft sets finishes=none (or to be confirmed) but still asks finish again, fail.",
             "Pass (ok=true) when the draft is a reasonable next sales step, even if terse.",
             "reason must be empty when ok=true. When ok=false, reason is a short imperative "
             "fix for the composer (what to change), not a scolding.",

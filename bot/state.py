@@ -401,6 +401,18 @@ MATERIAL_HINTS = re.compile(
     r"vinyl|bopp|pp|pe|plastic|clear|holographic|silver|gold|white)\b",
     re.I,
 )
+
+
+def is_material_only_pick(text: str) -> bool:
+    """Bare stock token (kraft, PE, …) with no style construction words."""
+    value = str(text or "").strip()
+    if not value or len(value.split()) > 4:
+        return False
+    if not MATERIAL_HINTS.search(value):
+        return False
+    if STYLE_HINTS.search(value) or normalize_style(value):
+        return False
+    return True
 # Named bag/box extras — pull the feature out of "yes, I want to add a zipper".
 # Include common visitor-language synonyms so a missed inbound gloss still locks
 # the catalogue English form (cremallera → zipper), not the raw foreign word.
@@ -780,9 +792,16 @@ def size_unsure_phrase(text: str) -> str:
 
 
 def asks_size_guidance(text: str, last_question: str = "") -> bool:
-    """Visitor is unsure about size or asked us to suggest one — not a catalogue pick."""
+    """Visitor is unsure about size or asked us to suggest one — not a catalogue pick.
+
+    Pure soft-no / deferral ("idk", "nope", "not sure") is a size waiver, not a
+    request for dimension coaching — those must not re-ask size this turn.
+    """
     value = str(text or "")
     if not value:
+        return False
+    # Soft decline owns the waive path; do not treat it as "suggest a size".
+    if is_soft_no_preference(value):
         return False
     mentions_size = bool(re.search(r"\bsizes?\b", value, re.I)) or last_question == "sizes"
     if not mentions_size:
@@ -811,6 +830,16 @@ def is_no_preference(value: str) -> bool:
 def is_field_waiver_value(value: str) -> bool:
     """True when a stored/proposed value means 'leave it / team decides'."""
     return is_to_be_confirmed(value) or is_no_preference(value)
+
+
+def is_finish_none_token(value: str) -> bool:
+    """Catalogue 'none' / 'no finish' — not a coating pick; treat as finish waiver."""
+    text = str(value or "").strip()
+    if not text:
+        return False
+    if text.casefold() == "none":
+        return True
+    return normalize_finish(text) == "none"
 
 
 # Numeric / freeform fields: no catalogue menu — non-answers defer to the team.
@@ -849,7 +878,10 @@ def field_shaped_attempt(
         if any(field_name == key for field_name, _canonical in hits):
             return True
     if key == "finishes":
-        return normalize_finish(value) is not None
+        # "none" / "no finish" / "no preference" collapse to catalogue none — that is
+        # a soft waiver for the open finish ask, not a concrete coating answer.
+        hit = normalize_finish(value)
+        return hit is not None and hit != "none"
     if key == "material":
         return bool(MATERIAL_HINTS.search(value))
     if key == "style":
@@ -2143,9 +2175,10 @@ class ConversationState:
     ) -> list[str]:
         """Propose-and-confirm (Section 8): yes locks the proposal.
 
-        Soft declines are optional backup when the live model is off — with live
-        enabled the composer settles refuse / no-preference via `fields` instead
-        of a phrase list here.
+        Soft declines close a suggested catalogue field when the visitor declines
+        or defers. Live compose should also write the waiver in `fields`; this
+        path remains the safety net so a bad model write cannot trap the field
+        as suggested forever.
         """
         key = str(self.last_question or "").strip()
         pending = self.fields.get(key) if key else None
@@ -2154,13 +2187,24 @@ class ConversationState:
         raw = str(visitor_text or "").strip()
         gloss = normalize_casual_chat(raw)
         if AFFIRMATION_RE.fullmatch(raw) or AFFIRMATION_RE.fullmatch(gloss):
+            # Affirming suggested catalogue "none" on finish = waive (no coating),
+            # not lock a fake finish pick that keeps re-asking via ask_set.
+            if key == "finishes" and is_finish_none_token(pending.value):
+                self.set_field(
+                    key,
+                    TO_BE_CONFIRMED,
+                    BASIS_VISITOR,
+                    raw=raw[:200],
+                    status=STATUS_WAIVED,
+                )
+                return [key]
             pending.status = STATUS_CONFIRMED
             pending.basis = BASIS_VISITOR
             pending.raw_visitor_text = raw[:200]
             return [key]
         if not soft_decline or not is_soft_no_preference(raw):
             return []
-        # Heuristic-only backup: declined specials — stop asking.
+        # Declined / deferred specials — stop asking.
         if key in {"style", "material"}:
             self.set_field(
                 key,
@@ -2624,6 +2668,13 @@ def apply_field_updates(
                     if field_name == "style":
                         catalogue_style = canonical
                         break
+            # "kraft" / "PE" on a style ask is material, never a style page
+            # (e.g. Textured Boxes just because that row lists kraft stock).
+            if is_material_only_pick(visitor_text) and (
+                state.last_question == "style" or source == "model"
+            ):
+                rejected[key] = value
+                continue
             if (
                 is_question(visitor_text)
                 and not normalized_style
@@ -2726,6 +2777,39 @@ def apply_field_updates(
         if key == "finishes":
             normalized = normalize_finish(value) or value
             value = normalized
+            # Catalogue token "none" means no coating — on the open finish ask that
+            # is a waiver (team confirms), never a STATUS_SUGGESTED pick that stays
+            # askable. Concrete coatings the visitor named still fall through.
+            visitor_coating = normalize_finish(visitor_text)
+            visitor_named_coating = bool(visitor_coating and visitor_coating != "none")
+            if is_finish_none_token(value) and not visitor_named_coating:
+                visitor_wants_menu = wants_recommendation(visitor_text) or is_option_request(
+                    visitor_text
+                )
+                model_open_waiver = (
+                    source == "model"
+                    and key == state.last_question
+                    and not visitor_wants_menu
+                )
+                visitor_soft = (
+                    is_soft_no_preference(visitor_text)
+                    or bool(UNSPECIFIED_RE.search(visitor_text))
+                )
+                if visitor_wants_menu and not model_open_waiver:
+                    rejected[key] = value
+                    continue
+                if key == state.last_question and (
+                    model_open_waiver or visitor_soft or source == "model"
+                ):
+                    state.set_field(
+                        key,
+                        TO_BE_CONFIRMED,
+                        BASIS_VISITOR,
+                        raw=str(visitor_text or "").strip()[:200],
+                        status=STATUS_WAIVED,
+                    )
+                    accepted[key] = TO_BE_CONFIRMED
+                    continue
         if key == "skus":
             number = parse_quantity(value)
             if number is not None:

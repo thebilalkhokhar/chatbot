@@ -882,6 +882,29 @@ def strip_unsolicited_hours(reply: str, visitor: str) -> str:
     return re.sub(r"\s+", " ", " ".join(kept)).strip()
 
 
+_MISATTRIBUTED_CONTACT_ACK = re.compile(
+    r"\b(?:no problem|thanks|thank you|understood|got it)\b.{0,48}\b(?:e-?mail|phone|contact)\b"
+    r"|\b(?:e-?mail|phone)\b.{0,32}\b(?:no problem|skip(?:ped)?|later|declined|noted)\b",
+    re.I,
+)
+
+
+def strip_misattributed_contact_refusal(reply: str, last_question: str) -> str:
+    """Drop email/phone refusal acks when the open ask was not contact."""
+    text = str(reply or "").strip()
+    focus = str(last_question or "").strip()
+    if not text or focus in {"email", "phone", "name"}:
+        return text
+    kept = [
+        sentence
+        for sentence in _sentences(text)
+        if not _MISATTRIBUTED_CONTACT_ACK.search(sentence)
+    ]
+    if not kept:
+        return ""
+    return re.sub(r"\s+", " ", " ".join(kept)).strip()
+
+
 def enforce_one_field_ask(reply: str, priority_key: str = "", priority_text: str = "") -> str:
     """Collapse 'what size and quantity…?' into a single checklist ask."""
     text = str(reply or "").strip()

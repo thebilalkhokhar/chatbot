@@ -52,8 +52,12 @@ from .state import (
     field_clarify_phrase,
     field_shaped_attempt,
     family_of,
+    contact_fields_refused,
     is_field_waiver_value,
+    is_finish_none_token,
+    is_material_only_pick,
     is_no_preference,
+    is_soft_no_preference,
     is_to_be_confirmed,
     looks_like_invalid_email,
     needs_catalogue_options,
@@ -853,14 +857,65 @@ class Orchestrator:
             return {}
         if focus in accepted or state.fields[focus].done:
             return {}
-        if self._pending_suggestion(state) == focus:
-            # Still waiting on model fields for yes/no — do not phrase-match yet.
+        pending = self._pending_suggestion(state)
+        if pending == focus and not is_soft_no_preference(visitor):
+            # Still waiting on yes/no for the suggestion — unless they soft-declined.
             return {}
         updates = extract_fields(visitor, focus, state, registry=self.registry)
         value = str(updates.get(focus) or "").strip()
         if not (is_to_be_confirmed(value) or is_no_preference(value)):
             return {}
         return {focus: value}
+
+    def _coerce_compose_finish_none(self, composed: Composed, state: ConversationState) -> None:
+        """Catalogue finishes=none on the open finish ask → waiver token in compose fields."""
+        focus = str(state.last_question or "").strip()
+        if focus != "finishes" or not composed.fields:
+            return
+        raw = str(composed.fields.get("finishes") or "").strip()
+        if is_finish_none_token(raw):
+            composed.fields["finishes"] = TO_BE_CONFIRMED
+
+    def _settle_compose_waivers(
+        self,
+        state: ConversationState,
+        visitor: str,
+        composed: Composed,
+        accepted: dict[str, str],
+        rejected: dict[str, str],
+        expected: tuple[str, str] | None,
+    ) -> tuple[str, str] | None:
+        """Apply compose waiver tokens early so polish/locked fields cannot re-ask them."""
+        self._coerce_compose_finish_none(composed, state)
+        focus = str(state.last_question or "").strip()
+        if not focus or focus not in UNCERTAIN_WAIVE_FIELDS:
+            return expected
+        token = str((composed.fields or {}).get(focus) or "").strip()
+        if not is_field_waiver_value(token):
+            return expected
+        if focus in accepted or state.fields[focus].done:
+            # Still redirect the ask if the draft re-asks a field we already waived.
+            pass
+        else:
+            waived_ok, waived_rejected = apply_field_updates(
+                state,
+                {focus: token},
+                visitor,
+                source="model",
+                registry=self.registry,
+            )
+            accepted.update(waived_ok)
+            rejected.update(waived_rejected)
+        asked = str(composed.asked or "").strip()
+        if asked == focus or not asked:
+            nxt = state.next_question()
+            if nxt:
+                composed.asked = nxt[0]
+                return nxt
+        if asked and asked != focus:
+            question = state.question_for(asked) or (expected[1] if expected else "")
+            return (asked, question)
+        return expected
 
     def _expected_for_polish(
         self,
@@ -871,7 +926,10 @@ class Orchestrator:
         """If the draft waived the open field and moved on, polish against that ask."""
         focus = str(state.last_question or "").strip()
         asked = str(composed.asked or "").strip()
-        waived = is_field_waiver_value(str((composed.fields or {}).get(focus) or ""))
+        raw = str((composed.fields or {}).get(focus) or "")
+        if focus == "finishes" and is_finish_none_token(raw):
+            raw = TO_BE_CONFIRMED
+        waived = is_field_waiver_value(raw)
         if focus and asked and asked != focus and waived:
             question = state.question_for(asked) or (expected[1] if expected else "")
             return (asked, question)
@@ -891,7 +949,9 @@ class Orchestrator:
         priority_text = expected[1] if expected else ""
         visitor_greeted = is_visitor_greeting(visitor)
         locked = ()
+        open_field = ""
         if state is not None:
+            open_field = str(state.last_question or "").strip()
             # Any settled goal field is locked — especially product / use_case —
             # so a live draft cannot re-ask them after a size or quantity turn.
             locked = tuple(
@@ -901,6 +961,9 @@ class Orchestrator:
                 and not (key == "sizes" and state.size_needs_unit())
                 and key != priority_key
             )
+            # Bare "nope" on size/qty must not keep a hallucinated email-refusal ack.
+            if not contact_fields_refused(visitor, open_field):
+                reply = guards.strip_misattributed_contact_refusal(reply, open_field)
         polished = guards.prepare_reply(
             reply,
             visitor,
@@ -1066,9 +1129,18 @@ class Orchestrator:
         # Keep the visitor's own words on the transcript; extract runs on English.
         raw_visitor = visitor
         state.add("visitor", raw_visitor)
-        language, visitor = self._inbound_language(state, raw_visitor, started=started)
-
         asked_before = state.last_question
+        language, visitor = self._inbound_language(state, raw_visitor, started=started)
+        # Inbound gloss must not turn a bare material token ("kraft") into a style
+        # page name ("Textured Boxes") just because that offering lists the stock.
+        if asked_before == "style" and is_material_only_pick(raw_visitor):
+            if str(visitor or "").strip().casefold() != str(raw_visitor).strip().casefold():
+                visitor = raw_visitor
+                state.flags.pop("inbound_english", None)
+                state.flags.pop("inbound_anglicised", None)
+                if state.messages and state.messages[-1].author == "visitor":
+                    state.messages[-1].english = ""
+
         was_reachable = state.reachable()
         # English/catalogue spelling once for this turn so topics + extract agree
         # ("adress" → "address" while quantity is open still answers location).
@@ -1081,10 +1153,9 @@ class Orchestrator:
             registry=self.registry,
         )
         llm_first = self._llm_first_intent_turn(state, visitor)
-        # Live settles soft-no / deferral via fields; phrase soft-decline is backup only.
-        confirmed = state.confirm_suggested(
-            visitor, soft_decline=not self.config.real_llm_enabled
-        )
+        # Soft-decline closes a suggested field even in live — model fields are primary,
+        # this is the safety net when the model leaves a bad suggested token (e.g. finish none).
+        confirmed = state.confirm_suggested(visitor, soft_decline=True)
         extracted = extract_fields(visitor, state.last_question, state, registry=self.registry)
         # Contact details must come from the visitor's raw words. Inbound LLM calls
         # mask emails to [EMAIL], so the English gloss can drop them — raw wins.
@@ -1306,6 +1377,10 @@ class Orchestrator:
         elif refused_contact and not asking_our_details and not canon.topics_to_answer(visitor):
             handoff_reason = "declined"
         elif refused_contact and asking_our_details and handoff_reason in {"quote", "declined"}:
+            handoff_reason = ""
+        # llm-first turns may still waive the open field after live/backup — do not
+        # burn the chat on max_turns before that settlement runs.
+        if handoff_reason == "max_turns" and llm_first:
             handoff_reason = ""
         if not expected and not handoff_reason and not state.complete():
             if is_visitor_greeting(visitor) or vision is not None:
@@ -1583,6 +1658,10 @@ class Orchestrator:
             source = "heuristic"
 
         already_greeted = bool(state.bot_texts())
+        if source in {"live", "live-rewrite"}:
+            expected = self._settle_compose_waivers(
+                state, visitor, composed, accepted, rejected, expected
+            )
         polish_expected = self._expected_for_polish(state, expected, composed)
         composed.reply = self._finish_reply(
             composed.reply,
@@ -1711,6 +1790,9 @@ class Orchestrator:
                     registry=self.registry,
                 )
                 rewritten.reply = guards.strip_unsanctioned_claims(rewritten.reply, self.registry)
+                expected = self._settle_compose_waivers(
+                    state, visitor, rewritten, accepted, rejected, expected
+                )
                 polish_expected = self._expected_for_polish(state, expected, rewritten)
                 rewritten.reply = self._finish_reply(
                     rewritten.reply,
@@ -1911,6 +1993,18 @@ class Orchestrator:
                 )
                 accepted.update(backup_ok)
                 rejected.update(backup_rejected)
+
+        # Re-check turn cap after live/backup settlement (deferred above for llm-first).
+        if not state.handoff:
+            late_handoff = self._handoff_reason(
+                state, visitor, progressed=bool(accepted)
+            )
+            if late_handoff == "max_turns":
+                state.handoff = late_handoff
+                reply = HANDOFF_LINES.get(late_handoff, HANDOFF_LINES["stalled"])
+                composed.reply = reply
+                composed.asked = ""
+                composed.move = "handoff"
 
         asked = guards.asked_field(reply)
         asking = guards.count_questions(reply) > 0

@@ -23,6 +23,16 @@ def test_waiver_fields_reasked_catches_tbc_still_asking():
     assert TO_BE_CONFIRMED in detail
 
 
+def test_waiver_fields_reasked_treats_finish_none_as_waiver():
+    detail = waiver_fields_reasked(
+        asked="finishes",
+        fields={"finishes": "none"},
+        last_question="finishes",
+    )
+    assert "finishes" in detail
+    assert TO_BE_CONFIRMED in detail
+
+
 def test_waiver_fields_reasked_allows_next_field():
     assert (
         waiver_fields_reasked(

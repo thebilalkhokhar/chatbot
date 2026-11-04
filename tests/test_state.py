@@ -203,6 +203,90 @@ def test_soft_no_on_suggested_material_stops_the_reask_loop():
     assert state2.fields["sizes"].status == STATUS_WAIVED
 
 
+def test_apply_model_finish_none_becomes_waived_tbc():
+    from chatbot.bot.state import STATUS_WAIVED, TO_BE_CONFIRMED
+
+    state = make_state("nothing")
+    _fill(state, "product", "bags")
+    state.last_question = "finishes"
+    accepted, rejected = apply_field_updates(
+        state, {"finishes": "none"}, "nothing", source="model"
+    )
+    assert accepted.get("finishes") == TO_BE_CONFIRMED
+    assert rejected == {}
+    assert state.fields["finishes"].status == STATUS_WAIVED
+    assert any(key == "finishes" for key, _ in state.do_not_ask())
+
+
+def test_confirm_suggested_soft_no_closes_finish_none():
+    from chatbot.bot.state import STATUS_SUGGESTED, STATUS_WAIVED, TO_BE_CONFIRMED
+
+    state = make_state("idk")
+    _fill(state, "product", "bags")
+    state.set_field("finishes", "none", status=STATUS_SUGGESTED)
+    state.last_question = "finishes"
+    assert state.confirm_suggested("idk") == ["finishes"]
+    assert state.fields["finishes"].status == STATUS_WAIVED
+    assert state.fields["finishes"].value == TO_BE_CONFIRMED
+
+
+def test_waived_size_tbc_upgrades_when_dimensions_arrive():
+    from chatbot.bot.state import STATUS_VISITOR, STATUS_WAIVED, TO_BE_CONFIRMED
+
+    state = make_state("4 x 6 inches")
+    _fill(state, "product", "bags")
+    state.set_field("sizes", TO_BE_CONFIRMED, status=STATUS_WAIVED)
+    state.last_question = "quantity"
+    accepted, rejected = apply_field_updates(
+        state, {"sizes": "4 x 6 inches"}, "4 x 6 inches"
+    )
+    assert "sizes" in accepted
+    assert "sizes" not in rejected
+    assert state.fields["sizes"].status == STATUS_VISITOR
+    assert "4" in state.fields["sizes"].value and "6" in state.fields["sizes"].value
+
+
+def test_nope_on_sizes_is_not_contact_refusal():
+    from chatbot.bot.state import contact_fields_refused, asks_size_guidance
+
+    assert not contact_fields_refused("nope", "sizes")
+    assert contact_fields_refused("nope", "email")
+    assert not asks_size_guidance("nope", "sizes")
+    assert not asks_size_guidance("idk", "sizes")
+    assert asks_size_guidance(
+        "I am not sure about this. Can you suggest me size for coffee beans?",
+        "sizes",
+    )
+
+
+def test_kraft_on_style_ask_saves_material_not_textured_boxes():
+    """Regression: kraft is stock, not Textured Boxes style."""
+    from chatbot.bot.state import (
+        STATUS_UNKNOWN,
+        STATUS_VISITOR,
+        extract_fields,
+        is_material_only_pick,
+    )
+
+    assert is_material_only_pick("kraft")
+    assert not is_material_only_pick("mailer")
+    assert not is_material_only_pick("kraft mailer")
+
+    state = make_state("kraft")
+    _fill(state, "product", "boxes")
+    state.last_question = "style"
+    updates = extract_fields("kraft", "style", state)
+    assert updates.get("material") == "kraft"
+    assert "style" not in updates or updates.get("style") != "Textured Boxes"
+    accepted, rejected = apply_field_updates(
+        state, {"style": "Textured Boxes", "material": "kraft"}, "kraft"
+    )
+    assert accepted.get("material") == "kraft"
+    assert "style" in rejected or state.fields["style"].status == STATUS_UNKNOWN
+    assert state.fields["style"].value != "Textured Boxes"
+    assert state.fields["material"].status == STATUS_VISITOR
+
+
 def test_an_affirmation_does_not_confirm_an_answer_they_gave():
     state = make_state("rigid boxes")
     apply_field_updates(state, {"style": "rigid"}, "rigid boxes")

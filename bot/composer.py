@@ -21,15 +21,18 @@ from .state import (
     is_meta_question,
     CATALOGUE_OPTION_FIELDS,
     is_option_request,
-    refuses_contact,
+    contact_fields_refused,
     is_price_objection,
     is_question,
+    is_soft_no_preference,
+    is_to_be_confirmed,
     is_visitor_greeting,
     normalize_finish,
     asks_size_guidance,
     asks_term_meaning,
     meaning_term,
     size_is_unknown,
+    STATUS_WAIVED,
     valid_email,
     wants_recommendation,
     field_ask_name,
@@ -148,8 +151,10 @@ you/the team to decide later about the open checklist field — judge that from 
 (including slang, typos, and elongated chat spellings), not from a fixed phrase list — set that
 one field in `fields` correctly and ask the next ASK SET field. Never re-ask the same field on
 that turn. For style or material use exactly "no preference"; for sizes, finishes, designs,
-extras, use case, or quantity use exactly "to be confirmed". Never waive product, email, phone,
-or name this way.
+extras, use case, or quantity use exactly "to be confirmed". Never write finishes as catalogue
+"none" for uncertainty / no preference — that token is only a coating option after they
+affirm no coating; unsure/deferral on finish must be exactly "to be confirmed". Never waive
+product, email, phone, or name this way.
 
 When they ask how to reach you, the first sentence must be exactly: "You can reach the team at Support@print247.us or +1 (832) 807-3429." Then ask the next missing checklist field in the same message.
 
@@ -218,7 +223,7 @@ def _topic_answer(key: str, family: str, overrides: dict[str, str] | None) -> st
     if key == "styles":
         scoped = {
             "bags": "Bag styles include stand-up, flat, flat-bottom, side gusset and pinch bottom.",
-            "boxes": "Box styles include display, mailer, gift and kraft boxes.",
+            "boxes": "Box styles include mailer, gift, display and tuck boxes.",
             "labels": (
                 "Label styles include bottle labels, product labels, die-cut stickers "
                 "and vinyl labels."
@@ -587,7 +592,25 @@ def heuristic_turn(
         and state.last_question == "style"
         and state.fields["style"].value == "no preference"
     ):
-        parts.append("No problem — box styles include mailer, gift, kraft and display boxes.")
+        parts.append("No problem — box styles include mailer, gift, display and tuck boxes.")
+
+    # Soft-no / deferral on size: already waived as TBC — note custom sizing, ask next.
+    if (
+        is_soft_no_preference(visitor)
+        and state.last_question == "sizes"
+        and state.fields["sizes"].status == STATUS_WAIVED
+        and is_to_be_confirmed(state.fields["sizes"].value)
+        and not (style_suggest or "styles" in topics)
+    ):
+        parts.append(
+            "There's no standard size — everything is custom made, and the team "
+            "sizes it around your product."
+        )
+        question = _question_text(state, expected)
+        if question and (not expected or expected[0] != "sizes"):
+            parts.append(question)
+            asked = expected[0] if expected else ""
+            return Composed(reply=" ".join(parts).strip(), asked=asked, source="heuristic")
 
     # Explicit style ask wins this turn; size help waits for the next ask.
     if asks_size_guidance(visitor, state.last_question) and not (
@@ -709,12 +732,13 @@ def _allowlist_block(registry) -> str:
     return "\n".join(lines)
 
 
-def _intent(visitor: str) -> str:
+def _intent(visitor: str, last_question: str = "") -> str:
     if asks_if_bot(visitor):
         return "identity"
     if asks_to_share_reference(visitor):
         return "reference_share"
-    if refuses_contact(visitor):
+    # Bare "no"/"nope" is only an email/phone refusal while contact is the open ask.
+    if contact_fields_refused(visitor, last_question):
         return "refusal"
     if asks_term_meaning(visitor):
         return "term_meaning"
@@ -835,7 +859,7 @@ def build_user(
         "EXAMPLES OF CORRECT REPLIES\n" + golden_block(examples or []),
         f"TRANSCRIPT (last messages)\n{transcript}",
         f"Their latest message: {visitor}",
-        f"Intent: {_intent(visitor)}",
+        f"Intent: {_intent(visitor, state.last_question)}",
         f"Topics their message asks about: {', '.join(topics) if topics else 'none recognised'}",
         (
             ""
@@ -941,7 +965,7 @@ def build_user(
             "email or phone again, and do not hand off just because they refused. If they also "
             "asked for OUR contact or address, answer those from FACTS (support email/phone and "
             "Rosenberg when they asked for the address), then continue with one ASK SET field."
-            if refuses_contact(visitor)
+            if contact_fields_refused(visitor, state.last_question)
             else ""
         ),
         (
@@ -951,6 +975,18 @@ def build_user(
             "it in fields, and leave proposed_configs empty. Then re-ask the same open ASK SET "
             f"field ({state.last_question or 'the current open field'})."
             if asks_term_meaning(visitor)
+            else ""
+        ),
+        (
+            "They deferred or declined to pick a size (unsure / no preference / later — judge "
+            "meaning). Set fields.sizes to exactly \"to be confirmed\", acknowledge briefly that "
+            "the team will confirm size, and ask the next ASK SET field. Do NOT re-ask size, "
+            "do NOT ask product dimensions this turn, and do NOT mention their email."
+            if (
+                state.last_question == "sizes"
+                and is_soft_no_preference(visitor)
+                and not asks_term_meaning(visitor)
+            )
             else ""
         ),
         (
@@ -982,7 +1018,8 @@ def build_user(
             "If they affirm it, put the same value in `fields`, do NOT re-ask it, and ask the next "
             "ASK SET field. If they decline specials / say no preference / defer / refuse without "
             "asking for alternatives: for style or material set `fields` to exactly "
-            "\"no preference\"; for other waiveable fields set \"to be confirmed\"; acknowledge "
+            "\"no preference\"; for finishes and other waiveable fields set exactly "
+            "\"to be confirmed\" (never finishes=\"none\" for a decline); acknowledge "
             "briefly and ask the next ASK SET field — never re-ask the suggested field. Only if "
             "they clearly want other catalogue options, list alternatives for that field."
             if any(
