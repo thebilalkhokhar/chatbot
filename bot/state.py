@@ -226,6 +226,8 @@ UNSPECIFIED_RE = re.compile(
     # Short uncertainty after inbound gloss ("I have no idea", "no idea at all").
     r"|(?:i\s+)?(?:really\s+)?(?:have\s+)?no\s+(?:idea|clue)(?:\s+at\s+all)?"
     r"|not\s+a\s+clue"
+    # Deferral without a concrete pick ("not yet", "not yet sure/decided").
+    r"|not\s+yet(?:\s+(?:sure|decided|ready))?"
     r")\s*[.!]*\s*$",
     re.I,
 )

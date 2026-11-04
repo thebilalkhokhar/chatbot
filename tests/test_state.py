@@ -345,6 +345,24 @@ def test_no_idea_is_not_a_recommendation_ask():
     assert wants_recommendation("give me ideas")
 
 
+def test_not_yet_waives_open_catalogue_field():
+    from chatbot.bot.state import TO_BE_CONFIRMED, STATUS_WAIVED, UNSPECIFIED_RE
+
+    assert UNSPECIFIED_RE.match("not yet")
+    assert UNSPECIFIED_RE.match("Not yet.")
+    assert UNSPECIFIED_RE.match("not yet sure")
+    state = make_state("not yet")
+    state.fields["product"].value = "boxes"
+    state.fields["product"].status = STATUS_VISITOR
+    state.last_question = "finishes"
+    updates = extract_fields("not yet", "finishes", state)
+    assert updates.get("finishes") == TO_BE_CONFIRMED
+    accepted, rejected = apply_field_updates(state, updates, "not yet")
+    assert accepted.get("finishes") == TO_BE_CONFIRMED
+    assert rejected == {}
+    assert state.fields["finishes"].status == STATUS_WAIVED
+
+
 def test_no_idea_on_finish_style_material_waives():
     """Regression: 'idea' in 'no idea' must not block the uncertainty waiver."""
     from chatbot.bot.state import TO_BE_CONFIRMED, STATUS_WAIVED
