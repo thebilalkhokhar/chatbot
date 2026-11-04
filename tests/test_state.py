@@ -598,12 +598,15 @@ def test_exhausted_use_case_asks_leave_the_missing_list():
 
 
 def test_a_waived_size_leaves_the_ask_set():
+    from chatbot.bot.state import TO_BE_CONFIRMED
+
     state = make_state("boxes")
     _fill(state, "product", "boxes")
-    _fill(state, "sizes", "to be confirmed", status=STATUS_WAIVED)
+    _fill(state, "sizes", TO_BE_CONFIRMED, status=STATUS_WAIVED)
     state.fields["sizes"].raw_visitor_text = "no idea"
     assert "sizes" not in state.ask_set()
-    assert dict(state.do_not_ask())["sizes"] == "no idea"
+    # Waived fields expose the settled token in do_not_ask, not the raw dump.
+    assert dict(state.do_not_ask())["sizes"] == TO_BE_CONFIRMED
 
 
 def test_a_size_missing_its_unit_stays_askable_and_off_the_do_not_ask_list():
@@ -795,8 +798,15 @@ def test_refusing_contact_waives_email_and_phone():
     for text in phrases:
         state = make_state(text)
         _fill(state, "product", "boxes")
+        _fill(state, "use_case", "candles")
         _fill(state, "sizes", "4x6 in")
         _fill(state, "quantity", "1000")
+        _fill(state, "style", "mailer", status=STATUS_WAIVED)
+        _fill(state, "material", "no preference", status=STATUS_WAIVED)
+        _fill(state, "finishes", "to be confirmed", status=STATUS_WAIVED)
+        _fill(state, "skus", "1")
+        # Past the soft early email window — this is the closing contact ask.
+        state.flags["soft_email_asked"] = True
         state.last_question = "email"
         apply_field_updates(state, extract_fields(text, "email", state), text)
         assert state.fields["email"].status == STATUS_WAIVED, text

@@ -34,8 +34,9 @@ LANGUAGE_S = 5.0
 
 
 def turn_language_budget_s(compose_timeout_s: float) -> float:
-    """Enough wall time for compose plus inbound and outbound language calls."""
-    return float(compose_timeout_s or 6.0) + (2.0 * LANGUAGE_S) + 1.0
+    """Enough wall time for compose, reply judge, inbound, and outbound language calls."""
+    # +3s headroom matches reply_judge.JUDGE_S without importing that module here.
+    return float(compose_timeout_s or 6.0) + (2.0 * LANGUAGE_S) + 3.0 + 1.0
 
 INBOUND_SCHEMA = {
     "type": "object",

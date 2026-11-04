@@ -949,6 +949,16 @@ def test_live_model_uncertainty_sets_finish_to_be_confirmed(
                 source="live",
             ),
         )
+        monkeypatch.setattr(
+            "chatbot.bot.orchestrator.judge_reply",
+            lambda *args, **kwargs: __import__(
+                "chatbot.bot.reply_judge", fromlist=["JudgeVerdict"]
+            ).JudgeVerdict(ok=True),
+        )
+        monkeypatch.setattr(
+            "chatbot.bot.orchestrator.normalize_inbound",
+            lambda *args, **kwargs: None,
+        )
         result = engine.handle("c-finish-tbc", "hmm leave the finish for later")
         state = engine.store.get_or_create("c-finish-tbc")
         assert result.handoff == ""

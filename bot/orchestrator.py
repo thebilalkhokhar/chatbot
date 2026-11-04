@@ -50,6 +50,7 @@ from .state import (
     field_clarify_phrase,
     field_shaped_attempt,
     family_of,
+    is_field_waiver_value,
     looks_like_invalid_email,
     needs_catalogue_options,
     valid_email,
@@ -70,6 +71,11 @@ from .state import (
     refuses_contact,
     wants_human,
     wants_recommendation,
+)
+from .reply_judge import (
+    judge_reply,
+    merge_corrections,
+    waiver_fields_reasked,
 )
 from .reply_language import (
     LANGUAGE_S,
@@ -788,6 +794,21 @@ class Orchestrator:
             parts.append(REPHRASES.get(expected[0]) or expected[1])
         return " ".join(parts).strip() or "What are you looking to have made — boxes, bags, labels, or something else?"
 
+    def _expected_for_polish(
+        self,
+        state: ConversationState,
+        expected: tuple[str, str] | None,
+        composed: Composed,
+    ) -> tuple[str, str] | None:
+        """If the draft waived the open field and moved on, polish against that ask."""
+        focus = str(state.last_question or "").strip()
+        asked = str(composed.asked or "").strip()
+        waived = is_field_waiver_value(str((composed.fields or {}).get(focus) or ""))
+        if focus and asked and asked != focus and waived:
+            question = state.question_for(asked) or (expected[1] if expected else "")
+            return (asked, question)
+        return expected
+
     def _finish_reply(
         self,
         reply: str,
@@ -1342,9 +1363,11 @@ class Orchestrator:
             and not asks_term_meaning(visitor)
             and str(state.flags.get("offer_options_for") or "").strip()
             in CATALOGUE_OPTION_FIELDS
+            and (wants_recommendation(visitor) or is_option_request(visitor))
         ):
-            # Catalogue menus are deterministic. Live invents style/material names
-            # and floods reply_config_mismatch on rewrite (60–80 debug issues).
+            # Explicit "suggest / options" asks keep the deterministic catalogue menu.
+            # Other non-picks (deferral, unsure, "leave it for later") go to live so
+            # the model can waive with "to be confirmed" instead of being blocked here.
             composed = heuristic_turn(
                 state,
                 visitor,
@@ -1447,15 +1470,20 @@ class Orchestrator:
             source = "heuristic"
 
         already_greeted = bool(state.bot_texts())
+        polish_expected = self._expected_for_polish(state, expected, composed)
         composed.reply = self._finish_reply(
-            composed.reply, visitor, expected, already_greeted=already_greeted, state=state
+            composed.reply,
+            visitor,
+            polish_expected,
+            already_greeted=already_greeted,
+            state=state,
         )
         result = self._guard(
             composed.reply,
             state,
             visitor,
             prompt_chunks,
-            expected,
+            polish_expected,
             bool(handoff_reason),
             composed.proposed_configs,
         )
@@ -1467,12 +1495,47 @@ class Orchestrator:
         recommendation_gap = any(
             issue.code == "recommendation_unanswered" for issue in result.warnings
         )
-        if source == "live" and (not result.ok or recommendation_gap):
+        # Deterministic: compose waived the open field in `fields` but still asks it.
+        intent_fix = ""
+        if source == "live":
+            intent_fix = waiver_fields_reasked(
+                asked=composed.asked,
+                fields=composed.fields,
+                last_question=str(state.last_question or ""),
+            )
+        # LLM intent judge — only when hard guards already passed and fields look
+        # consistent. Fail open on timeout/error so a judge blip never stalls chat.
+        judge_fix = ""
+        if (
+            source == "live"
+            and result.ok
+            and not recommendation_gap
+            and not intent_fix
+            and self.config.real_llm_enabled
+            and language.casefold() == ENGLISH.casefold()
+        ):
+            try:
+                verdict = judge_reply(
+                    self.llm,
+                    visitor=visitor,
+                    reply=composed.reply,
+                    open_field=str(state.last_question or ""),
+                    asked=str(composed.asked or ""),
+                    fields=composed.fields,
+                    ms_left=self._language_ms_left(started),
+                )
+                if not verdict.ok:
+                    judge_fix = verdict.reason
+            except LLMError as error:
+                log.warning("Reply judge failed (%s); keeping draft", error)
+
+        needs_intent_rewrite = bool(intent_fix or judge_fix)
+        if source == "live" and (not result.ok or recommendation_gap or needs_intent_rewrite):
             rejected_drafts.append(self._draft_record("draft", composed, result))
         # Meaning glosses: skip rewrite spam; heuristic explains without locking the term.
         if (
             source == "live"
-            and (not result.ok or recommendation_gap)
+            and (not result.ok or recommendation_gap or needs_intent_rewrite)
             and asks_term_meaning(visitor)
         ):
             composed = heuristic_turn(
@@ -1484,10 +1547,11 @@ class Orchestrator:
                 unclear=unclear,
             )
             composed.source = "fallback"
+            polish_expected = self._expected_for_polish(state, expected, composed)
             composed.reply = self._finish_reply(
                 composed.reply,
                 visitor,
-                expected,
+                polish_expected,
                 already_greeted=already_greeted,
                 state=state,
             )
@@ -1496,7 +1560,7 @@ class Orchestrator:
                 state,
                 visitor,
                 prompt_chunks,
-                expected,
+                polish_expected,
                 bool(handoff_reason),
                 composed.proposed_configs,
             )
@@ -1504,18 +1568,22 @@ class Orchestrator:
             if result.ok:
                 blocked = []
         elif (
-            (not result.ok or recommendation_gap)
+            (not result.ok or recommendation_gap or needs_intent_rewrite)
             and source == "live"
             and language.casefold() != ENGLISH.casefold()
         ):
             # Non-English: skip paid rewrite so outbound translate still runs.
             # Heuristic fallback is applied below when result stays blocked.
             pass
-        elif (not result.ok or recommendation_gap) and source == "live":
+        elif (not result.ok or recommendation_gap or needs_intent_rewrite) and source == "live":
             fixes = result.blockers or [
                 issue for issue in result.warnings if issue.code == "recommendation_unanswered"
             ]
-            correction = guards.describe(fixes)
+            correction = merge_corrections(
+                guards.describe(fixes) if fixes else "",
+                intent_fix,
+                judge_fix,
+            )
             try:
                 rewritten = live_turn(
                     self.llm,
@@ -1530,8 +1598,13 @@ class Orchestrator:
                     registry=self.registry,
                 )
                 rewritten.reply = guards.strip_unsanctioned_claims(rewritten.reply, self.registry)
+                polish_expected = self._expected_for_polish(state, expected, rewritten)
                 rewritten.reply = self._finish_reply(
-                    rewritten.reply, visitor, expected, already_greeted=already_greeted, state=state
+                    rewritten.reply,
+                    visitor,
+                    polish_expected,
+                    already_greeted=already_greeted,
+                    state=state,
                 )
                 # A rewrite is reconciled again. Fixing a price and quietly adding
                 # an option the new configs do not name still blocks.
@@ -1540,7 +1613,7 @@ class Orchestrator:
                     state,
                     visitor,
                     prompt_chunks,
-                    expected,
+                    polish_expected,
                     bool(handoff_reason),
                     rewritten.proposed_configs,
                 )
@@ -1548,7 +1621,17 @@ class Orchestrator:
                     issue.code == "recommendation_unanswered"
                     for issue in rewritten_result.warnings
                 )
-                if rewritten.reply and rewritten_result.ok and not rewritten_gap:
+                rewritten_intent = waiver_fields_reasked(
+                    asked=rewritten.asked,
+                    fields=rewritten.fields,
+                    last_question=str(state.last_question or ""),
+                )
+                if (
+                    rewritten.reply
+                    and rewritten_result.ok
+                    and not rewritten_gap
+                    and not rewritten_intent
+                ):
                     composed = rewritten
                     result = rewritten_result
                     source = "live-rewrite"
@@ -1701,6 +1784,10 @@ class Orchestrator:
             )
             accepted.update(llm_accepted)
             rejected.update(llm_rejected)
+            # Model waived a catalogue field — stop forcing the options menu.
+            offer = str(state.flags.get("offer_options_for") or "").strip()
+            if offer and is_field_waiver_value(str(llm_accepted.get(offer) or "")):
+                state.flags.pop("offer_options_for", None)
 
         asked = guards.asked_field(reply)
         asking = guards.count_questions(reply) > 0

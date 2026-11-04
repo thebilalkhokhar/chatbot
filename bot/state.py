@@ -769,6 +769,17 @@ def is_to_be_confirmed(value: str) -> bool:
     }
 
 
+def is_no_preference(value: str) -> bool:
+    """True for the legacy style/material waiver token (and close variants)."""
+    folded = re.sub(r"\s+", " ", str(value or "").strip().lower())
+    return folded in {"no preference", "no preferences"}
+
+
+def is_field_waiver_value(value: str) -> bool:
+    """True when a stored/proposed value means 'leave it / team decides'."""
+    return is_to_be_confirmed(value) or is_no_preference(value)
+
+
 # Numeric / freeform fields: no catalogue menu — non-answers defer to the team.
 SHAPED_DEFER_FIELDS = frozenset({"sizes", "quantity", "skus"})
 # Catalogue fields: non-answers get an options list (not phrase matching, not TBC).
@@ -2481,10 +2492,19 @@ def apply_field_updates(
                 and size_is_unknown(visitor_text)
                 and bool(re.search(r"\bsizes?\b", str(visitor_text or ""), re.I))
             )
+            # Live model already judged the open field as deferred. Trust that TBC
+            # unless the visitor clearly asked for options/suggestions (not an
+            # uncertainty phrase — "no idea" must not count as "any ideas?").
+            visitor_wants_menu = wants_recommendation(visitor_text) or is_option_request(
+                visitor_text
+            )
+            model_open_waiver = (
+                source == "model"
+                and key == state.last_question
+                and not visitor_wants_menu
+            )
             # Asking for options/suggestions is not a waiver — offer the catalogue.
-            if (
-                wants_recommendation(visitor_text) or is_option_request(visitor_text)
-            ) and not size_unsure:
+            if visitor_wants_menu and not model_open_waiver and not size_unsure:
                 rejected[key] = value
                 continue
             # Image OCR / typed brief may waive a field that was not the last ask.
@@ -2549,11 +2569,13 @@ def apply_field_updates(
                 continue
             # "pizza" is what they are packing, not a box style. Keep a free-text
             # answer only when style is the question they were just asked.
+            # Model "no preference" is a waiver token, not a free-text style name.
             if (
                 not normalized_style
                 and not catalogue_style
                 and not STYLE_HINTS.search(value)
                 and not UNSPECIFIED_RE.search(visitor_text)
+                and not is_no_preference(value)
                 and (state.last_question != "style" or basis != BASIS_VISITOR)
             ):
                 rejected[key] = value
@@ -2666,13 +2688,17 @@ def apply_field_updates(
         # "not sure" / "no preference" only waives the field we asked. A model
         # echo of the size waiver must not settle material/style on the side.
         if key in {"style", "material"} and (
-            UNSPECIFIED_RE.search(visitor_text) or UNSPECIFIED_RE.match(str(value or ""))
+            UNSPECIFIED_RE.search(visitor_text)
+            or UNSPECIFIED_RE.match(str(value or ""))
+            or is_no_preference(value)
         ):
-            if (
-                key == state.last_question
-                and not wants_recommendation(visitor_text)
-                and not is_option_request(visitor_text)
-            ):
+            visitor_wants_menu = wants_recommendation(visitor_text) or is_option_request(
+                visitor_text
+            )
+            model_open_waiver = (
+                source == "model" and key == state.last_question and not visitor_wants_menu
+            )
+            if key == state.last_question and (model_open_waiver or not visitor_wants_menu):
                 state.set_field(
                     key, "no preference", BASIS_VISITOR, raw=visitor_text, status=STATUS_WAIVED
                 )

@@ -25,7 +25,7 @@ from .orchestrator import Orchestrator
 from .state import FAMILY_PRODUCT, STATUS_VISITOR, ConversationState, asks_if_bot
 
 DOLLAR_CAP = 1.90
-CALLS_PER_ATTEMPT = 2  # the model reply, plus one rewrite when guards block
+CALLS_PER_ATTEMPT = 3  # compose + reply judge (+ rewrite when guards/judge block)
 
 C3_CODES = frozenset({
     "price_given",
