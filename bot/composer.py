@@ -143,12 +143,13 @@ After Product and Use Case are known, ask ONCE for their email (soft ask for the
 
 Once a style or finish is accepted, it is locked. Do not ask for it again, and do not put it in fields_proposed or proposed_configs.
 
-When the visitor is unsure, undecided, deferring, or asking you/the team to decide later about the
-open checklist field — judge that from their meaning, not from a fixed phrase list — set that one
-field in `fields` to exactly "to be confirmed", acknowledge briefly that the team will confirm it,
-and ask the next ASK SET field. Never re-ask the same field on that turn. Use "to be confirmed"
-only for sizes, style, finishes, material, designs, extras, use case, or quantity — never for
-product, email, phone, or name.
+When the visitor is unsure, undecided, deferring, declining a special preference, or asking
+you/the team to decide later about the open checklist field — judge that from their meaning
+(including slang, typos, and elongated chat spellings), not from a fixed phrase list — set that
+one field in `fields` correctly and ask the next ASK SET field. Never re-ask the same field on
+that turn. For style or material use exactly "no preference"; for sizes, finishes, designs,
+extras, use case, or quantity use exactly "to be confirmed". Never waive product, email, phone,
+or name this way.
 
 When they ask how to reach you, the first sentence must be exactly: "You can reach the team at Support@print247.us or +1 (832) 807-3429." Then ask the next missing checklist field in the same message.
 
@@ -977,10 +978,13 @@ def build_user(
         ),
         (
             "Known has a field marked suggested — that is your open proposal waiting on yes/no. "
-            "If their latest message affirms it (yes, sure, okay, sounds good, proceed, etc.), "
-            "treat that field as confirmed: put the same value in `fields`, do NOT re-ask it or "
-            "offer more alternatives for it, and ask the next ASK SET field. If they refuse or "
-            "want other options, clear the proposal and list catalogue alternatives for that field."
+            "Judge their latest message by meaning (including slang / elongated chat spelling). "
+            "If they affirm it, put the same value in `fields`, do NOT re-ask it, and ask the next "
+            "ASK SET field. If they decline specials / say no preference / defer / refuse without "
+            "asking for alternatives: for style or material set `fields` to exactly "
+            "\"no preference\"; for other waiveable fields set \"to be confirmed\"; acknowledge "
+            "briefly and ask the next ASK SET field — never re-ask the suggested field. Only if "
+            "they clearly want other catalogue options, list alternatives for that field."
             if any(
                 field_value.status == STATUS_SUGGESTED and field_value.value
                 for field_value in state.fields.values()

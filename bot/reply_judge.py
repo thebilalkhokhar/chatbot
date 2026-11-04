@@ -76,12 +76,16 @@ def _judge_system() -> str:
             "Return JSON: {\"ok\": true|false, \"reason\": \"...\"}.",
             "ok=true only when the draft matches the visitor's intent for this turn.",
             "Fail (ok=false) when:",
-            "- The visitor deferred, was unsure, had no preference, or asked the team "
-            "to decide later about the OPEN field, but the draft re-asks that same field "
+            "- The visitor deferred, was unsure, had no preference, declined specials, "
+            "or asked the team to decide later about the OPEN field (judge slang and "
+            "elongated chat spelling by meaning), but the draft re-asks that same field "
             "or treats their message as unanswered.",
             "- The visitor clearly asked for options/suggestions on the open catalogue "
             "field, but the draft does not list concrete options.",
-            "- The draft ignores a clear yes/no confirmation of a pending suggestion.",
+            "- A field is marked suggested and they affirmed it, but the draft still "
+            "asks that field or offers more alternatives for it.",
+            "- A field is marked suggested and they declined / said no preference without "
+            "asking for alternatives, but the draft keeps pushing that same suggestion.",
             "Pass (ok=true) when the draft is a reasonable next sales step, even if terse.",
             "reason must be empty when ok=true. When ok=false, reason is a short imperative "
             "fix for the composer (what to change), not a scolding.",

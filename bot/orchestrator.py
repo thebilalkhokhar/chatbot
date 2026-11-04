@@ -37,6 +37,8 @@ from .state import (
     STATUS_SUGGESTED,
     STATUS_UNKNOWN,
     STATUS_WAIVED,
+    TO_BE_CONFIRMED,
+    UNCERTAIN_WAIVE_FIELDS,
     UNIT_ONLY_RE,
     ConversationState,
     apply_field_updates,
@@ -51,6 +53,8 @@ from .state import (
     field_shaped_attempt,
     family_of,
     is_field_waiver_value,
+    is_no_preference,
+    is_to_be_confirmed,
     looks_like_invalid_email,
     needs_catalogue_options,
     valid_email,
@@ -794,6 +798,70 @@ class Orchestrator:
             parts.append(REPHRASES.get(expected[0]) or expected[1])
         return " ".join(parts).strip() or "What are you looking to have made — boxes, bags, labels, or something else?"
 
+    def _pending_suggestion(self, state: ConversationState) -> str:
+        """Field key waiting on yes/no, if any."""
+        for key in ("product", "style", "material", "finishes"):
+            field_value = state.fields.get(key)
+            if (
+                field_value is not None
+                and field_value.status == STATUS_SUGGESTED
+                and str(field_value.value or "").strip()
+            ):
+                return key
+        return ""
+
+    def _llm_first_intent_turn(self, state: ConversationState, visitor: str) -> bool:
+        """Live model should settle meaning before regex/heuristic phrase paths."""
+        if not self.config.real_llm_enabled:
+            return False
+        if is_question(visitor) or wants_recommendation(visitor) or is_option_request(visitor):
+            return False
+        if asks_term_meaning(visitor) or asks_to_share_reference(visitor):
+            return False
+        if self._pending_suggestion(state):
+            return True
+        focus = str(state.last_question or "").strip()
+        if focus not in UNCERTAIN_WAIVE_FIELDS:
+            return False
+        # Concrete answers stay on the fast heuristic/extract path.
+        if field_shaped_attempt(
+            focus, visitor, registry=self.registry, family=state.family()
+        ):
+            return False
+        return len(str(visitor or "").split()) <= 12
+
+    def _strip_early_uncertainty_extract(self, extracted: dict[str, str]) -> dict[str, str]:
+        """Live owns deferral/no-preference; keep only concrete extract hits early."""
+        kept: dict[str, str] = {}
+        for key, value in (extracted or {}).items():
+            if key in UNCERTAIN_WAIVE_FIELDS and (
+                is_to_be_confirmed(value) or is_no_preference(value)
+            ):
+                continue
+            kept[key] = value
+        return kept
+
+    def _backup_uncertainty_extract(
+        self,
+        state: ConversationState,
+        visitor: str,
+        accepted: dict[str, str],
+    ) -> dict[str, str]:
+        """If live left the open field unsettled, allow regex waiver as fallback only."""
+        focus = str(state.last_question or "").strip()
+        if focus not in UNCERTAIN_WAIVE_FIELDS:
+            return {}
+        if focus in accepted or state.fields[focus].done:
+            return {}
+        if self._pending_suggestion(state) == focus:
+            # Still waiting on model fields for yes/no — do not phrase-match yet.
+            return {}
+        updates = extract_fields(visitor, focus, state, registry=self.registry)
+        value = str(updates.get(focus) or "").strip()
+        if not (is_to_be_confirmed(value) or is_no_preference(value)):
+            return {}
+        return {focus: value}
+
     def _expected_for_polish(
         self,
         state: ConversationState,
@@ -1012,12 +1080,18 @@ class Orchestrator:
             family=state.family(),
             registry=self.registry,
         )
-        confirmed = state.confirm_suggested(visitor)
+        llm_first = self._llm_first_intent_turn(state, visitor)
+        # Live settles soft-no / deferral via fields; phrase soft-decline is backup only.
+        confirmed = state.confirm_suggested(
+            visitor, soft_decline=not self.config.real_llm_enabled
+        )
         extracted = extract_fields(visitor, state.last_question, state, registry=self.registry)
         # Contact details must come from the visitor's raw words. Inbound LLM calls
         # mask emails to [EMAIL], so the English gloss can drop them — raw wins.
         contacts = extract_contact_fields(raw_visitor)
         extracted.update(contacts)
+        if llm_first:
+            extracted = self._strip_early_uncertainty_extract(extracted)
         # Traceable checks need the raw contact spans and any English gloss together.
         trace_text = visitor
         if contacts and raw_visitor.strip() and raw_visitor.strip() not in visitor:
@@ -1082,7 +1156,8 @@ class Orchestrator:
         # Style/material/finish with no concrete pick → flag options (any wording).
         # Image turns apply OCR/vision fields; do not waive the open ask just because
         # the placeholder message is not itself a size/qty answer.
-        if not state.flags.get("reference_image_this_turn"):
+        # When live will judge deferral/soft-no, do not phrase-waive before compose.
+        if not state.flags.get("reference_image_this_turn") and not llm_first:
             for deferred in defer_unanswered_open_field(state, visitor, accepted):
                 rejected.pop(deferred, None)
         offer_for = needs_catalogue_options(state, visitor, accepted, registry=self.registry)
@@ -1203,6 +1278,16 @@ class Orchestrator:
         # Reference-share and image turns keep the question already on the table.
         if asks_to_share_reference(visitor) or vision is not None:
             expected = continue_ask(state) or expected
+        # A suggested catalogue pick is not in ask_set — keep yes/no on that field.
+        suggested_key = self._pending_suggestion(state)
+        if suggested_key and not state.fields[suggested_key].done:
+            state.last_question = suggested_key
+            expected = (
+                suggested_key,
+                state.question_for(suggested_key)
+                or f"Does {state.fields[suggested_key].value} work for you?",
+            )
+            llm_first = True
         # Catalogue-menu asks stay on that field even if attempts were already spent.
         offer_for = str(state.flags.get("offer_options_for") or "").strip()
         if offer_for in CATALOGUE_OPTION_FIELDS and not state.fields[offer_for].done:
@@ -1383,6 +1468,7 @@ class Orchestrator:
             and not is_question(visitor)
             and not wants_recommendation(visitor)
             and not is_option_request(visitor)
+            and not llm_first
             and state.last_question in CATALOGUE_OPTION_FIELDS
             and len(visitor.split()) <= 8
             and field_shaped_attempt(
@@ -1404,6 +1490,33 @@ class Orchestrator:
                 unclear=unclear,
             )
             source = "heuristic"
+        elif (
+            llm_first
+            and self.config.real_llm_enabled
+            and not handoff_reason
+            and language.casefold() == ENGLISH.casefold()
+        ):
+            # Intent-first: deferral / soft-no / suggested yes-no → live fields,
+            # not phrase regex or catalogue re-ask loops.
+            try:
+                composed = live_turn(
+                    self.llm,
+                    state,
+                    visitor,
+                    expected,
+                    prompt_chunks,
+                    overrides=self.overrides,
+                    examples=examples,
+                    asked_if_bot=asks_if_bot(visitor),
+                    registry=self.registry,
+                )
+                source = "live"
+                state.flags.pop("llm_error", None)
+            except LLMError as error:
+                log.warning("Live intent settle failed (%s); using heuristic", error)
+                state.flags["llm_error"] = str(error)[:200]
+                composed = Composed(reply="")
+                source = "heuristic"
         elif soft_email_skip:
             # Soft-email "no" must continue the quote ask — never a live style dump.
             composed = heuristic_turn(
@@ -1788,6 +1901,16 @@ class Orchestrator:
             offer = str(state.flags.get("offer_options_for") or "").strip()
             if offer and is_field_waiver_value(str(llm_accepted.get(offer) or "")):
                 state.flags.pop("offer_options_for", None)
+
+        # Live left the open field open → regex uncertainty is backup only.
+        if llm_first or source in {"live", "live-rewrite"}:
+            backup = self._backup_uncertainty_extract(state, visitor, accepted)
+            if backup:
+                backup_ok, backup_rejected = apply_field_updates(
+                    state, backup, visitor, registry=self.registry
+                )
+                accepted.update(backup_ok)
+                rejected.update(backup_rejected)
 
         asked = guards.asked_field(reply)
         asking = guards.count_questions(reply) > 0

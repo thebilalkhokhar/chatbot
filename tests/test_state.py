@@ -169,6 +169,40 @@ def test_an_affirmation_confirms_the_proposal():
     assert state.fields["style"].stated
 
 
+def test_soft_no_on_suggested_material_stops_the_reask_loop():
+    """Regression: 'nopeeeeee' / 'no bro' must close a suggested labels material."""
+    from chatbot.bot.state import (
+        STATUS_SUGGESTED,
+        STATUS_WAIVED,
+        TO_BE_CONFIRMED,
+        extract_fields,
+        is_soft_no_preference,
+    )
+
+    assert is_soft_no_preference("nopeeeeee")
+    assert is_soft_no_preference("no bro")
+    assert is_soft_no_preference("maybe later")
+    assert is_soft_no_preference("nah")
+
+    state = make_state("nopeeeeee")
+    _fill(state, "product", "labels")
+    state.set_field("material", "PP white vinyl", status=STATUS_SUGGESTED)
+    state.last_question = "material"
+    assert state.confirm_suggested("nopeeeeee") == ["material"]
+    assert state.fields["material"].status == STATUS_WAIVED
+    assert state.fields["material"].value == "no preference"
+    assert "material" not in state.ask_set()
+
+    state2 = make_state("maybe later")
+    _fill(state2, "product", "labels")
+    state2.last_question = "sizes"
+    updates = extract_fields("maybe later", "sizes", state2)
+    assert updates.get("sizes") == TO_BE_CONFIRMED
+    accepted, _ = apply_field_updates(state2, updates, "maybe later")
+    assert accepted.get("sizes") == TO_BE_CONFIRMED
+    assert state2.fields["sizes"].status == STATUS_WAIVED
+
+
 def test_an_affirmation_does_not_confirm_an_answer_they_gave():
     state = make_state("rigid boxes")
     apply_field_updates(state, {"style": "rigid"}, "rigid boxes")

@@ -219,15 +219,18 @@ UNSPECIFIED_RE = re.compile(
     r"(?:\s+(?:reference|image|design|designs|artwork|file|files|idea|preferences?)){0,3}"
     r"|(?:i\s+)?have\s+no\s+(?:preferences?|idea|clue|reference|design|designs|artwork)"
     r"|(?:i\s+)?(?:still\s+)?(?:don'?t|dont|do\s+not)\s+know|not\s+sure|unsure|no\s+(?:idea|clue|preferences?|reference|design|designs)"
-    r"|dunno|idk|no|nope|none|nothing(?:\s+specific)?|whatever|anything|any"
+    r"|dunno|idk|no|nope+|nah+|none|nothing(?:\s+specific)?|whatever|anything|any"
+    r"|no\s+(?:bro|thanks?|thx)"
+    r"|not\s+really"
     r"|you\s+pick(?:\s+it)?|you\s+decide(?:\s+it)?"
     r"|let\s+(?:the\s+)?team\s+decide(?:\s+it)?"
     r"|(?:the\s+)?team(?:'s)?\s+(?:pick|choice|call|decide)"
     # Short uncertainty after inbound gloss ("I have no idea", "no idea at all").
     r"|(?:i\s+)?(?:really\s+)?(?:have\s+)?no\s+(?:idea|clue)(?:\s+at\s+all)?"
     r"|not\s+a\s+clue"
-    # Deferral without a concrete pick ("not yet", "not yet sure/decided").
+    # Deferral without a concrete pick ("not yet", "maybe later").
     r"|not\s+yet(?:\s+(?:sure|decided|ready))?"
+    r"|maybe(?:\s+later)?|later(?:\s+on)?"
     r")\s*[.!]*\s*$",
     re.I,
 )
@@ -534,6 +537,36 @@ AFFIRMATION_RE = re.compile(
     rf"\s*(?:{AFFIRMATION_UNIT})(?:[,\s]+(?:{AFFIRMATION_UNIT}))*[.!?]*\s*",
     re.I,
 )
+
+
+def normalize_casual_chat(text: str) -> str:
+    """Collapse chat elongations so 'nopeeeeee' / 'nahhh' still match waiver forms."""
+    value = str(text or "").strip().lower()
+    if not value:
+        return value
+    value = re.sub(r"\bnope+\b", "nope", value)
+    value = re.sub(r"\bnah+\b", "nah", value)
+    value = re.sub(r"\bya+y*\b", "yay", value)
+    value = re.sub(r"\by+e+s+\b", "yes", value)
+    value = re.sub(r"\by+e+p+\b", "yep", value)
+    return value.strip(" .!")
+
+
+def is_soft_no_preference(text: str) -> bool:
+    """Casual 'no / nope / no bro / maybe later' — decline extras, keep moving."""
+    raw = str(text or "").strip()
+    if not raw:
+        return False
+    if UNSPECIFIED_RE.match(raw) or UNSPECIFIED_RE.match(normalize_casual_chat(raw)):
+        return True
+    return bool(
+        re.fullmatch(
+            r"(?:no|nope|nah|no\s+bro|no\s+thanks?|not\s+really|nothing\s+specific)"
+            r"(?:\s*[.!…]*)?",
+            normalize_casual_chat(raw),
+            re.I,
+        )
+    )
 WANTS_HUMAN = re.compile(
     r"\b(human|person|agent|representative|rep\b|real (?:person|human)|someone else|speak to (?:a|an|someone|sales|support|rep)|talk to (?:a|an|someone|sales|support|rep)|operator|manager|customer service|live support|live chat|live agent)\b"
     r"|\b(?:don'?t|do not|not|no|stop|hate)\s+(?:want\s+to\s+)?(?:talk(?:ing)?\s*(?:to)?\s+|speak(?:ing)?\s*(?:to)?\s+|chat(?:ting)?\s*(?:with)?\s+)?(?:an?\s+)?(?:ai|bot|robo[a-z]*t|automated|machine)\b"
@@ -601,9 +634,9 @@ LANGUAGE_PREFERENCE_RE = re.compile(
 
 def wants_recommendation(text: str) -> bool:
     value = str(text or "").strip()
-    # "No idea" / "not sure" / "you pick" are waivers, not "give me ideas" asks.
+    # Soft declines / uncertainty are waivers, not "give me ideas" asks.
     # The trailing-ideas? branch used to match the word "idea" inside "no idea".
-    if UNSPECIFIED_RE.match(value):
+    if is_soft_no_preference(value):
         return False
     return bool(RECOMMENDATION_RE.search(value))
 
@@ -872,8 +905,8 @@ def needs_catalogue_options(
     text = str(visitor or "").strip()
     if not text or _visitor_side_turn(text):
         return ""
-    if UNSPECIFIED_RE.match(text):
-        # "not sure" / "no preference" → waiver path, not a catalogue dump.
+    if is_soft_no_preference(text):
+        # "not sure" / "nope" / "maybe later" → waiver path, not a catalogue dump.
         return ""
     if field_shaped_attempt(key, text, registry=registry, family=state.family()):
         return ""
@@ -2102,17 +2135,49 @@ class ConversationState:
             repaired.append("product")
         return repaired
 
-    def confirm_suggested(self, visitor_text: str) -> list[str]:
-        """Propose-and-confirm (Section 8): a bare yes makes the bot's proposal the customer's answer."""
-        pending = self.fields.get(self.last_question)
+    def confirm_suggested(
+        self,
+        visitor_text: str,
+        *,
+        soft_decline: bool = True,
+    ) -> list[str]:
+        """Propose-and-confirm (Section 8): yes locks the proposal.
+
+        Soft declines are optional backup when the live model is off — with live
+        enabled the composer settles refuse / no-preference via `fields` instead
+        of a phrase list here.
+        """
+        key = str(self.last_question or "").strip()
+        pending = self.fields.get(key) if key else None
         if pending is None or pending.status != STATUS_SUGGESTED or not pending.value:
             return []
-        if not AFFIRMATION_RE.fullmatch(str(visitor_text or "")):
+        raw = str(visitor_text or "").strip()
+        gloss = normalize_casual_chat(raw)
+        if AFFIRMATION_RE.fullmatch(raw) or AFFIRMATION_RE.fullmatch(gloss):
+            pending.status = STATUS_CONFIRMED
+            pending.basis = BASIS_VISITOR
+            pending.raw_visitor_text = raw[:200]
+            return [key]
+        if not soft_decline or not is_soft_no_preference(raw):
             return []
-        pending.status = STATUS_CONFIRMED
-        pending.basis = BASIS_VISITOR
-        pending.raw_visitor_text = str(visitor_text).strip()[:200]
-        return [self.last_question]
+        # Heuristic-only backup: declined specials — stop asking.
+        if key in {"style", "material"}:
+            self.set_field(
+                key,
+                "no preference",
+                BASIS_VISITOR,
+                raw=raw[:200],
+                status=STATUS_WAIVED,
+            )
+        else:
+            self.set_field(
+                key,
+                TO_BE_CONFIRMED,
+                BASIS_VISITOR,
+                raw=raw[:200],
+                status=STATUS_WAIVED,
+            )
+        return [key]
 
     def next_question(self) -> tuple[str, str] | None:
         """The single highest-impact ask, for fake mode and the wording fallback.
@@ -2688,7 +2753,8 @@ def apply_field_updates(
         # "not sure" / "no preference" only waives the field we asked. A model
         # echo of the size waiver must not settle material/style on the side.
         if key in {"style", "material"} and (
-            UNSPECIFIED_RE.search(visitor_text)
+            is_soft_no_preference(visitor_text)
+            or UNSPECIFIED_RE.search(visitor_text)
             or UNSPECIFIED_RE.match(str(value or ""))
             or is_no_preference(value)
         ):
@@ -3034,7 +3100,7 @@ def extract_fields(
             if raw_style.lower() == value.strip().lower():
                 updates.pop("style", None)
 
-    if last_question in UNCERTAIN_WAIVE_FIELDS and UNSPECIFIED_RE.match(value):
+    if last_question in UNCERTAIN_WAIVE_FIELDS and is_soft_no_preference(value):
         # Unsure / no preference / whatever — on the open field, including size.
         # Style/material keep the legacy "no preference" token; everything else
         # (sizes, finishes, use_case, …) is "to be confirmed" for the team.
