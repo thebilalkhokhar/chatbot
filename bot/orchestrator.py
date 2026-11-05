@@ -1082,6 +1082,51 @@ class Orchestrator:
         if is_finish_none_token(raw):
             composed.fields["finishes"] = TO_BE_CONFIRMED
 
+    def _model_open_field_waiver(
+        self, state: ConversationState, composed: Composed, visitor: str
+    ) -> str:
+        """Waiver the model committed to for the open field, in any visitor wording.
+
+        The signal is the model's own token (fields, or the canonical waiver in
+        the English draft). A real shaped answer stays an answer. A question
+        with no waiver token stays open.
+        """
+        focus = str(state.last_question or "").strip()
+        if not focus or focus not in UNCERTAIN_WAIVE_FIELDS:
+            return ""
+        if focus in state.fields and state.fields[focus].done and not (
+            focus == "sizes" and state.size_needs_unit()
+        ):
+            return ""
+        if field_shaped_attempt(
+            focus, visitor, registry=self.registry, family=state.family()
+        ):
+            return ""
+        token = str((composed.fields or {}).get(focus) or "").strip()
+        if focus == "finishes" and is_finish_none_token(token):
+            token = TO_BE_CONFIRMED
+        # A concrete value in fields is an answer, not a waiver hiding in prose.
+        if token and not is_field_waiver_value(token):
+            return ""
+        if is_field_waiver_value(token):
+            if focus in {"style", "material"} and is_no_preference(token):
+                return "no preference"
+            return TO_BE_CONFIRMED if is_to_be_confirmed(token) else token
+        reply = str(composed.reply or "").lower()
+        still_on_focus = (
+            str(composed.asked or "").strip() in {"", focus}
+            or guards.asked_field(composed.reply) == focus
+        )
+        if not still_on_focus:
+            return ""
+        if TO_BE_CONFIRMED in reply:
+            if focus in {"style", "material"}:
+                return "no preference"
+            return TO_BE_CONFIRMED
+        if focus in {"style", "material"} and "no preference" in reply:
+            return "no preference"
+        return ""
+
     def _settle_compose_waivers(
         self,
         state: ConversationState,
@@ -1096,16 +1141,27 @@ class Orchestrator:
         LLM-first: for design count / size / qty the model may map wording
         ("single" → 1) into fields.* — that number must land before
         defer_unanswered_open_field would waive the slot as to-be-confirmed.
+
+        Ask turns still do not invent a concrete lock. They do keep a waiver
+        the model already committed to, then the reply moves to the next field.
         """
         self._coerce_compose_finish_none(composed, state)
         focus = str(state.last_question or "").strip()
-        if str(state.flags.get("turn_kind") or "") == "ask":
-            # Ask turns answer the question. They do not lock the checklist slot.
-            return expected
         if not focus or focus not in UNCERTAIN_WAIVE_FIELDS:
             return expected
         token = str((composed.fields or {}).get(focus) or "").strip()
-        if not token:
+        if focus == "finishes" and is_finish_none_token(token):
+            token = TO_BE_CONFIRMED
+        ask_turn = str(state.flags.get("turn_kind") or "") == "ask"
+        if ask_turn:
+            waiver = self._model_open_field_waiver(state, composed, visitor)
+            if not waiver:
+                return expected
+            token = waiver
+            fields = dict(composed.fields or {})
+            fields[focus] = token
+            composed.fields = fields
+        elif not token:
             return expected
         if focus in accepted or state.fields[focus].done:
             # Still redirect the ask if the draft re-asks a field we already settled.

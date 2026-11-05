@@ -449,3 +449,118 @@ def test_live_failure_still_settles_designs_before_the_reply(
         assert "how many" not in lowered
     finally:
         engine.close()
+
+
+def _labels_size_open(engine: Orchestrator, conversation_id: str):
+    state = engine.store.get_or_create(conversation_id)
+    state.set_field("product", "labels", status=STATUS_VISITOR)
+    state.set_field("use_case", "whisky bottles", status=STATUS_VISITOR)
+    state.set_field("email", "bilal@gmail.com", status=STATUS_VISITOR)
+    state.flags["soft_email_asked"] = True
+    state.last_question = "sizes"
+    engine.store.save(state)
+
+
+def test_ask_turn_keeps_model_size_waiver_and_moves_on(
+    config, kb_index, tmp_path, monkeypatch
+):
+    """A question can still be a waiver when the model says so.
+
+    The visitor's words are not the signal. The model's waiver token is.
+    The same reply must not ask size again.
+    """
+    engine = _engine(config, kb_index, tmp_path, "llm-ask-waiver")
+    _mute_side_llms(monkeypatch)
+    try:
+        _labels_size_open(engine, "c-ask-waiver")
+        monkeypatch.setattr(
+            "chatbot.bot.orchestrator.live_turn",
+            lambda *args, **kwargs: Composed(
+                reply=(
+                    "No problem — we can sort the size later. "
+                    "I'll mark the label size as to be confirmed. "
+                    "What label size are you looking for?"
+                ),
+                asked="sizes",
+                fields={"sizes": TO_BE_CONFIRMED},
+                source="live",
+            ),
+        )
+        result = engine.handle("c-ask-waiver", "size ka idea nahi, ab kya karun?")
+        state = engine.store.get_or_create("c-ask-waiver")
+        lowered = result.reply.lower()
+        assert result.source in {"live", "live-rewrite"}
+        assert state.flags.get("turn_kind") == "ask"
+        assert state.fields["sizes"].value == TO_BE_CONFIRMED
+        assert state.fields["sizes"].status == STATUS_WAIVED
+        assert not state.fields["quantity"].done
+        assert "what label size" not in lowered
+        assert "quantity" in lowered
+        assert state.last_question == "quantity"
+    finally:
+        engine.close()
+
+
+def test_ask_turn_prose_waiver_settles_without_a_fields_token(
+    config, kb_index, tmp_path, monkeypatch
+):
+    """The model can commit in the sentence when fields were left empty."""
+    engine = _engine(config, kb_index, tmp_path, "llm-ask-prose")
+    _mute_side_llms(monkeypatch)
+    try:
+        _labels_size_open(engine, "c-ask-prose")
+        monkeypatch.setattr(
+            "chatbot.bot.orchestrator.live_turn",
+            lambda *args, **kwargs: Composed(
+                reply=(
+                    "No problem — we can sort the size later. "
+                    "I'll mark the label size as to be confirmed. "
+                    "What label size are you looking for?"
+                ),
+                asked="sizes",
+                fields={},
+                source="live",
+            ),
+        )
+        result = engine.handle(
+            "c-ask-prose", "i am unsure about size. what should i do?"
+        )
+        state = engine.store.get_or_create("c-ask-prose")
+        lowered = result.reply.lower()
+        assert state.fields["sizes"].value == TO_BE_CONFIRMED
+        assert state.fields["sizes"].status == STATUS_WAIVED
+        assert not state.fields["quantity"].done
+        assert "what label size" not in lowered
+        assert "quantity" in lowered
+        assert state.last_question == "quantity"
+    finally:
+        engine.close()
+
+
+def test_size_help_question_without_model_waiver_stays_open(
+    config, kb_index, tmp_path, monkeypatch
+):
+    """A size question stays open when the model does not waive it."""
+    engine = _engine(config, kb_index, tmp_path, "llm-ask-open")
+    _mute_side_llms(monkeypatch)
+    try:
+        _labels_size_open(engine, "c-ask-open")
+        monkeypatch.setattr(
+            "chatbot.bot.orchestrator.live_turn",
+            lambda *args, **kwargs: Composed(
+                reply=(
+                    "There's no standard size — labels are cut to the product. "
+                    "What are the product dimensions?"
+                ),
+                asked="sizes",
+                fields={},
+                source="live",
+            ),
+        )
+        result = engine.handle("c-ask-open", "any standard size?")
+        state = engine.store.get_or_create("c-ask-open")
+        assert not state.fields["sizes"].done
+        assert state.last_question == "sizes"
+        assert "dimension" in result.reply.lower()
+    finally:
+        engine.close()
