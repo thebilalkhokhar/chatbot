@@ -324,4 +324,12 @@ class KBIndex:
 
 
 def load_or_build(kb_dir: Path, data_dir: Path) -> KBIndex:
+    """Load the site index when it is present, otherwise the smaller notes index.
+
+    ``kb_index_v2.json`` is the 469-page scrape. Building it from ``kb_dir`` would
+    replace those pages with the old notes, so a missing v2 file falls back instead.
+    """
+    site_index = data_dir / "kb_index_v2.json"
+    if site_index.is_file():
+        return KBIndex.load(site_index)
     return KBIndex.load_or_build(kb_dir, data_dir / "kb_index.json")

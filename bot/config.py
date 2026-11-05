@@ -16,6 +16,7 @@ ARCHES = {"v1", "v2"}
 SEED_FILES = (
     "catalogue_primer.txt",
     "kb_index.json",
+    "kb_index_v2.json",
     "golden.jsonl",
 )
 

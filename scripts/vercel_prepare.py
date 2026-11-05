@@ -15,6 +15,7 @@ LOCAL_DATA = ROOT / "data"
 SEED_FILES = (
     "catalogue_primer.txt",
     "kb_index.json",
+    "kb_index_v2.json",
     "golden.jsonl",
 )
 
