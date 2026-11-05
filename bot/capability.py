@@ -82,6 +82,49 @@ _SYNONYMS = {
 # D-11. These families may be recommended only from retrieved offering rows.
 CONSTRAINED_FAMILIES = frozenset({"boxes", "bags"})
 
+# Family nouns and filler words. They sit on almost every page title, so they
+# must not decide which product page an order belongs to.
+_GENERIC_TOKENS = frozenset({
+    "label",
+    "sticker",
+    "bag",
+    "box",
+    "pouch",
+    "banner",
+    "card",
+    "print",
+    "product",
+    "custom",
+    "packaging",
+    "style",
+    "the",
+    "and",
+    "for",
+    "with",
+    "your",
+    "our",
+    "item",
+})
+
+_FIELD_TO_OFFERING = {
+    "material": "materials",
+    "style": "styles",
+    "finishes": "finishes",
+    "extras": "extras",
+}
+_FIELD_TO_VOCAB = {
+    "material": "material",
+    "style": "style",
+    "finishes": "finish",
+    "extras": "extras",
+}
+_SLOT_NOUN = {
+    "material": "material",
+    "style": "style",
+    "finishes": "finish",
+    "extras": "extra",
+}
+
 # A pack count answers neither size nor quantity.
 PACK_COUNT = re.compile(
     r"^\d+\s*(?:-|\s)?\s*(?:count|ct|pack|pcs|pieces|capsules per bag|bags per case)\.?$",
@@ -129,6 +172,30 @@ def _variants(token: str) -> set[str]:
     if text.endswith("es"):
         forms.add(text[:-2])
     return forms
+
+
+def _token_forms(token: str) -> set[str]:
+    """A word plus its singular shapes. 'bottles' is bottle, not bottl."""
+    forms = {token}
+    if len(token) > 3 and token.endswith("s"):
+        forms.add(token[:-1])
+    if len(token) > 4 and token.endswith("es"):
+        forms.add(token[:-2])
+    return {form for form in forms if len(form) >= 3}
+
+
+def _distinctive_tokens(text: str) -> set[str]:
+    """Content words of a style title or a use case, with plurals folded.
+
+    A word whose singular is a family noun (boxes, labels, pouches) is dropped.
+    """
+    tokens: set[str] = set()
+    for raw in fold(text).split():
+        forms = _token_forms(raw)
+        if not forms or forms & _GENERIC_TOKENS:
+            continue
+        tokens |= forms
+    return tokens
 
 
 def _shares_a_form(row_values: tuple[str, ...], candidate_values: tuple[str, ...]) -> bool:
@@ -834,6 +901,91 @@ class Registry:
                     break
         return tuple(matched) if matched else offerings
 
+    def product_offerings(
+        self, family: str, *, use_case: str = "", style: str = ""
+    ) -> tuple[Offering, ...]:
+        """Offering rows for this order, matched from the catalogue's own style names.
+
+        A settled style wins. Otherwise the use-case words are scored against each
+        style title. Generic family words (label, bag, box) do not count, so
+        "whisky bottles" lands on Bottle Labels and not on every label page.
+        No match means there is no single product page — the caller uses the
+        family vocabulary instead of guessing a page.
+        """
+        family_name = str(family or "").strip()
+        if not family_name or family_name == "unknown":
+            return ()
+        rows = tuple(row for row in self.offerings if row.family == family_name and row.styles)
+        if not rows:
+            return ()
+        style_text = str(style or "").strip()
+        if style_text:
+            wanted = value_forms(style_text)
+            exact = [
+                row
+                for row in rows
+                if any(value_forms(name) & wanted for name in row.styles)
+            ]
+            if exact:
+                return tuple(dict.fromkeys(exact))
+        query_tokens = _distinctive_tokens(" ".join(part for part in (style_text, use_case) if part))
+        if not query_tokens:
+            return ()
+        scored: list[tuple[float, Offering]] = []
+        for row in rows:
+            best = 0.0
+            for name in row.styles:
+                style_tokens = _distinctive_tokens(name)
+                if not style_tokens:
+                    continue
+                overlap = query_tokens & style_tokens
+                if not overlap:
+                    continue
+                best = max(best, len(overlap) / len(style_tokens))
+            if best >= 0.5:
+                scored.append((best, row))
+        if not scored:
+            return ()
+        top = max(score for score, _row in scored)
+        winners: list[Offering] = []
+        seen: set[tuple[str, ...]] = set()
+        for score, row in scored:
+            if score < top or row.styles in seen:
+                continue
+            seen.add(row.styles)
+            winners.append(row)
+        return tuple(winners)
+
+    def legal_slot_values(
+        self,
+        family: str,
+        slot: str,
+        *,
+        use_case: str = "",
+        style: str = "",
+    ) -> tuple[str, ...]:
+        """Names a list may use for this order.
+
+        The matching product page wins. When nothing matches, the family's
+        catalogue vocabulary is the list — still only that family.
+        """
+        vocab_slot = _FIELD_TO_VOCAB.get(slot)
+        offering_attr = _FIELD_TO_OFFERING.get(slot)
+        if not vocab_slot or not offering_attr:
+            return ()
+        family_name = str(family or "").strip()
+        rows = self.product_offerings(family_name, use_case=use_case, style=style)
+        if rows:
+            values: list[str] = []
+            for row in rows:
+                for value in getattr(row, offering_attr):
+                    text = str(value or "").strip()
+                    if text and text != "-":
+                        values.append(text)
+            if values:
+                return tuple(dict.fromkeys(values))
+        return tuple(self.vocabulary.get(family_name, {}).get(vocab_slot, ()))
+
     def gauge_for(self, figure: str) -> Gauge | None:
         """The registry row for a gauge figure, so the answer carries its basis and material."""
         needle = fold(figure)
@@ -1147,3 +1299,61 @@ class Registry:
                             f"{family}.{slot}: {value!r} has no file in the cited corpus containing its words"
                         )
         return misses
+
+
+def align_catalogue_list(
+    reply: str,
+    registry: Registry,
+    *,
+    family: str,
+    slot: str,
+    use_case: str = "",
+    style: str = "",
+) -> str:
+    """Keep a catalogue list inside the product page that matches this order.
+
+    The model may write the sentence. A name from another page, another family,
+    or a sales script is dropped, and the list is rebuilt from that page.
+    """
+    text = str(reply or "").strip()
+    vocab_slot = _FIELD_TO_VOCAB.get(slot)
+    if not text or registry is None or not vocab_slot or not family or family == "unknown":
+        return text
+    legal = registry.legal_slot_values(family, slot, use_case=use_case, style=style)
+    if not legal:
+        return text
+    legal_forms: set[str] = set()
+    for value in legal:
+        legal_forms |= value_forms(value)
+
+    def _bad(sentence: str) -> bool:
+        for _family, mentioned_slot, value in registry.prose_mentions(sentence, families=(family,)):
+            if mentioned_slot == vocab_slot and not (value_forms(value) & legal_forms):
+                return True
+        return False
+
+    if not _bad(text):
+        return text
+    kept = [
+        sentence.strip()
+        for sentence in re.findall(r"[^.!?]+[.!?]+|[^.!?]+$", text)
+        if sentence.strip() and "?" not in sentence and not _bad(sentence)
+    ]
+    question = _catalogue_question(slot, legal, use_case)
+    body = " ".join(kept).strip()
+    if question.lower() not in body.lower():
+        body = f"{body} {question}".strip()
+    return re.sub(r"\s+", " ", body).strip()
+
+
+def _catalogue_question(slot: str, values: tuple[str, ...], use_case: str) -> str:
+    if len(values) == 1:
+        listed = values[0]
+    elif len(values) == 2:
+        listed = f"{values[0]} or {values[1]}"
+    else:
+        listed = ", ".join(values[:-1]) + ", or " + values[-1]
+    noun = _SLOT_NOUN.get(slot, slot)
+    purpose = " ".join(str(use_case or "").split())
+    lead = f"For your {purpose}, " if purpose else ""
+    return f"{lead}which {noun} would you like: {listed}?"

@@ -958,11 +958,11 @@ def test_refusing_contact_waives_email_and_phone():
     assert "State that minimum ONLY when" in RULE_TEXT
     assert RULE_TEXT.startswith("You MUST ask ONLY ONE single question")
     assert "If they just said good morning or hello" in RULE_TEXT
-    assert "NEVER invent names that are not in the primer" in RULE_TEXT
+    assert "NEVER invent names that are not in that block" in RULE_TEXT
     assert "ask ONCE for their email (soft ask" in RULE_TEXT
     assert "Once a style or finish is accepted, it is locked" in RULE_TEXT
     assert "You can reach the team at Support@print247.us or +1 (832) 807-3429." in RULE_TEXT
-    assert "alternative materials when only one standard material exists" in RULE_TEXT
+    assert "not on the PRODUCT ROW" in RULE_TEXT
     assert "do not have an email" in RULE_TEXT
     assert "Stay inside the active product family" in RULE_TEXT
     assert "Always write your reply in English" in RULE_TEXT

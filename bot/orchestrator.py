@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import canon, guards
-from .capability import Candidate, Registry, estimate_tokens, fold
+from .capability import Candidate, Registry, align_catalogue_list, estimate_tokens, fold
 from .composer import (
     BOX_PRIMARY_FINISHES,
     Composed,
@@ -1212,6 +1212,37 @@ class Orchestrator:
             return (asked, question)
         return expected
 
+    def _align_product_catalogue(
+        self, reply: str, state: ConversationState, priority_key: str
+    ) -> str:
+        """A listed option must be on the catalogue page for this order."""
+        catalogue_slots = {"material", "style", "finishes", "extras"}
+        slot = priority_key if priority_key in catalogue_slots else ""
+        if not slot and state.last_question in catalogue_slots:
+            slot = str(state.last_question)
+        if not slot:
+            return reply
+        style = ""
+        style_field = state.fields.get("style")
+        if (
+            style_field
+            and style_field.done
+            and not is_field_waiver_value(str(style_field.value or ""))
+        ):
+            style = str(style_field.value or "")
+        use_case = ""
+        use_field = state.fields.get("use_case")
+        if use_field and not is_field_waiver_value(str(use_field.value or "")):
+            use_case = str(use_field.value or "")
+        return align_catalogue_list(
+            reply,
+            self.registry,
+            family=state.family(),
+            slot=slot,
+            use_case=use_case,
+            style=style,
+        )
+
     def _finish_reply(
         self,
         reply: str,
@@ -1258,6 +1289,8 @@ class Orchestrator:
             ack = greeting_ack(visitor)
             if ack.lower() not in polished.lower():
                 polished = f"{ack} {polished}".strip()
+        if state is not None:
+            polished = self._align_product_catalogue(polished, state, priority_key)
         return polished
 
     def _guard(

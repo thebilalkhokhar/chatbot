@@ -7,7 +7,6 @@ from . import canon
 from .llm import LLMClient, REPLY_SCHEMA
 from .personas import PERSONAS, persona_for
 from .state import (
-    BASIS_MODEL,
     ConversationState,
     STATUS_SUGGESTED,
     asks_if_bot,
@@ -25,6 +24,7 @@ from .state import (
     is_price_objection,
     is_question,
     is_soft_no_preference,
+    is_field_waiver_value,
     is_to_be_confirmed,
     is_visitor_greeting,
     normalize_finish,
@@ -134,11 +134,11 @@ If the user is just saying hello, asking off-topic questions, or providing impos
 
 Do not open a later message with Good Morning or Hello on your own. If they just said good morning or hello, answer that greeting in a few words, then ask the one open question. A greeting is not their product.
 
-When a user asks for examples, options, or suggestions (including "give me options", "show me options", "what do you have"), answer the OPEN ASK SET field first. If Material is open, list the family's material options from FACTS / CATALOGUE (for labels: PP white vinyl is the standard — say that and ask whether to proceed). If Style is open, list styles. If Finish is open, list finishes for this family only. Do not stall, do not jump to designs/email, and do not mix finish names into a material answer. Emit proposed_configs only for options you actually name. NEVER invent names that are not in the primer.
+When a user asks for examples, options, or suggestions (including "give me options", "show me options", "what do you have"), answer the OPEN ASK SET field first. If Material, Style, or Finish is open, list only the names in the PRODUCT ROW block for this order. Do not add a name from another product page, another family, or an old sales script. Do not stall, do not jump to designs/email, and do not mix finish names into a material answer. Emit proposed_configs only for options you actually name. NEVER invent names that are not in that block or, when the block says no single page matched, in this family's CATALOGUE PRIMER.
 
-When listing finish options for custom boxes, use ONLY these official box finishes: matte lamination, gloss lamination, soft touch lamination, spot UV, and foil printing. Do not volunteer drip off, embossing, varnish, AQ coating, or finishes that belong to bags, pouches, or labels. If the visitor already named another boxes-primer finish by name, you may confirm it; otherwise stay inside that official list.
+When listing finish options for custom boxes, stay inside the PRODUCT ROW for this order. If the visitor already named another boxes-primer finish by name, you may confirm it; otherwise do not add finishes from bags, pouches, or labels.
 
-If the user asks for alternative materials when only one standard material exists for a product family (for example PP white vinyl for labels, as stated in FACTS), politely explain that this product specifically uses our standard high-grade material for best results, and ask if they would like to proceed with it. Reason in your own words from FACTS and the CATALOGUE PRIMER — do not invent a second stock, do not emit a fake style such as N/A, do not restate locked finishes in proposed_configs, do not crash into a fallback pattern, and NEVER jump to asking for an email on that turn. Leave proposed_configs empty, or name only that single standard material.
+If the user asks for a material, style, or finish that is not on the PRODUCT ROW, say it is not on that product's page and repeat that row's names. Do not invent a second stock, do not emit a fake style such as N/A, do not restate locked finishes in proposed_configs, do not crash into a fallback pattern, and NEVER jump to asking for an email on that turn. Leave proposed_configs empty, or name only values from that row.
 
 Stay inside the active product family from the GOAL. If the order is labels, never mention bag or box styles or materials. If it is boxes, never mention bag or label details. Recommendations and catalogue lists use only that family's vocabulary.
 
@@ -559,17 +559,6 @@ def heuristic_turn(
             and (not expected or expected[0] != asked_key)
         ):
             expected = (asked_key, state.question_for(asked_key) or "")
-        if catalogue and asked_key == "material" and family == "labels":
-            # Single standard stock: propose it and wait for yes/no (Section 8).
-            proposed = "PP white vinyl"
-            parts.append(f"Would you like to proceed with {proposed}?")
-            return Composed(
-                reply=" ".join(parts).strip(),
-                asked="material",
-                fields={"material": proposed},
-                bases={"material": BASIS_MODEL},
-                source="heuristic",
-            )
         if catalogue and asked_key == "material":
             follow = state.question_for("material") or (
                 "Which of those materials do you want for this order?"
@@ -781,6 +770,47 @@ def build_system(state: ConversationState, registry=None) -> str:
     )
 
 
+def _product_row_block(registry, state: ConversationState) -> str:
+    """The only names a list may use, taken from the page that matches this order."""
+    if registry is None:
+        return ""
+    family = state.family()
+    catalogue = {"material", "style", "finishes", "extras"}
+    focus = str(state.last_question or "").strip()
+    still_open = (
+        focus in catalogue
+        and focus in state.fields
+        and not state.fields[focus].done
+    )
+    if not still_open:
+        nxt = state.next_question()
+        focus = nxt[0] if nxt else ""
+    if not family or family == "unknown" or focus not in catalogue:
+        return ""
+    style = ""
+    style_field = state.fields.get("style")
+    if style_field and style_field.done and not is_field_waiver_value(str(style_field.value or "")):
+        style = str(style_field.value or "")
+    use_case = ""
+    use_field = state.fields.get("use_case")
+    if use_field and not is_field_waiver_value(str(use_field.value or "")):
+        use_case = str(use_field.value or "")
+    matched = registry.product_offerings(family, use_case=use_case, style=style)
+    values = registry.legal_slot_values(family, focus, use_case=use_case, style=style)
+    if not values:
+        return ""
+    label = {"material": "materials", "style": "styles", "finishes": "finishes", "extras": "extras"}[focus]
+    if matched:
+        source = "These are the names on the catalogue page that matches this order."
+    else:
+        source = "No single product page matched, so these are this family's catalogue names."
+    return (
+        f"PRODUCT ROW — the only {label} you may name in a list on this turn. {source} "
+        "Do not add a name from another page, another family, or a sales script.\n"
+        + "; ".join(values)
+    )
+
+
 def _candidate_block(registry, state: ConversationState, chunks) -> str:
     """D-11. Boxes and bags may be named only from the retrieved offering rows."""
     if registry is None:
@@ -855,6 +885,7 @@ def build_user(
         "offerable: false only when they asked.\n"
         + _strip_signoff(canon.facts_for_prompt()),
         "FAMILY DETAIL\n" + kb_block(chunks),
+        _product_row_block(registry, state),
         _candidate_block(registry, state, chunks),
         "EXAMPLES OF CORRECT REPLIES\n" + golden_block(examples or []),
         f"TRANSCRIPT (last messages)\n{transcript}",
@@ -889,8 +920,8 @@ def build_user(
         ),
         (
             "GOAL flag offer_options_for=material / open Material with no concrete pick: list "
-            "family materials from FACTS (labels → PP white vinyl standard). Ask whether to "
-            "proceed, keep proposed_configs empty or that material only, asked=material. "
+            "only the PRODUCT ROW materials for this order. Ask which of those they want, "
+            "keep proposed_configs to names you actually listed, asked=material. "
             "No finishes, designs, or email on this turn."
             if (
                 str(state.flags.get("offer_options_for") or "") == "material"

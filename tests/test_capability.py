@@ -10,6 +10,7 @@ from chatbot.bot.capability import (
     Candidate,
     CapabilityError,
     Registry,
+    align_catalogue_list,
     estimate_tokens,
     fold,
     parse_tables,
@@ -345,6 +346,43 @@ def test_load_rejects_a_vocabulary_slot_the_loader_does_not_read(tmp_path):
     write_registry(tmp_path / "capabilities", body)
     with pytest.raises(CapabilityError, match="silently disappears"):
         Registry.load(tmp_path)
+
+
+def test_use_case_picks_the_product_page_not_the_whole_family(registry):
+    rows = registry.product_offerings("labels", use_case="whisky bottles")
+    assert rows
+    assert any("Bottle Labels" in row.styles for row in rows)
+    materials = registry.legal_slot_values("labels", "material", use_case="whisky bottles")
+    folded = {item.lower() for item in materials}
+    assert "pla" in folded
+    assert "vinyl" not in folded
+    assert "kraft" not in folded
+    assert "clear film" not in folded
+
+
+def test_unmatched_use_case_falls_back_to_the_family_catalogue(registry):
+    assert registry.product_offerings("labels", use_case="honey jars") == ()
+    materials = registry.legal_slot_values("labels", "material", use_case="honey jars")
+    assert "vinyl" in {item.lower() for item in materials}
+
+
+def test_a_wrong_material_list_is_rebuilt_from_the_product_page(registry):
+    reply = (
+        "Thanks — 10,000 noted. For your whiskey bottle labels, which material would you like: "
+        "PP white vinyl, clear film, silver film, kraft, or vinyl?"
+    )
+    fixed = align_catalogue_list(
+        reply, registry, family="labels", slot="material", use_case="whisky bottles"
+    )
+    lowered = fixed.lower()
+    assert "thanks" in lowered
+    assert "pla" in lowered
+    assert "abs" in lowered
+    assert "nylon" in lowered
+    assert "kraft" not in lowered
+    assert "vinyl" not in lowered
+    assert "silver film" not in lowered
+    assert lowered.count("?") == 1
 
 
 def test_parse_tables_rejects_a_malformed_row():

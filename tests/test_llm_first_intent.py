@@ -537,6 +537,43 @@ def test_ask_turn_prose_waiver_settles_without_a_fields_token(
         engine.close()
 
 
+def test_material_list_follows_the_product_page(
+    config, kb_index, tmp_path, monkeypatch
+):
+    """A live list that mixes other pages is replaced with the matching product row."""
+    engine = _engine(config, kb_index, tmp_path, "llm-product-row")
+    _mute_side_llms(monkeypatch)
+    try:
+        state = engine.store.get_or_create("c-product-row")
+        state.set_field("product", "labels", status=STATUS_VISITOR)
+        state.set_field("use_case", "whisky bottles", status=STATUS_VISITOR)
+        state.set_field("email", "bilal@gmail.com", status=STATUS_VISITOR)
+        state.set_field("sizes", "3x4 in", status=STATUS_VISITOR)
+        state.flags["soft_email_asked"] = True
+        state.last_question = "quantity"
+        engine.store.save(state)
+        monkeypatch.setattr(
+            "chatbot.bot.orchestrator.live_turn",
+            lambda *args, **kwargs: Composed(
+                reply=(
+                    "Thanks — 10,000 noted. For your whiskey bottle labels, which material "
+                    "would you like: PP white vinyl, clear film, silver film, kraft, or vinyl?"
+                ),
+                asked="material",
+                fields={"quantity": "10000"},
+                source="live",
+            ),
+        )
+        result = engine.handle("c-product-row", "10000")
+        lowered = result.reply.lower()
+        assert "pla" in lowered
+        assert "kraft" not in lowered
+        assert "vinyl" not in lowered
+        assert "silver film" not in lowered
+    finally:
+        engine.close()
+
+
 def test_size_help_question_without_model_waiver_stays_open(
     config, kb_index, tmp_path, monkeypatch
 ):
