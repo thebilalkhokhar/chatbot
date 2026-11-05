@@ -1,0 +1,16 @@
+---
+description: Prefer LLM-first meaning and state contracts; never suggest hardcode phrase fixes
+alwaysApply: true
+---
+
+# LLM-first — never hardcode intent
+
+Never suggest or implement hardcode / phrase-list / regex whack-a-mole fixes for visitor intent (soft-no, deferral, uncertainty, slang, “nah”, “nope”, “idk”, etc.).
+
+Prefer:
+- Live model meaning (LLM-first intent + compose)
+- Reply-judge intent checks
+- State contracts: settled / waived / do_not_ask fields must not be re-asked
+- Ordering fixes (settle waiver **before** the outgoing reply is locked)
+
+Do not add per-field soft-no tip copies, decline keyword tables, or “if visitor says X then Y” phrase lists when the bug is that a settled field was re-asked or live settled after the reply.

@@ -14,6 +14,7 @@ from .llm import LLMClient, LLMError
 from .state import (
     TO_BE_CONFIRMED,
     UNCERTAIN_WAIVE_FIELDS,
+    ConversationState,
     is_field_waiver_value,
     is_finish_none_token,
     is_to_be_confirmed,
@@ -71,6 +72,28 @@ def waiver_fields_reasked(
         f"fields.{focus} is already \"{token}\" (visitor deferred / unsure). "
         f"Do not set asked={focus}. Acknowledge briefly that the team will confirm it, "
         "ask the next ASK SET field, and keep that waiver in fields."
+    )
+
+
+def settled_field_reasked(*, asked: str, state: ConversationState) -> str:
+    """Deterministic: checklist field is already settled in state but draft still asks it.
+
+    Covers the live path where the model re-asks after a soft decline while backup
+    (or an earlier turn) already waived / locked the field — reply must move on.
+    """
+    asked_key = str(asked or "").strip()
+    if not asked_key or asked_key not in state.fields:
+        return ""
+    field = state.fields[asked_key]
+    if not field.done:
+        return ""
+    if asked_key == "sizes" and state.size_needs_unit():
+        return ""
+    token = " ".join(str(field.value or "").split()) or "settled"
+    return (
+        f"{asked_key} is already settled ({token!r}). Do not ask {asked_key} again. "
+        "Acknowledge briefly if needed, ask the next ASK SET field, and keep the "
+        "settled value."
     )
 
 

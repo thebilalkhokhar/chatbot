@@ -104,6 +104,69 @@ def test_llm_first_maybe_later_waives_size_via_fields(config, kb_index, tmp_path
         engine.close()
 
 
+def test_live_soft_no_without_fields_does_not_reask_material(
+    config, kb_index, tmp_path, monkeypatch
+):
+    """Live may ack decline then re-list materials; state contract must move on.
+
+    Reproduces: visitor 'nah' on material → panel shows no preference but reply
+    still asked material. Backup settles before send; polish/rewrite must not
+    re-ask the waived field.
+    """
+    engine = _engine(config, kb_index, tmp_path, "llm-nah-material")
+    _mute_side_llms(monkeypatch)
+    try:
+        state = engine.store.get_or_create("c-nah-material")
+        state.set_field("product", "bags", status=STATUS_VISITOR)
+        state.set_field("use_case", "coffee", status=STATUS_VISITOR)
+        state.set_field("sizes", TO_BE_CONFIRMED, status=STATUS_WAIVED)
+        state.set_field("quantity", "2000", status=STATUS_VISITOR)
+        state.set_field("style", "Poly Mailers", status=STATUS_VISITOR)
+        state.flags["soft_email_asked"] = True
+        state.last_question = "material"
+        engine.store.save(state)
+
+        calls: list[str] = []
+
+        def fake_live(*args, **kwargs):
+            correction = str(kwargs.get("correction") or "")
+            calls.append(correction)
+            if correction:
+                return Composed(
+                    reply=(
+                        "No problem — no special material preference noted. "
+                        "What finish do you prefer: matte, gloss or soft touch?"
+                    ),
+                    asked="finishes",
+                    fields={"material": "no preference"},
+                    source="live",
+                )
+            return Composed(
+                reply=(
+                    "No problem — for Poly Mailers the common material choices are "
+                    "metalized, kraft, PE, PP, PET or foil. Which material would you "
+                    "like, or should I mark material as to be confirmed?"
+                ),
+                asked="material",
+                fields={},
+                source="live",
+            )
+
+        monkeypatch.setattr("chatbot.bot.orchestrator.live_turn", fake_live)
+        result = engine.handle("c-nah-material", "nah")
+        state = engine.store.get_or_create("c-nah-material")
+        assert state.fields["material"].status == STATUS_WAIVED
+        assert state.fields["material"].value == "no preference"
+        assert "material" not in state.ask_set()
+        # Outgoing must not keep the material menu / re-ask after decline.
+        lower = result.reply.lower()
+        assert "which material" not in lower
+        assert "mark material" not in lower
+        assert state.last_question != "material"
+    finally:
+        engine.close()
+
+
 def test_llm_first_helper_flags_suggested_and_deferral(config, kb_index, tmp_path):
     engine = _engine(config, kb_index, tmp_path, "llm-helper")
     try:

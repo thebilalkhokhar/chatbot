@@ -3,10 +3,12 @@ from __future__ import annotations
 from chatbot.bot.reply_judge import (
     JudgeVerdict,
     merge_corrections,
+    settled_field_reasked,
     waiver_fields_reasked,
 )
 from chatbot.bot.state import (
     STATUS_VISITOR,
+    STATUS_WAIVED,
     TO_BE_CONFIRMED,
     ConversationState,
     apply_field_updates,
@@ -51,6 +53,14 @@ def test_waiver_fields_reasked_style_no_preference():
         last_question="style",
     )
     assert "no preference" in detail
+
+
+def test_settled_field_reasked_when_state_waived_but_draft_asks():
+    state = ConversationState(id="settled-reask", persona="Alex Kane")
+    state.set_field("material", "no preference", status=STATUS_WAIVED)
+    detail = settled_field_reasked(asked="material", state=state)
+    assert "material" in detail
+    assert settled_field_reasked(asked="finishes", state=state) == ""
 
 
 def test_merge_corrections_skips_blanks():

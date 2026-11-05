@@ -279,13 +279,13 @@ def question_as_answer(
 def settled_for_asking(state: ConversationState, key: str) -> bool:
     """Whether asking about this field again is the failure v1 called `question_already_answered`.
 
-    A size still missing its unit, and one the customer refused to give, are both
-    still open — Section 4.4 keeps the unit question and then hands the size to the team.
+    Visitor / confirmed / waived all stop the ask. A size that still needs its unit
+    stays open (Section 4.4) — that follow-up is not a re-ask of a settled answer.
     """
     field_value = state.fields.get(key)
     if field_value is None:
         return False
-    if key == "sizes" and (state.size_needs_unit() or field_value.status == STATUS_WAIVED):
+    if key == "sizes" and state.size_needs_unit():
         return False
     return field_value.done
 
@@ -1369,22 +1369,17 @@ def _check_asked_fields(
     field_asked = asked_field(reply)
     if field_asked:
         value = state.fields.get(field_asked)
-        # `stated` is visitor or confirmed. A missing unit is still an open ask.
-        if (
-            value
-            and value.stated
-            and not (field_asked == "sizes" and state.size_needs_unit())
-        ):
+        # Settled = visitor, confirmed, or waived. Missing size unit stays open.
+        if value and settled_for_asking(state, field_asked):
             words = " ".join((value.raw_visitor_text or value.value).split()).replace('"', "'")
             if len(words) > 80:
                 words = words[:77] + "..."
             result.add(
                 "redundant_ask",
                 BLOCK,
-                f'They already said the {field_asked} ("{words}"); do not ask for it again.',
+                f'They already settled the {field_asked} ("{words}"); do not ask for it again.',
                 reply[:120],
             )
-        if value and settled_for_asking(state, field_asked):
             result.add(
                 "question_already_answered",
                 WARN,

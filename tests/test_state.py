@@ -120,7 +120,8 @@ def test_a_refused_size_is_waived_not_answered():
     assert sizes.status == STATUS_WAIVED
     assert sizes.done, "the bot stops asking; the team sizes it"
     assert not sizes.stated, "but it was never the customer's number"
-    assert settled_for_asking(state, "sizes") is False
+    # Waived size is settled for asking — re-asking it is the redundant_ask failure.
+    assert settled_for_asking(state, "sizes") is True
 
 
 def test_no_preference_is_a_waiver_too():

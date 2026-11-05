@@ -420,6 +420,18 @@ def test_redundant_ask_blocks_a_field_they_already_stated():
     assert "question_already_answered" in result.codes()
 
 
+def test_redundant_ask_blocks_waived_material():
+    state = make_state("nah")
+    state.set_field("product", "bags", raw="bags", status=STATUS_VISITOR)
+    state.set_field("material", "no preference", raw="nah", status=STATUS_WAIVED)
+    result = guards.check_reply(
+        "Which material would you like, or should I mark material as to be confirmed?",
+        state,
+    )
+    assert "redundant_ask" in result.codes()
+    assert not result.ok
+
+
 def test_use_case_question_is_not_misread_as_material():
     reply = (
         "What use case is this label for (e.g., product label, promo label, "

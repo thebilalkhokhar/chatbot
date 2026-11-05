@@ -83,6 +83,7 @@ from .state import (
 from .reply_judge import (
     judge_reply,
     merge_corrections,
+    settled_field_reasked,
     waiver_fields_reasked,
 )
 from .reply_language import (
@@ -867,6 +868,42 @@ class Orchestrator:
             return {}
         return {focus: value}
 
+    def _apply_uncertainty_backup(
+        self,
+        state: ConversationState,
+        visitor: str,
+        accepted: dict[str, str],
+        rejected: dict[str, str],
+    ) -> None:
+        """Settle open-field deferral into state before the outgoing reply is locked."""
+        backup = self._backup_uncertainty_extract(state, visitor, accepted)
+        if not backup:
+            return
+        backup_ok, backup_rejected = apply_field_updates(
+            state, backup, visitor, registry=self.registry
+        )
+        accepted.update(backup_ok)
+        rejected.update(backup_rejected)
+        offer = str(state.flags.get("offer_options_for") or "").strip()
+        if offer and is_field_waiver_value(str(backup_ok.get(offer) or "")):
+            state.flags.pop("offer_options_for", None)
+
+    def _intent_reask_fix(
+        self,
+        state: ConversationState,
+        composed: Composed,
+    ) -> str:
+        """Catch drafts that re-ask a field already waived in fields or settled in state."""
+        asked = str(composed.asked or "").strip() or guards.asked_field(composed.reply)
+        fix = waiver_fields_reasked(
+            asked=asked,
+            fields=composed.fields,
+            last_question=str(state.last_question or ""),
+        )
+        if fix:
+            return fix
+        return settled_field_reasked(asked=asked, state=state)
+
     def _coerce_compose_finish_none(self, composed: Composed, state: ConversationState) -> None:
         """Catalogue finishes=none on the open finish ask → waiver token in compose fields."""
         focus = str(state.last_question or "").strip()
@@ -952,12 +989,12 @@ class Orchestrator:
         open_field = ""
         if state is not None:
             open_field = str(state.last_question or "").strip()
-            # Any settled goal field is locked — especially product / use_case —
-            # so a live draft cannot re-ask them after a size or quantity turn.
+            # Settled = visitor, confirmed, or waived. Live drafts must not re-ask
+            # a field the visitor deferred — polish redirects to the priority ask.
             locked = tuple(
                 key
                 for key, field_value in state.fields.items()
-                if field_value.stated
+                if field_value.done
                 and not (key == "sizes" and state.size_needs_unit())
                 and key != priority_key
             )
@@ -1662,6 +1699,22 @@ class Orchestrator:
             expected = self._settle_compose_waivers(
                 state, visitor, composed, accepted, rejected, expected
             )
+            # Backup before guard/judge: soft decline live left open must be settled
+            # in state first, so re-asking that field is a contract miss (not a late
+            # panel-only waiver after the bad reply is locked).
+            self._apply_uncertainty_backup(state, visitor, accepted, rejected)
+            focus = str(state.last_question or "").strip()
+            if (
+                focus
+                and focus in state.fields
+                and state.fields[focus].done
+                and not (focus == "sizes" and state.size_needs_unit())
+            ):
+                nxt = state.next_question()
+                if nxt:
+                    # Polish / rewrite toward the next ask; keep composed.asked so
+                    # intent_fix still sees the draft re-asking the settled field.
+                    expected = nxt
         polish_expected = self._expected_for_polish(state, expected, composed)
         composed.reply = self._finish_reply(
             composed.reply,
@@ -1687,14 +1740,10 @@ class Orchestrator:
         recommendation_gap = any(
             issue.code == "recommendation_unanswered" for issue in result.warnings
         )
-        # Deterministic: compose waived the open field in `fields` but still asks it.
+        # Deterministic: waived in compose fields, or already settled in state, but re-asked.
         intent_fix = ""
         if source == "live":
-            intent_fix = waiver_fields_reasked(
-                asked=composed.asked,
-                fields=composed.fields,
-                last_question=str(state.last_question or ""),
-            )
+            intent_fix = self._intent_reask_fix(state, composed)
         # LLM intent judge — only when hard guards already passed and fields look
         # consistent. Fail open on timeout/error so a judge blip never stalls chat.
         judge_fix = ""
@@ -1793,6 +1842,17 @@ class Orchestrator:
                 expected = self._settle_compose_waivers(
                     state, visitor, rewritten, accepted, rejected, expected
                 )
+                self._apply_uncertainty_backup(state, visitor, accepted, rejected)
+                focus = str(state.last_question or "").strip()
+                if (
+                    focus
+                    and focus in state.fields
+                    and state.fields[focus].done
+                    and not (focus == "sizes" and state.size_needs_unit())
+                ):
+                    nxt = state.next_question()
+                    if nxt:
+                        expected = nxt
                 polish_expected = self._expected_for_polish(state, expected, rewritten)
                 rewritten.reply = self._finish_reply(
                     rewritten.reply,
@@ -1816,11 +1876,7 @@ class Orchestrator:
                     issue.code == "recommendation_unanswered"
                     for issue in rewritten_result.warnings
                 )
-                rewritten_intent = waiver_fields_reasked(
-                    asked=rewritten.asked,
-                    fields=rewritten.fields,
-                    last_question=str(state.last_question or ""),
-                )
+                rewritten_intent = self._intent_reask_fix(state, rewritten)
                 if (
                     rewritten.reply
                     and rewritten_result.ok
@@ -1984,15 +2040,9 @@ class Orchestrator:
             if offer and is_field_waiver_value(str(llm_accepted.get(offer) or "")):
                 state.flags.pop("offer_options_for", None)
 
-        # Live left the open field open → regex uncertainty is backup only.
+        # Late backup is a no-op when early settle already closed the field.
         if llm_first or source in {"live", "live-rewrite"}:
-            backup = self._backup_uncertainty_extract(state, visitor, accepted)
-            if backup:
-                backup_ok, backup_rejected = apply_field_updates(
-                    state, backup, visitor, registry=self.registry
-                )
-                accepted.update(backup_ok)
-                rejected.update(backup_rejected)
+            self._apply_uncertainty_backup(state, visitor, accepted, rejected)
 
         # Re-check turn cap after live/backup settlement (deferred above for llm-first).
         if not state.handoff:
@@ -2012,6 +2062,15 @@ class Orchestrator:
             asked = expected[0]
         if state.flags.get("invalid_email"):
             asked = "email"
+        # Never pin last_question on a field already settled this turn.
+        if (
+            asked
+            and asked in state.fields
+            and state.fields[asked].done
+            and not (asked == "sizes" and state.size_needs_unit())
+        ):
+            nxt = state.next_question()
+            asked = nxt[0] if nxt else ""
         if asked:
             state.last_question = asked
             if asked == "email":
