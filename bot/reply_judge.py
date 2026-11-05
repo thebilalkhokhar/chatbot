@@ -15,9 +15,12 @@ from .state import (
     TO_BE_CONFIRMED,
     UNCERTAIN_WAIVE_FIELDS,
     ConversationState,
+    field_shaped_attempt,
     is_field_waiver_value,
     is_finish_none_token,
+    is_option_request,
     is_to_be_confirmed,
+    wants_recommendation,
 )
 
 log = logging.getLogger("chatbot.reply_judge")
@@ -97,6 +100,40 @@ def settled_field_reasked(*, asked: str, state: ConversationState) -> str:
     )
 
 
+def uncertainty_reasked_without_settle(
+    *,
+    visitor: str,
+    asked: str,
+    last_question: str,
+    fields: dict[str, str] | None,
+    registry=None,
+    family: str = "",
+) -> str:
+    """Live was on an uncertainty turn but re-asked without writing a waiver.
+
+    Not a phrase list: visitor gave no concrete field-shaped answer, did not ask
+    for options, and the draft still asks the same open waiveable field. Rewrite
+    must settle (TBC / no preference) and move on — even if the draft prose
+    already 'noted' their deferral.
+    """
+    focus = str(last_question or "").strip()
+    asked_key = str(asked or "").strip()
+    if not focus or focus not in UNCERTAIN_WAIVE_FIELDS or asked_key != focus:
+        return ""
+    if is_field_waiver_value(str((fields or {}).get(focus) or "")):
+        return ""
+    if field_shaped_attempt(focus, visitor, registry=registry, family=family):
+        return ""
+    if is_option_request(visitor) or wants_recommendation(visitor):
+        return ""
+    token = "no preference" if focus in {"style", "material"} else TO_BE_CONFIRMED
+    return (
+        f"Visitor did not give a concrete {focus} answer, but the draft still asks "
+        f"{focus}. Set fields.{focus} to exactly \"{token}\", do not ask {focus} "
+        "again, acknowledge briefly, and ask the next ASK SET field."
+    )
+
+
 def _judge_system() -> str:
     return "\n".join(
         [
@@ -116,6 +153,9 @@ def _judge_system() -> str:
             "asking for alternatives, but the draft keeps pushing that same suggestion.",
             "- Finish fields: catalogue \"none\" means no coating / team confirms — if the "
             "draft sets finishes=none (or to be confirmed) but still asks finish again, fail.",
+            "- The draft acknowledges the visitor deferred / has nothing yet / is unsure on "
+            "the OPEN field, but still asks that same field instead of settling it and "
+            "moving on — fail (judge by meaning, including slang).",
             "Pass (ok=true) when the draft is a reasonable next sales step, even if terse.",
             "reason must be empty when ok=true. When ok=false, reason is a short imperative "
             "fix for the composer (what to change), not a scolding.",

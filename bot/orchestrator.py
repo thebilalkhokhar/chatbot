@@ -27,6 +27,7 @@ from .kb import KBIndex, load_or_build
 from .llm import LLMClient, LLMError
 from .personas import persona_for
 from .state import (
+    AFFIRMATION_RE,
     BASIS_MODEL,
     CATALOGUE_OPTION_FIELDS,
     EMAIL_QUESTION,
@@ -84,6 +85,7 @@ from .reply_judge import (
     judge_reply,
     merge_corrections,
     settled_field_reasked,
+    uncertainty_reasked_without_settle,
     waiver_fields_reasked,
 )
 from .reply_language import (
@@ -349,6 +351,33 @@ class Orchestrator:
             return ("product", product_disambiguation_question(candidates))
         return ("product", state.question_for("product") or PRODUCT_QUESTION)
 
+    def _visitor_needs_direct_answer(
+        self, state: ConversationState, visitor: str
+    ) -> bool:
+        """Visitor asked something that must be answered before checklist / build acks."""
+        text = str(visitor or "").strip()
+        if not text:
+            return False
+        if (
+            asks_term_meaning(text)
+            or asks_if_bot(text)
+            or asks_to_share_reference(text)
+            or is_meta_question(text)
+            or is_option_request(text)
+            or wants_recommendation(text)
+            or needs_language_preference_ack(state, text)
+            or canon.topics_to_answer(text)
+        ):
+            return True
+        # Real question — not soft-no / bare affirmation on an open field.
+        if (
+            is_question(text)
+            and not is_soft_no_preference(text)
+            and not AFFIRMATION_RE.fullmatch(text)
+        ):
+            return True
+        return False
+
     def _unattested_note(
         self,
         state: ConversationState,
@@ -358,6 +387,9 @@ class Orchestrator:
     ) -> str:
         """A blocked draft that named a real but unattested build, said safely."""
         if guard is None:
+            return ""
+        # Never replace a visitor question with "X is noted" — answer them first.
+        if self._visitor_needs_direct_answer(state, state.last_visitor()):
             return ""
         codes = {issue.code for issue in guard.blockers}
         if not codes & {"unsupported_configuration", "unknown_capability_unhedged"}:
@@ -733,6 +765,14 @@ class Orchestrator:
                 expected,
                 overrides=self.overrides,
             ).reply
+        # Any visitor ask (policy, materials, options, plain question) answers first.
+        if self._visitor_needs_direct_answer(state, visitor):
+            return heuristic_turn(
+                state,
+                visitor,
+                expected,
+                overrides=self.overrides,
+            ).reply
         note = self._unattested_note(state, expected, guard, configs)
         if note:
             return note
@@ -875,25 +915,78 @@ class Orchestrator:
         accepted: dict[str, str],
         rejected: dict[str, str],
     ) -> None:
-        """Settle open-field deferral into state before the outgoing reply is locked."""
+        """Settle open-field deferral into state before the outgoing reply is locked.
+
+        Live owns meaning first. After compose: model/soft-no waiver tokens, then
+        shaped-field defer (size/qty/designs with no concrete number — not a phrase
+        list). Finally, if live still re-asks an uncertainty turn with no waiver,
+        settle the contract token so rewrite cannot re-prompt.
+        """
         backup = self._backup_uncertainty_extract(state, visitor, accepted)
-        if not backup:
-            return
-        backup_ok, backup_rejected = apply_field_updates(
-            state, backup, visitor, registry=self.registry
+        if backup:
+            backup_ok, backup_rejected = apply_field_updates(
+                state, backup, visitor, registry=self.registry
+            )
+            accepted.update(backup_ok)
+            rejected.update(backup_rejected)
+            offer = str(state.flags.get("offer_options_for") or "").strip()
+            if offer and is_field_waiver_value(str(backup_ok.get(offer) or "")):
+                state.flags.pop("offer_options_for", None)
+        for deferred in defer_unanswered_open_field(state, visitor, accepted):
+            rejected.pop(deferred, None)
+            offer = str(state.flags.get("offer_options_for") or "").strip()
+            if offer == deferred:
+                state.flags.pop("offer_options_for", None)
+
+    def _settle_uncertainty_reask_gap(
+        self,
+        state: ConversationState,
+        visitor: str,
+        composed: Composed,
+        accepted: dict[str, str],
+        rejected: dict[str, str],
+    ) -> str:
+        """If live re-asked after a non-concrete uncertainty turn, force the waiver token."""
+        asked = str(composed.asked or "").strip() or guards.asked_field(composed.reply)
+        focus = str(state.last_question or "").strip()
+        fix = uncertainty_reasked_without_settle(
+            visitor=visitor,
+            asked=asked,
+            last_question=focus,
+            fields=composed.fields,
+            registry=self.registry,
+            family=state.family(),
         )
-        accepted.update(backup_ok)
-        rejected.update(backup_rejected)
-        offer = str(state.flags.get("offer_options_for") or "").strip()
-        if offer and is_field_waiver_value(str(backup_ok.get(offer) or "")):
-            state.flags.pop("offer_options_for", None)
+        if not fix:
+            return ""
+        if focus in CATALOGUE_OPTION_FIELDS and needs_catalogue_options(
+            state, visitor, accepted, registry=self.registry
+        ):
+            # They need a menu, not a silent waiver.
+            return ""
+        token = "no preference" if focus in {"style", "material"} else TO_BE_CONFIRMED
+        waived_ok, waived_rejected = apply_field_updates(
+            state,
+            {focus: token},
+            visitor,
+            source="model",
+            registry=self.registry,
+        )
+        accepted.update(waived_ok)
+        rejected.update(waived_rejected)
+        if focus in waived_ok:
+            fields = dict(composed.fields or {})
+            fields[focus] = token
+            composed.fields = fields
+        return fix
 
     def _intent_reask_fix(
         self,
         state: ConversationState,
         composed: Composed,
+        visitor: str = "",
     ) -> str:
-        """Catch drafts that re-ask a field already waived in fields or settled in state."""
+        """Catch drafts that re-ask after waiver, or re-ask without settling uncertainty."""
         asked = str(composed.asked or "").strip() or guards.asked_field(composed.reply)
         fix = waiver_fields_reasked(
             asked=asked,
@@ -902,7 +995,39 @@ class Orchestrator:
         )
         if fix:
             return fix
-        return settled_field_reasked(asked=asked, state=state)
+        fix = settled_field_reasked(asked=asked, state=state)
+        if fix:
+            return fix
+        if not visitor:
+            return ""
+        return uncertainty_reasked_without_settle(
+            visitor=visitor,
+            asked=asked,
+            last_question=str(state.last_question or ""),
+            fields=composed.fields,
+            registry=self.registry,
+            family=state.family(),
+        )
+
+    def _retarget_expected_if_focus_settled(
+        self,
+        state: ConversationState,
+        expected: tuple[str, str] | None,
+    ) -> tuple[str, str] | None:
+        """After a waiver, polish toward the next ask — never the settled field again."""
+        focus = str(state.last_question or "").strip()
+        if not (
+            focus
+            and focus in state.fields
+            and state.fields[focus].done
+            and not (focus == "sizes" and state.size_needs_unit())
+        ):
+            return expected
+        nxt = state.next_question()
+        if nxt:
+            return nxt
+        # Quote checklist may be complete — do not keep polishing the waived ask.
+        return None
 
     def _coerce_compose_finish_none(self, composed: Composed, state: ConversationState) -> None:
         """Catalogue finishes=none on the open finish ask → waiver token in compose fields."""
@@ -1703,18 +1828,12 @@ class Orchestrator:
             # in state first, so re-asking that field is a contract miss (not a late
             # panel-only waiver after the bad reply is locked).
             self._apply_uncertainty_backup(state, visitor, accepted, rejected)
-            focus = str(state.last_question or "").strip()
-            if (
-                focus
-                and focus in state.fields
-                and state.fields[focus].done
-                and not (focus == "sizes" and state.size_needs_unit())
-            ):
-                nxt = state.next_question()
-                if nxt:
-                    # Polish / rewrite toward the next ask; keep composed.asked so
-                    # intent_fix still sees the draft re-asking the settled field.
-                    expected = nxt
+            self._settle_uncertainty_reask_gap(
+                state, visitor, composed, accepted, rejected
+            )
+            # Polish / rewrite toward the next ask (or none); keep composed.asked
+            # so intent_fix still sees a draft re-asking the settled field.
+            expected = self._retarget_expected_if_focus_settled(state, expected)
         polish_expected = self._expected_for_polish(state, expected, composed)
         composed.reply = self._finish_reply(
             composed.reply,
@@ -1743,7 +1862,7 @@ class Orchestrator:
         # Deterministic: waived in compose fields, or already settled in state, but re-asked.
         intent_fix = ""
         if source == "live":
-            intent_fix = self._intent_reask_fix(state, composed)
+            intent_fix = self._intent_reask_fix(state, composed, visitor)
         # LLM intent judge — only when hard guards already passed and fields look
         # consistent. Fail open on timeout/error so a judge blip never stalls chat.
         judge_fix = ""
@@ -1843,16 +1962,10 @@ class Orchestrator:
                     state, visitor, rewritten, accepted, rejected, expected
                 )
                 self._apply_uncertainty_backup(state, visitor, accepted, rejected)
-                focus = str(state.last_question or "").strip()
-                if (
-                    focus
-                    and focus in state.fields
-                    and state.fields[focus].done
-                    and not (focus == "sizes" and state.size_needs_unit())
-                ):
-                    nxt = state.next_question()
-                    if nxt:
-                        expected = nxt
+                self._settle_uncertainty_reask_gap(
+                    state, visitor, rewritten, accepted, rejected
+                )
+                expected = self._retarget_expected_if_focus_settled(state, expected)
                 polish_expected = self._expected_for_polish(state, expected, rewritten)
                 rewritten.reply = self._finish_reply(
                     rewritten.reply,
@@ -1876,7 +1989,7 @@ class Orchestrator:
                     issue.code == "recommendation_unanswered"
                     for issue in rewritten_result.warnings
                 )
-                rewritten_intent = self._intent_reask_fix(state, rewritten)
+                rewritten_intent = self._intent_reask_fix(state, rewritten, visitor)
                 if (
                     rewritten.reply
                     and rewritten_result.ok
@@ -1911,9 +2024,17 @@ class Orchestrator:
 
         if not result.ok:
             offer = str(state.flags.get("offer_options_for") or "").strip()
-            if offer in CATALOGUE_OPTION_FIELDS or is_option_request(visitor) or wants_recommendation(visitor):
+            visitor_ask = self._visitor_needs_direct_answer(state, visitor)
+            if (
+                offer in CATALOGUE_OPTION_FIELDS
+                or is_option_request(visitor)
+                or wants_recommendation(visitor)
+                or visitor_ask
+            ):
                 # Keep heuristic fields (e.g. suggested standard material) so a
                 # following "yes" can confirm via propose-and-confirm.
+                # Visitor questions always take the answer-first heuristic path —
+                # never the unattested "X is noted" shortcut.
                 composed = heuristic_turn(
                     state,
                     visitor,

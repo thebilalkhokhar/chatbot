@@ -4,6 +4,7 @@ from chatbot.bot.reply_judge import (
     JudgeVerdict,
     merge_corrections,
     settled_field_reasked,
+    uncertainty_reasked_without_settle,
     waiver_fields_reasked,
 )
 from chatbot.bot.state import (
@@ -61,6 +62,27 @@ def test_settled_field_reasked_when_state_waived_but_draft_asks():
     detail = settled_field_reasked(asked="material", state=state)
     assert "material" in detail
     assert settled_field_reasked(asked="finishes", state=state) == ""
+
+
+def test_uncertainty_reasked_without_settle_for_non_concrete_skus():
+    detail = uncertainty_reasked_without_settle(
+        visitor="no design yet",
+        asked="skus",
+        last_question="skus",
+        fields={},
+    )
+    assert "skus" in detail
+    assert TO_BE_CONFIRMED in detail
+    # Concrete count is not an uncertainty gap.
+    assert (
+        uncertainty_reasked_without_settle(
+            visitor="3 designs",
+            asked="skus",
+            last_question="skus",
+            fields={},
+        )
+        == ""
+    )
 
 
 def test_merge_corrections_skips_blanks():

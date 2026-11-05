@@ -673,9 +673,27 @@ def facts_for_prompt() -> str:
     return "\n".join(lines)
 
 
+def looks_like_build_ack_not_answer(reply: str) -> bool:
+    """'X is noted; team confirms' acknowledges a pick — it is not an answer to a visitor ask."""
+    text = str(reply or "")
+    if not text:
+        return False
+    return bool(
+        re.search(r"\b(?:is|are) noted\b", text, re.I)
+        and re.search(
+            r"\b(?:needs the team to confirm|team (?:will |to )?confirm)\b",
+            text,
+            re.I,
+        )
+    )
+
+
 def answer_covers(key: str, reply: str) -> bool:
     item = CANON.get(key)
     if not item:
+        return False
+    # A blocked-config ack must not satisfy MOQ / materials / policy questions.
+    if looks_like_build_ack_not_answer(reply):
         return False
     return any(re.search(pattern, reply, re.IGNORECASE) for pattern in item.answer_tokens)
 

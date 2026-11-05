@@ -1884,6 +1884,51 @@ def test_an_unattested_build_is_noted_for_the_team(orchestrator):
     )
 
 
+def test_visitor_question_is_not_replaced_by_unattested_noted(orchestrator):
+    """Blocked live must still answer the visitor — not pretend they picked a build."""
+    from chatbot.bot.guards import BLOCK, GuardResult, Issue
+    from chatbot.bot.state import STATUS_VISITOR
+
+    state = orchestrator.store.get_or_create("c-ask-first")
+    state.set_field("product", "labels", status=STATUS_VISITOR)
+    state.set_field("use_case", "pizza box", status=STATUS_VISITOR)
+    state.set_field("quantity", "5000", status=STATUS_VISITOR)
+    state.last_question = "material"
+    state.add("visitor", "do you have different material?")
+    guard = GuardResult(
+        issues=[
+            Issue(
+                "unsupported_configuration",
+                BLOCK,
+                "That combination is not an attested offering, and the reply says we make it.",
+                "PP white vinyl",
+            ),
+        ]
+    )
+    reply = orchestrator._safe_fallback(
+        state,
+        ("material", "Do you have any specific material or special features in mind?"),
+        "",
+        guard=guard,
+        configs=[{"family": "labels", "material": "PP white vinyl"}],
+    )
+    lower = reply.lower()
+    assert "is noted" not in lower
+    assert "needs the team to confirm" not in lower
+    assert "vinyl" in lower or "material" in lower
+
+
+def test_build_ack_does_not_cover_a_materials_question():
+    from chatbot.bot import canon
+
+    ack = (
+        "PP white vinyl is noted. That build needs the team to confirm. "
+        "Do you have any specific material or special features in mind?"
+    )
+    assert canon.looks_like_build_ack_not_answer(ack)
+    assert not canon.answer_covers("materials", ack)
+
+
 def test_a_catalogue_dump_is_not_read_back_as_the_order(orchestrator):
     from chatbot.bot.guards import BLOCK, GuardResult, Issue
 

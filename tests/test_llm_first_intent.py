@@ -104,6 +104,56 @@ def test_llm_first_maybe_later_waives_size_via_fields(config, kb_index, tmp_path
         engine.close()
 
 
+def test_no_design_yet_waives_skus_without_reask(config, kb_index, tmp_path, monkeypatch):
+    """Live may 'note' no designs yet then re-ask — settle by contract, not phrase lists."""
+    engine = _engine(config, kb_index, tmp_path, "llm-no-design-yet")
+    _mute_side_llms(monkeypatch)
+    try:
+        state = engine.store.get_or_create("c-no-design-yet")
+        state.set_field("product", "labels", status=STATUS_VISITOR)
+        state.set_field("use_case", "whisky bottle", status=STATUS_VISITOR)
+        state.set_field("sizes", TO_BE_CONFIRMED, status=STATUS_WAIVED)
+        state.set_field("quantity", "6969", status=STATUS_VISITOR)
+        state.set_field("material", "metalized film", status=STATUS_VISITOR)
+        state.set_field("finishes", "soft touch", status=STATUS_VISITOR)
+        state.set_field("email", "bilal@gmail.com", status=STATUS_VISITOR)
+        state.flags["soft_email_asked"] = True
+        state.last_question = "skus"
+        engine.store.save(state)
+
+        def fake_live(*args, **kwargs):
+            correction = str(kwargs.get("correction") or "")
+            if correction:
+                return Composed(
+                    reply=(
+                        "Thanks — we'll note designs as to be confirmed for now. "
+                        "The team will follow up on artwork with your quote."
+                    ),
+                    asked="",
+                    fields={"skus": TO_BE_CONFIRMED},
+                    source="live",
+                )
+            return Composed(
+                reply=(
+                    "Thanks — noted you have no designs yet. "
+                    "How many total designs do you have?"
+                ),
+                asked="skus",
+                fields={},
+                source="live",
+            )
+
+        monkeypatch.setattr("chatbot.bot.orchestrator.live_turn", fake_live)
+        result = engine.handle("c-no-design-yet", "no design yet")
+        state = engine.store.get_or_create("c-no-design-yet")
+        assert state.fields["skus"].value == TO_BE_CONFIRMED
+        assert state.fields["skus"].status == STATUS_WAIVED
+        assert "skus" not in state.ask_set()
+        assert "how many total designs" not in result.reply.lower()
+    finally:
+        engine.close()
+
+
 def test_live_soft_no_without_fields_does_not_reask_material(
     config, kb_index, tmp_path, monkeypatch
 ):
