@@ -467,7 +467,10 @@ USE_CASE_TAIL = (
 )
 USE_CASE_NOUN_RE = re.compile(
     r"\b(?:for my|for our|to pack|packing|packed with|holds|holding|filled with|going inside|goes inside|"
-    r"use case|intended for|for shipping|for storing|for sending|for mailing|for selling|for wrapping|for gifting)\s+"
+    r"use case|intended for|for shipping|for storing|for sending|for mailing|for selling|for wrapping|for gifting|"
+    # Bare "for …" is the answer to "what is this for?", not part of the stored value.
+    # Longer "for my" / "for shipping" alts stay first. "for example" is not a purpose.
+    r"for(?!\s+(?:example|instance|now|sale|me|us|you)\b))\s+"
     + USE_CASE_TAIL,
     re.I,
 )
@@ -1318,17 +1321,24 @@ def normalize_extras_pick(
     return None
 
 
+def _without_family_tokens(text: str) -> str:
+    """Drop product-family words so 'pizza boxes' still has 'pizza' and 'boxes' does not."""
+    blob = str(text or "")
+    for regex in (BUSINESS_CARD_RE, BANNER_RE, LABEL_RE, BAG_RE, BOX_RE, PRINT_RE):
+        blob = regex.sub(" ", blob)
+    return re.sub(r"\s+", " ", blob).strip()
+
+
 def _use_case_phrase(raw: str, *, allow_packaging_nouns: bool = False) -> str:
     phrase = re.sub(r"\s+", " ", str(raw or "")).strip(" .,;:")
     words = [word for word in phrase.lower().split() if word not in USE_CASE_STOP_WORDS]
     if not words:
         return ""
     cleaned = " ".join(words)
-    # A bare product family ("boxes", "coffee bags") is the product, not the use case —
-    # unless it is the purpose after an ordered head product (labels for pizza box).
-    if not allow_packaging_nouns:
-        if family_of(phrase) != "unknown" or family_of(cleaned) != "unknown":
-            return ""
+    # A bare product family ("boxes") is the product, not the use case.
+    # "pizza boxes" still names what the order is for, so the family word stays.
+    if not allow_packaging_nouns and not _without_family_tokens(cleaned):
+        return ""
     return cleaned[:60]
 
 
@@ -1357,7 +1367,17 @@ def use_case_from(text: str) -> str:
         if phrase:
             return phrase
     purpose = USE_CASE_PURPOSE_PRODUCT_RE.search(value)
-    if purpose and not re.search(r"\b(?:and|or|vs\.?|versus)\b", purpose.group(1), re.I):
+    # "for my pizza boxes" is "for {purpose}", not "{purpose} boxes". The noun
+    # extractor owns that shape; using this branch would keep the preposition
+    # and drop the packaging word ("for pizza").
+    purpose_is_for_answer = bool(
+        purpose and re.match(r"(?:for|to)\b", purpose.group(1).strip(), re.I)
+    )
+    if (
+        purpose
+        and not purpose_is_for_answer
+        and not re.search(r"\b(?:and|or|vs\.?|versus)\b", purpose.group(1), re.I)
+    ):
         phrase = _use_case_phrase(purpose.group(1), allow_packaging_nouns=True)
         words = phrase.split() if phrase else []
         lead_blocked = {
@@ -3028,9 +3048,10 @@ def extract_fields(
         # askable and store what they are packing.
         for_match = re.match(r"^\s*for\s+(.+?)\s*$", value, re.I)
         if for_match:
-            purpose = for_match.group(1).strip()
-            if purpose and family_of(purpose) == "unknown":
-                updates["use_case"] = f"for {purpose}"[:80]
+            # The question already means "for". Store the thing, not "for" again.
+            purpose = _use_case_phrase(for_match.group(1), allow_packaging_nouns=False)
+            if purpose:
+                updates["use_case"] = purpose[:80]
         elif (
             family == "unknown"
             and len(value.split()) <= 4

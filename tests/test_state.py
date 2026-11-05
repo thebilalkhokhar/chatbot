@@ -325,6 +325,10 @@ def test_use_case_phrases_and_channels_are_read_from_the_message():
     assert use_case_from("boxes for candles") == "candles"
     assert use_case_from("looking for boxes") == ""
     assert use_case_from("labels for example") == ""
+    # Answering "what is this for?" — the preposition is the question, not the value.
+    assert use_case_from("for my pizza boxes") == "pizza boxes"
+    assert use_case_from("for pizza boxes") == "pizza boxes"
+    assert use_case_from("for pizza") == "pizza"
     # OCR brief lines: purpose must not truncate before QUANTITY/SIZE/FINISH.
     assert (
         use_case_from(
@@ -528,6 +532,20 @@ def test_labels_for_pizza_box_locks_labels_not_boxes():
     assert rejected == {}
     assert state.family() == "labels"
     assert "product" not in state.ask_set()
+
+
+def test_use_case_answer_does_not_keep_the_preposition():
+    """'for my pizza boxes' while use case is open stores the thing, not 'for pizza'."""
+    from chatbot.bot.state import STATUS_VISITOR
+
+    state = make_state("labels")
+    state.set_field("product", "labels", status=STATUS_VISITOR)
+    state.last_question = "use_case"
+    updates = extract_fields("for my pizza boxes", "use_case", state)
+    assert updates["use_case"] == "pizza boxes"
+    accepted, _rejected = apply_field_updates(state, updates, "for my pizza boxes")
+    assert accepted["use_case"] == "pizza boxes"
+    assert state.fields["product"].value == "labels"
 
 
 def test_boxes_and_labels_stays_ambiguous_for_hybrid():
