@@ -88,6 +88,11 @@ from .reply_judge import (
     uncertainty_reasked_without_settle,
     waiver_fields_reasked,
 )
+from .turn_router import (
+    catalogue_menu_focus,
+    classify_turn,
+    strip_checklist_locks,
+)
 from .reply_language import (
     LANGUAGE_S,
     SEND_BY_S,
@@ -1047,33 +1052,45 @@ class Orchestrator:
         rejected: dict[str, str],
         expected: tuple[str, str] | None,
     ) -> tuple[str, str] | None:
-        """Apply compose waiver tokens early so polish/locked fields cannot re-ask them."""
+        """Apply live's open-field token early (waiver OR concrete) before TBC backup.
+
+        LLM-first: for design count / size / qty the model may map wording
+        ("single" → 1) into fields.* — that number must land before
+        defer_unanswered_open_field would waive the slot as to-be-confirmed.
+        """
         self._coerce_compose_finish_none(composed, state)
         focus = str(state.last_question or "").strip()
         if not focus or focus not in UNCERTAIN_WAIVE_FIELDS:
             return expected
         token = str((composed.fields or {}).get(focus) or "").strip()
-        if not is_field_waiver_value(token):
+        if not token:
             return expected
         if focus in accepted or state.fields[focus].done:
-            # Still redirect the ask if the draft re-asks a field we already waived.
+            # Still redirect the ask if the draft re-asks a field we already settled.
             pass
         else:
-            waived_ok, waived_rejected = apply_field_updates(
+            settled_ok, settled_rejected = apply_field_updates(
                 state,
                 {focus: token},
                 visitor,
                 source="model",
+                bases=composed.bases,
                 registry=self.registry,
             )
-            accepted.update(waived_ok)
-            rejected.update(waived_rejected)
+            accepted.update(settled_ok)
+            rejected.update(settled_rejected)
         asked = str(composed.asked or "").strip()
         if asked == focus or not asked:
-            nxt = state.next_question()
-            if nxt:
-                composed.asked = nxt[0]
-                return nxt
+            if state.fields[focus].done:
+                nxt = state.next_question()
+                if nxt:
+                    composed.asked = nxt[0]
+                    return nxt
+            elif is_field_waiver_value(token):
+                nxt = state.next_question()
+                if nxt:
+                    composed.asked = nxt[0]
+                    return nxt
         if asked and asked != focus:
             question = state.question_for(asked) or (expected[1] if expected else "")
             return (asked, question)
@@ -1314,16 +1331,31 @@ class Orchestrator:
             family=state.family(),
             registry=self.registry,
         )
-        llm_first = self._llm_first_intent_turn(state, visitor)
+        route = classify_turn(state, visitor, registry=self.registry)
+        state.flags["turn_kind"] = route.kind
+        state.flags["turn_kind_reason"] = route.reason
+        # ask/defer → live settles meaning before phrase extract locks fields.
+        llm_first = route.kind in {"ask", "defer"} or self._llm_first_intent_turn(
+            state, visitor
+        )
         # Soft-decline closes a suggested field even in live — model fields are primary,
         # this is the safety net when the model leaves a bad suggested token (e.g. finish none).
-        confirmed = state.confirm_suggested(visitor, soft_decline=True)
+        # Ask turns never treat the message as yes/no on a suggestion.
+        confirmed = (
+            []
+            if route.kind == "ask"
+            else state.confirm_suggested(visitor, soft_decline=True)
+        )
         extracted = extract_fields(visitor, state.last_question, state, registry=self.registry)
         # Contact details must come from the visitor's raw words. Inbound LLM calls
         # mask emails to [EMAIL], so the English gloss can drop them — raw wins.
         contacts = extract_contact_fields(raw_visitor)
         extracted.update(contacts)
-        if llm_first:
+        if route.kind == "ask":
+            # Questions must not settle checklist slots (e.g. "any other finish?").
+            extracted = strip_checklist_locks(extracted)
+            extracted.update(contacts)
+        elif llm_first or route.kind == "defer":
             extracted = self._strip_early_uncertainty_extract(extracted)
         # Traceable checks need the raw contact spans and any English gloss together.
         trace_text = visitor
@@ -1389,15 +1421,24 @@ class Orchestrator:
         # Style/material/finish with no concrete pick → flag options (any wording).
         # Image turns apply OCR/vision fields; do not waive the open ask just because
         # the placeholder message is not itself a size/qty answer.
-        # When live will judge deferral/soft-no, do not phrase-waive before compose.
-        if not state.flags.get("reference_image_this_turn") and not llm_first:
+        # Ask/defer: live owns meaning first — no phrase-waive before compose.
+        if (
+            not state.flags.get("reference_image_this_turn")
+            and not llm_first
+            and route.kind == "pick"
+        ):
             for deferred in defer_unanswered_open_field(state, visitor, accepted):
                 rejected.pop(deferred, None)
         offer_for = needs_catalogue_options(state, visitor, accepted, registry=self.registry)
+        # Turn router: open catalogue ask → always list that field's options.
+        menu_focus = catalogue_menu_focus(state, route)
+        if menu_focus:
+            offer_for = offer_for or menu_focus
+            state.last_question = menu_focus
         # Alternatives ask while a material/style/finish is only suggested (or
         # was wrongly waived): clear it and force the catalogue menu.
         if (
-            (is_option_request(visitor) or wants_recommendation(visitor))
+            (is_option_request(visitor) or wants_recommendation(visitor) or route.kind == "ask")
             and re.search(r"\bmaterials?\b", visitor, re.I)
         ):
             material = state.fields["material"]
@@ -1414,7 +1455,11 @@ class Orchestrator:
         # must keep that field — do not burn attempts and jump to finish.
         if (
             not offer_for
-            and (is_option_request(visitor) or wants_recommendation(visitor))
+            and (
+                is_option_request(visitor)
+                or wants_recommendation(visitor)
+                or route.kind == "ask"
+            )
             and asked_before in CATALOGUE_OPTION_FIELDS
             and not state.fields[asked_before].done
         ):
@@ -1427,7 +1472,11 @@ class Orchestrator:
             and not state.fields["style"].done
             and (
                 re.search(r"\bstyles?\b", visitor, re.I)
-                and (is_option_request(visitor) or wants_recommendation(visitor))
+                and (
+                    is_option_request(visitor)
+                    or wants_recommendation(visitor)
+                    or route.kind == "ask"
+                )
             )
         ):
             offer_for = "style"
@@ -1685,11 +1734,14 @@ class Orchestrator:
             and not asks_term_meaning(visitor)
             and str(state.flags.get("offer_options_for") or "").strip()
             in CATALOGUE_OPTION_FIELDS
-            and (wants_recommendation(visitor) or is_option_request(visitor))
+            and (
+                wants_recommendation(visitor)
+                or is_option_request(visitor)
+                or str(state.flags.get("turn_kind") or "") == "ask"
+            )
         ):
-            # Explicit "suggest / options" asks keep the deterministic catalogue menu.
-            # Other non-picks (deferral, unsure, "leave it for later") go to live so
-            # the model can waive with "to be confirmed" instead of being blocked here.
+            # Options / "any other finish?" asks → catalogue menu for the open field.
+            # Deferrals without a menu ask still go to live to waive.
             composed = heuristic_turn(
                 state,
                 visitor,
@@ -1828,9 +1880,14 @@ class Orchestrator:
             # in state first, so re-asking that field is a contract miss (not a late
             # panel-only waiver after the bad reply is locked).
             self._apply_uncertainty_backup(state, visitor, accepted, rejected)
-            self._settle_uncertainty_reask_gap(
-                state, visitor, composed, accepted, rejected
-            )
+            if str(state.flags.get("turn_kind") or "") != "ask":
+                self._settle_uncertainty_reask_gap(
+                    state, visitor, composed, accepted, rejected
+                )
+            else:
+                # Ask turns never lock checklist fields from the draft.
+                if composed.fields:
+                    composed.fields = strip_checklist_locks(composed.fields)
             # Polish / rewrite toward the next ask (or none); keep composed.asked
             # so intent_fix still sees a draft re-asking the settled field.
             expected = self._retarget_expected_if_focus_settled(state, expected)
@@ -1962,9 +2019,13 @@ class Orchestrator:
                     state, visitor, rewritten, accepted, rejected, expected
                 )
                 self._apply_uncertainty_backup(state, visitor, accepted, rejected)
-                self._settle_uncertainty_reask_gap(
-                    state, visitor, rewritten, accepted, rejected
-                )
+                if str(state.flags.get("turn_kind") or "") != "ask":
+                    self._settle_uncertainty_reask_gap(
+                        state, visitor, rewritten, accepted, rejected
+                    )
+                else:
+                    if rewritten.fields:
+                        rewritten.fields = strip_checklist_locks(rewritten.fields)
                 expected = self._retarget_expected_if_focus_settled(state, expected)
                 polish_expected = self._expected_for_polish(state, expected, rewritten)
                 rewritten.reply = self._finish_reply(
@@ -2120,6 +2181,8 @@ class Orchestrator:
             # it fill an open field, or the field it was just asked about, so an
             # echo cannot overwrite an answer already on file. Waived / settled
             # values (e.g. SKUs → to be confirmed) must not be rewritten.
+            if str(state.flags.get("turn_kind") or "") == "ask":
+                composed.fields = strip_checklist_locks(composed.fields)
             focus = str(composed.asked or "").strip()
             if not focus and expected:
                 focus = expected[0]

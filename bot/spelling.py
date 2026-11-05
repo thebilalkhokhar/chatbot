@@ -374,7 +374,9 @@ def prepare_visitor_text(
         # No catalogue hit — still try English cleanup for longer answers.
         protected = protect_terms(family, registry)
         return correct_english_spelling(original, protect=protected), ""
-    if field in {"email", "phone"}:
+    if field in {"email", "phone", "name"}:
+        # Contact tokens are visitor identity — do not dictionary-correct names
+        # (bilal → bill) or mangle addresses / numbers.
         return original, ""
     # sizes/quantity/skus: keep numeric answers intact, but still fix English so
     # "can you give me your adress" becomes a location question, not dead air.

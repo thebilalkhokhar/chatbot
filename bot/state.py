@@ -887,7 +887,22 @@ def field_shaped_attempt(
     if key == "style":
         return bool(normalize_style(value) or STYLE_HINTS.search(value))
     if key == "skus":
-        return bool(re.search(r"\d+", value))
+        # Design count is quantity-shaped: digits or number-words ("single", "one", "2").
+        return parse_quantity(value) is not None or bool(re.search(r"\d+", value))
+    if key == "email":
+        hit = EMAIL_RE.search(value)
+        return bool(hit and valid_email(hit.group(0)))
+    if key == "phone":
+        if PHONE_RE.search(value):
+            return True
+        stripped = value.strip()
+        return looks_like_contact(stripped) and valid_phone(stripped)
+    if key == "name":
+        return looks_like_person_name(value)
+    if key == "use_case":
+        return bool(use_case_from(value))
+    if key == "product":
+        return family_of(value) != "unknown"
     return False
 
 
@@ -1499,6 +1514,28 @@ def looks_like_contact(text: str) -> bool:
     return bool(value) and 10 <= len(digits) <= 15 and bool(re.fullmatch(r"[+\d][\d\s().-]{8,}", value))
 
 
+def looks_like_person_name(text: str) -> bool:
+    """Bare answer shape when we asked for their name — not product/contact/aside."""
+    value = str(text or "").strip().strip(".,!")
+    if not value or looks_like_contact(value):
+        return False
+    if is_question(value) or is_soft_no_preference(value) or is_visitor_greeting(value):
+        return False
+    if NAME_INTRO_RE.search(value):
+        return True
+    # 1–3 name tokens (letters / hyphen / apostrophe). No digits.
+    if re.search(r"\d", value):
+        return False
+    parts = [part for part in re.split(r"\s+", value) if part]
+    if not parts or len(parts) > 3:
+        return False
+    if not all(re.fullmatch(r"[A-Za-z][A-Za-z'-]{0,39}", part) for part in parts):
+        return False
+    if any(part.casefold() in NAME_INTRO_BLOCKLIST for part in parts):
+        return False
+    return True
+
+
 def is_question(text: str) -> bool:
     value = str(text or "").strip()
     return "?" in value or bool(QUESTION_START_RE.search(value))
@@ -1546,20 +1583,22 @@ OPTION_REQUEST_RE = re.compile(
     r"|\b(?:any|some|the)\s+(?:options?|choices?)\b"
     r"|\bwhat\s+(?:are\s+)?(?:my|the|our)\s+(?:options?|choices?)\b"
     r"|\b(?:is there|are there)\s+(?:any\s+)?(?:another|other|more)\s+"
-    r"(?:options?|choices?|styles?|kinds?|types?|finishes?|materials?)?\b"
+    r"(?:options?|choices?|styles?|kinds?|types?|finish(?:es)?|materials?)?\b"
     r"|\b(?:another|other|more)\s+(?:options?|choices?|styles?|kinds?|types?|"
-    r"finishes?|materials?|alternatives?)\b"
+    r"finish(?:es)?|materials?|alternatives?)\b"
     r"|\bany\s+(?:other|more)(?:\s+(?:options?|choices?|styles?|kinds?|types?|"
-    r"finishes?|materials?|alternatives?))?\s*[?!.]*\s*$"
+    r"finish(?:es)?|materials?|alternatives?))?\s*[?!.]*\s*$"
     r"|\b(?:what|anything)\s+else\s*(?:do you (?:have|offer|make))?\s*[?!.]*\s*$"
     r"|\b(?:other|alternative)\s+materials?\b"
     r"|\bmaterials?\s+other\s+than\b"
     r"|\bsuggest\s+(?:me\s+)?(?:other\s+|alternative\s+)?materials?\b"
     r"|\b(?:suggest|recommend)\s+(?:me\s+)?(?:the\s+|some\s+|a\s+few\s+)?"
-    r"(?:styles?|kinds?|types?|finishes?|options?|choices?)\b"
-    r"|\b(?:styles?|kinds?|types?|finishes?)\s+(?:you\s+)?(?:suggest|recommend|offer|have)\b"
-    r"|\blist\s+(?:the\s+|some\s+)?(?:styles?|finishes?|options?|choices?)\b"
-    r"|\bshow\s+(?:me\s+)?(?:the\s+|some\s+)?(?:styles?|finishes?|options?|choices?)\b",
+    r"(?:styles?|kinds?|types?|finish(?:es)?|options?|choices?)\b"
+    r"|\b(?:styles?|kinds?|types?|finish(?:es)?)\s+(?:you\s+)?(?:suggest|recommend|offer|have)\b"
+    r"|\blist\s+(?:the\s+|some\s+)?(?:styles?|finish(?:es)?|options?|choices?)\b"
+    r"|\bshow\s+(?:me\s+)?(?:the\s+|some\s+)?(?:styles?|finish(?:es)?|options?|choices?)\b"
+    r"|\bdo you (?:have|offer|carry|stock)\b[^.?!]{0,40}\b(?:other|another|more|"
+    r"different)\b[^.?!]{0,24}\b(?:finish(?:es)?|materials?|styles?|options?)\b",
     re.I,
 )
 # "Can I add a reference image?" is not an answer and not an artwork-format ask.
@@ -2945,6 +2984,14 @@ def extract_fields(
     ):
         # Bare intl / digit-run answers when we just asked for their number.
         updates["phone"] = value.strip()
+    if (
+        "name" not in updates
+        and last_question == "name"
+        and looks_like_person_name(raw)
+    ):
+        # Bare "Bilal" after "Who am I speaking with?" — use raw so spellcheck
+        # cannot turn a name into a dictionary word (bilal → bill).
+        updates["name"] = raw.strip().strip(".,!")[:60]
 
     family = family_of(value)
     if family != "unknown" and (not is_question(value) or not state.fields["product"].done):

@@ -188,6 +188,282 @@
       .badge.muted {
         font-weight: 500;
       }
+      .badge.route {
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        min-width: 72px;
+        justify-content: center;
+        transition:
+          color 0.25s ease,
+          background 0.25s ease,
+          border-color 0.25s ease,
+          box-shadow 0.25s ease,
+          transform 0.25s ease;
+      }
+      .badge.route .dot {
+        width: 8px;
+        height: 8px;
+      }
+      .badge.route.ask {
+        color: #9ef0ff;
+        background: rgba(56, 189, 248, 0.12);
+        border-color: rgba(56, 189, 248, 0.4);
+        box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.08),
+          0 8px 22px rgba(14, 165, 233, 0.18);
+      }
+      .badge.route.ask .dot {
+        background: #38bdf8;
+        box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.22);
+      }
+      .badge.route.defer {
+        color: #ffe4a3;
+        background: var(--amber-dim);
+        border-color: rgba(240, 180, 41, 0.4);
+        box-shadow: 0 0 0 1px rgba(240, 180, 41, 0.08),
+          0 8px 22px rgba(240, 180, 41, 0.14);
+      }
+      .badge.route.defer .dot {
+        background: var(--amber);
+        box-shadow: 0 0 0 3px rgba(240, 180, 41, 0.22);
+      }
+      .badge.route.pick {
+        color: #b8f5d5;
+        background: var(--green-dim);
+        border-color: rgba(61, 214, 140, 0.4);
+        box-shadow: 0 0 0 1px rgba(61, 214, 140, 0.08),
+          0 8px 22px rgba(61, 214, 140, 0.16);
+      }
+      .badge.route.pick .dot {
+        background: var(--green);
+        box-shadow: 0 0 0 3px rgba(61, 214, 140, 0.22);
+      }
+      .badge.route.other {
+        color: #d7cfff;
+        background: rgba(124, 92, 255, 0.12);
+        border-color: rgba(124, 92, 255, 0.35);
+      }
+      .badge.route.other .dot {
+        background: var(--purple);
+        box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.2);
+      }
+      .badge.route.flash {
+        animation: route-flash 0.55s ease;
+      }
+      @keyframes route-flash {
+        0% {
+          transform: scale(1);
+        }
+        35% {
+          transform: scale(1.08);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+      .route-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 9px 3px 7px;
+        border-radius: 999px;
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.35px;
+        text-transform: uppercase;
+        border: 1px solid transparent;
+        vertical-align: middle;
+      }
+      .route-pill .glyph {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-size: 9px;
+        font-weight: 800;
+        line-height: 1;
+      }
+      .route-pill.ask {
+        color: #9ef0ff;
+        background: rgba(56, 189, 248, 0.12);
+        border-color: rgba(56, 189, 248, 0.35);
+      }
+      .route-pill.ask .glyph {
+        background: rgba(56, 189, 248, 0.28);
+      }
+      .route-pill.defer {
+        color: #ffe4a3;
+        background: var(--amber-dim);
+        border-color: rgba(240, 180, 41, 0.35);
+      }
+      .route-pill.defer .glyph {
+        background: rgba(240, 180, 41, 0.28);
+      }
+      .route-pill.pick {
+        color: #b8f5d5;
+        background: var(--green-dim);
+        border-color: rgba(61, 214, 140, 0.35);
+      }
+      .route-pill.pick .glyph {
+        background: rgba(61, 214, 140, 0.28);
+      }
+      .route-pill.other {
+        color: #d7cfff;
+        background: rgba(124, 92, 255, 0.12);
+        border-color: rgba(124, 92, 255, 0.3);
+      }
+      .route-pill.other .glyph {
+        background: rgba(124, 92, 255, 0.28);
+      }
+      .meta-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+        color: var(--muted-2);
+        padding: 0 4px 0 40px;
+      }
+      .route-card {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 12px;
+        align-items: center;
+        padding: 12px 14px;
+        border-radius: 14px;
+        margin-bottom: 14px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .route-card.ask {
+        border-color: rgba(56, 189, 248, 0.35);
+        background: linear-gradient(
+          135deg,
+          rgba(56, 189, 248, 0.16),
+          rgba(22, 25, 34, 0.75)
+        );
+      }
+      .route-card.defer {
+        border-color: rgba(240, 180, 41, 0.35);
+        background: linear-gradient(
+          135deg,
+          rgba(240, 180, 41, 0.14),
+          rgba(22, 25, 34, 0.75)
+        );
+      }
+      .route-card.pick {
+        border-color: rgba(61, 214, 140, 0.35);
+        background: linear-gradient(
+          135deg,
+          rgba(61, 214, 140, 0.14),
+          rgba(22, 25, 34, 0.75)
+        );
+      }
+      .route-card.other {
+        border-color: rgba(124, 92, 255, 0.3);
+        background: linear-gradient(
+          135deg,
+          rgba(124, 92, 255, 0.14),
+          rgba(22, 25, 34, 0.75)
+        );
+      }
+      .route-card .mark-orb {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        display: grid;
+        place-items: center;
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: 0.2px;
+      }
+      .route-card.ask .mark-orb {
+        color: #9ef0ff;
+        background: rgba(56, 189, 248, 0.18);
+      }
+      .route-card.defer .mark-orb {
+        color: #ffe4a3;
+        background: rgba(240, 180, 41, 0.18);
+      }
+      .route-card.pick .mark-orb {
+        color: #b8f5d5;
+        background: rgba(61, 214, 140, 0.18);
+      }
+      .route-card.other .mark-orb {
+        color: #d7cfff;
+        background: rgba(124, 92, 255, 0.18);
+      }
+      .route-card h3 {
+        margin: 0;
+        font-size: 13px;
+        letter-spacing: 0.2px;
+      }
+      .route-card p {
+        margin: 3px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.35;
+      }
+      .chip.route {
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+      }
+      .chip.route.ask {
+        color: #9ef0ff;
+        border-color: rgba(56, 189, 248, 0.35);
+        background: rgba(56, 189, 248, 0.12);
+      }
+      .chip.route.defer {
+        color: #ffe4a3;
+        border-color: rgba(240, 180, 41, 0.35);
+        background: var(--amber-dim);
+      }
+      .chip.route.pick {
+        color: #b8f5d5;
+        border-color: rgba(61, 214, 140, 0.35);
+        background: var(--green-dim);
+      }
+      .chip.route.other {
+        color: #d7cfff;
+        border-color: rgba(124, 92, 255, 0.3);
+        background: rgba(124, 92, 255, 0.12);
+      }
+      .turn-route-banner {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 10px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.03);
+        font-size: 11.5px;
+      }
+      .turn-route-banner.ask {
+        border-color: rgba(56, 189, 248, 0.3);
+        background: rgba(56, 189, 248, 0.08);
+      }
+      .turn-route-banner.defer {
+        border-color: rgba(240, 180, 41, 0.3);
+        background: rgba(240, 180, 41, 0.08);
+      }
+      .turn-route-banner.pick {
+        border-color: rgba(61, 214, 140, 0.3);
+        background: rgba(61, 214, 140, 0.08);
+      }
+      .turn-route-banner.other {
+        border-color: rgba(124, 92, 255, 0.28);
+        background: rgba(124, 92, 255, 0.08);
+      }
+      .turn-route-banner .reason {
+        color: var(--muted);
+        font-weight: 500;
+        text-transform: none;
+        letter-spacing: 0;
+      }
       #new-chat {
         background: var(--teal);
         color: #05332c;
@@ -1512,6 +1788,57 @@
           return text.length > 8 ? text.slice(0, 8) : text;
         }
 
+        const TURN_KIND_META = {
+          ask: {
+            label: "ASK",
+            blurb: "answer first · no checklist lock",
+            glyph: "?",
+          },
+          defer: {
+            label: "DEFER",
+            blurb: "soft-no / unsure · settle + next",
+            glyph: "↻",
+          },
+          pick: {
+            label: "PICK",
+            blurb: "concrete answer · lock + next",
+            glyph: "✓",
+          },
+          other: {
+            label: "OTHER",
+            blurb: "greeting / aside / unclear",
+            glyph: "·",
+          },
+        };
+
+        function turnKindOf(turn) {
+          const raw = String(
+            (turn && turn.flags && turn.flags.turn_kind) || "",
+          )
+            .trim()
+            .toLowerCase();
+          return TURN_KIND_META[raw] ? raw : "";
+        }
+
+        function turnKindReason(turn) {
+          return String(
+            (turn && turn.flags && turn.flags.turn_kind_reason) || "",
+          ).trim();
+        }
+
+        function routePill(kind, reason) {
+          const meta = TURN_KIND_META[kind] || TURN_KIND_META.other;
+          const pill = node("span", "route-pill " + (kind || "other"));
+          pill.appendChild(node("span", "glyph", meta.glyph));
+          pill.appendChild(
+            document.createTextNode(
+              meta.label + (reason ? " · " + reason : ""),
+            ),
+          );
+          pill.title = meta.blurb + (reason ? " (" + reason + ")" : "");
+          return pill;
+        }
+
         function addMessage(role, text, meta, imageUrl, options) {
           const wrap = node("div", "msg " + role);
           const opts = options || {};
@@ -2098,6 +2425,27 @@
           const ready = filledRequired >= REQUIRED_KEYS.length;
           const pct = Math.round((filledRequired / REQUIRED_KEYS.length) * 100);
 
+          const kind = turnKindOf(latest);
+          if (kind) {
+            const meta = TURN_KIND_META[kind];
+            const reason = turnKindReason(latest);
+            const route = node("div", "route-card " + kind);
+            route.appendChild(node("div", "mark-orb", meta.glyph));
+            const copy = node("div");
+            copy.appendChild(
+              node("h3", null, "Turn router · " + meta.label),
+            );
+            copy.appendChild(
+              node(
+                "p",
+                null,
+                meta.blurb + (reason ? " · " + reason.replace(/_/g, " ") : ""),
+              ),
+            );
+            route.appendChild(copy);
+            els.panelBrief.appendChild(route);
+          }
+
           const card = node("div", "status-card" + (ready ? " ready" : ""));
           const ring = node("div", "ring");
           ring.style.setProperty("--pct", String(pct));
@@ -2187,6 +2535,23 @@
             ),
           );
 
+          const kind = turnKindOf(turn);
+          if (kind) {
+            const meta = TURN_KIND_META[kind];
+            const reason = turnKindReason(turn);
+            const banner = node("div", "turn-route-banner " + kind);
+            banner.appendChild(routePill(kind, ""));
+            banner.appendChild(
+              node(
+                "span",
+                "reason",
+                meta.blurb +
+                  (reason ? " · reason: " + reason.replace(/_/g, " ") : ""),
+              ),
+            );
+            card.appendChild(banner);
+          }
+
           const chips = node("div", "summary");
           const labels = [
             "source: " + (turn.source || "none"),
@@ -2214,6 +2579,15 @@
             labels.push("llm: " + context.latency_ms + " ms");
           if (turn.flags && turn.flags.llm_error)
             labels.push("llm error: " + turn.flags.llm_error);
+          if (kind) {
+            chips.appendChild(
+              node(
+                "span",
+                "chip route " + kind,
+                "route: " + TURN_KIND_META[kind].label,
+              ),
+            );
+          }
           labels.forEach((label) =>
             chips.appendChild(node("span", "chip", label)),
           );
@@ -2340,11 +2714,28 @@
             return;
           }
           const index = debugTurns.length;
+          const kind = turnKindOf(latest);
           els.footTurn.textContent =
-            "Turn " + index + " · " + turnLabel(latest, index - 1);
+            "Turn " +
+            index +
+            (kind ? " · " + TURN_KIND_META[kind].label : "") +
+            " · " +
+            turnLabel(latest, index - 1);
           els.footId.textContent = shortId(
             latest.conversation_id || conversationId,
           );
+          if (kind) {
+            const reason = turnKindReason(latest);
+            els.footChips.appendChild(
+              node(
+                "span",
+                "chip route " + kind,
+                "route · " +
+                  TURN_KIND_META[kind].label +
+                  (reason ? " · " + reason.replace(/_/g, " ") : ""),
+              ),
+            );
+          }
           els.footChips.appendChild(
             node("span", "chip", latest.source || "unknown"),
           );
