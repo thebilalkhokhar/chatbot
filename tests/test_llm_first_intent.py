@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from chatbot.bot.composer import Composed
+from chatbot.bot.llm import LLMError
 from chatbot.bot.orchestrator import Orchestrator
 from chatbot.bot.reply_judge import JudgeVerdict
 from chatbot.bot.state import (
@@ -409,5 +410,42 @@ def test_extras_none_after_turns_does_not_max_turns_before_waive(
         assert state.fields["extras"].value == TO_BE_CONFIRMED
         assert state.fields["extras"].status == STATUS_WAIVED
         assert "specialist" not in result.reply.lower()
+    finally:
+        engine.close()
+
+
+def test_live_failure_still_settles_designs_before_the_reply(
+    config, kb_index, tmp_path, monkeypatch
+):
+    """Call cap / live error must not store designs and then say the answer was missed."""
+    engine = _engine(config, kb_index, tmp_path, "llm-cap-designs")
+    _mute_side_llms(monkeypatch)
+    try:
+        state = engine.store.get_or_create("c-cap-designs")
+        state.set_field("product", "bags", status=STATUS_VISITOR)
+        state.set_field("use_case", "coffee beans", status=STATUS_VISITOR)
+        state.set_field("sizes", TO_BE_CONFIRMED, status=STATUS_WAIVED)
+        state.set_field("quantity", "500", status=STATUS_VISITOR)
+        state.set_field("style", "pinch bottom", status=STATUS_VISITOR)
+        state.set_field("material", "pe", status=STATUS_VISITOR)
+        state.set_field("finishes", "matte", status=STATUS_VISITOR)
+        state.set_field("email", "bilal@gmail.com", status=STATUS_VISITOR)
+        state.flags["soft_email_asked"] = True
+        state.last_question = "skus"
+        engine.store.save(state)
+
+        def _capped(*args, **kwargs):
+            raise LLMError("LLM call cap reached (BOT_MAX_LLM_CALLS=50)")
+
+        monkeypatch.setattr("chatbot.bot.orchestrator.live_turn", _capped)
+        result = engine.handle("c-cap-designs", "i have no designs yet")
+        state = engine.store.get_or_create("c-cap-designs")
+        lowered = result.reply.lower()
+        assert result.source == "heuristic"
+        assert state.fields["skus"].value == TO_BE_CONFIRMED
+        assert state.fields["skus"].status == STATUS_WAIVED
+        assert not state.fields["extras"].done
+        assert "didn't quite catch" not in lowered
+        assert "how many" not in lowered
     finally:
         engine.close()

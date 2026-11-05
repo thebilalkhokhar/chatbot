@@ -520,6 +520,72 @@ def test_no_style_preference_gets_style_options(orchestrator):
     assert blockers(result) == []
 
 
+def test_size_question_and_not_sure_stay_on_size(orchestrator):
+    """A size question must not close size, and the following 'not sure' must not close quantity.
+
+    The reply is locked only after that waiver, so it asks quantity instead of
+    saying the answer was missed.
+    """
+    from chatbot.bot.state import STATUS_WAIVED, TO_BE_CONFIRMED
+
+    orchestrator.start("c-size-link")
+    orchestrator.handle("c-size-link", "Bags")
+    orchestrator.handle("c-size-link", "coffee beans")
+    orchestrator.handle("c-size-link", "bilal@gmail.com")
+    asked = orchestrator.handle("c-size-link", "any standard size?")
+    state = orchestrator.store.get_or_create("c-size-link")
+    assert not state.fields["sizes"].done
+    assert not state.fields["quantity"].done
+    assert state.last_question == "sizes"
+    assert "no standard size" in asked.reply.lower()
+    assert "didn't quite catch" not in asked.reply.lower()
+
+    follow = orchestrator.handle("c-size-link", "not sure")
+    state = orchestrator.store.get_or_create("c-size-link")
+    assert state.fields["sizes"].value == TO_BE_CONFIRMED
+    assert state.fields["sizes"].status == STATUS_WAIVED
+    assert not state.fields["quantity"].done
+    lowered = follow.reply.lower()
+    assert "didn't quite catch" not in lowered
+    assert "quantity" in lowered or "how many" in lowered
+    assert state.last_question == "quantity"
+
+
+def test_no_designs_is_stored_before_the_reply(orchestrator):
+    """'I have no designs yet' stores designs and asks the next field once."""
+    from chatbot.bot.state import STATUS_VISITOR, STATUS_WAIVED, TO_BE_CONFIRMED
+
+    orchestrator.start("c-no-designs")
+    state = orchestrator.store.get_or_create("c-no-designs")
+    state.set_field("product", "bags", status=STATUS_VISITOR)
+    state.set_field("use_case", "coffee beans", status=STATUS_VISITOR)
+    state.set_field("sizes", TO_BE_CONFIRMED, status=STATUS_WAIVED)
+    state.set_field("quantity", "500", status=STATUS_VISITOR)
+    state.set_field("style", "pinch bottom", status=STATUS_VISITOR)
+    state.set_field("material", "pe", status=STATUS_VISITOR)
+    state.set_field("finishes", "matte", status=STATUS_VISITOR)
+    state.set_field("email", "bilal@gmail.com", status=STATUS_VISITOR)
+    state.flags["soft_email_asked"] = True
+    state.last_question = "skus"
+    orchestrator.store.save(state)
+
+    result = orchestrator.handle("c-no-designs", "i have no designs yet")
+    state = orchestrator.store.get_or_create("c-no-designs")
+    lowered = result.reply.lower()
+    assert state.fields["skus"].value == TO_BE_CONFIRMED
+    assert state.fields["skus"].status == STATUS_WAIVED
+    assert not state.fields["extras"].done
+    assert "didn't quite catch" not in lowered
+    assert "how many" not in lowered
+    assert "zipper" in lowered or "tear notch" in lowered
+
+    repeat = orchestrator.handle("c-no-designs", "i have no designs")
+    state = orchestrator.store.get_or_create("c-no-designs")
+    assert state.fields["skus"].status == STATUS_WAIVED
+    assert not state.fields["extras"].done
+    assert "didn't quite catch" not in repeat.reply.lower()
+
+
 def test_unknown_size_is_explained_not_stored_verbatim(orchestrator):
     orchestrator.start("c-size-unknown")
     orchestrator.handle("c-size-unknown", "I need custom boxes for shipping candles")

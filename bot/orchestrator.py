@@ -873,6 +873,14 @@ class Orchestrator:
         focus = str(state.last_question or "").strip()
         if focus not in UNCERTAIN_WAIVE_FIELDS:
             return False
+        if (
+            focus in state.fields
+            and state.fields[focus].done
+            and not (focus == "sizes" and state.size_needs_unit())
+        ):
+            # Already settled. The next message is not a new deferral of this slot,
+            # and it must not be pinned onto whatever question comes after it.
+            return False
         # Concrete answers stay on the fast heuristic/extract path.
         if field_shaped_attempt(
             focus, visitor, registry=self.registry, family=state.family()
@@ -913,6 +921,28 @@ class Orchestrator:
             return {}
         return {focus: value}
 
+    def _continues_settled_field(self, state: ConversationState, visitor: str) -> bool:
+        """True when the message names a settled checklist field other than the one open.
+
+        Uses the same field probes as reply checking. A repeat about designs must
+        not waive zipper just because designs was already stored and the script
+        had moved on.
+        """
+        focus = str(state.last_question or "").strip()
+        named = [
+            key
+            for key, pattern in guards.FIELD_PROBES
+            if pattern.search(str(visitor or ""))
+        ]
+        if not named or focus in named:
+            return False
+        return any(
+            key in state.fields
+            and state.fields[key].done
+            and not (key == "sizes" and state.size_needs_unit())
+            for key in named
+        )
+
     def _apply_uncertainty_backup(
         self,
         state: ConversationState,
@@ -926,7 +956,16 @@ class Orchestrator:
         shaped-field defer (size/qty/designs with no concrete number — not a phrase
         list). Finally, if live still re-asks an uncertainty turn with no waiver,
         settle the contract token so rewrite cannot re-prompt.
+
+        Questions are not waivers. Closing the open field on an ask turn makes the
+        next visitor message land on a later field than the question they just read.
         """
+        if str(state.flags.get("turn_kind") or "") == "ask":
+            return
+        if self._continues_settled_field(state, visitor):
+            # They are still talking about a field already stored. Do not write
+            # that message onto the next open slot.
+            return
         backup = self._backup_uncertainty_extract(state, visitor, accepted)
         if backup:
             backup_ok, backup_rejected = apply_field_updates(
@@ -1060,6 +1099,9 @@ class Orchestrator:
         """
         self._coerce_compose_finish_none(composed, state)
         focus = str(state.last_question or "").strip()
+        if str(state.flags.get("turn_kind") or "") == "ask":
+            # Ask turns answer the question. They do not lock the checklist slot.
+            return expected
         if not focus or focus not in UNCERTAIN_WAIVE_FIELDS:
             return expected
         token = str((composed.fields or {}).get(focus) or "").strip()
@@ -1524,6 +1566,19 @@ class Orchestrator:
             and not is_visitor_greeting(visitor)
             and len(visitor.split()) <= 8
         )
+        # The open slot is already settled, or this message is still about a
+        # settled slot. Neither one is a miss, and neither one declines the next ask.
+        focus_now = str(state.last_question or "").strip()
+        if unclear and (
+            self._continues_settled_field(state, visitor)
+            or (
+                focus_now in state.fields
+                and state.fields[focus_now].done
+                and not (focus_now == "sizes" and state.size_needs_unit())
+                and not any(key != focus_now for key in accepted)
+            )
+        ):
+            unclear = False
 
         refused_contact = (
             not was_reachable
@@ -1861,6 +1916,21 @@ class Orchestrator:
                 source = "heuristic"
 
         if not composed.reply:
+            # Model did not return a draft (fake mode, call cap, or a failed call).
+            # Settle the open deferral first so the scripted reply asks the next
+            # field instead of saying it missed an answer it just stored.
+            if str(state.flags.get("turn_kind") or "") != "ask" and (
+                llm_first or route.kind == "defer"
+            ):
+                self._apply_uncertainty_backup(state, visitor, accepted, rejected)
+                expected = self._retarget_expected_if_focus_settled(state, expected)
+                focus_now = str(state.last_question or "").strip()
+                if self._continues_settled_field(state, visitor) or (
+                    focus_now in state.fields
+                    and state.fields[focus_now].done
+                    and not (focus_now == "sizes" and state.size_needs_unit())
+                ):
+                    unclear = False
             composed = heuristic_turn(
                 state,
                 visitor,
@@ -2240,18 +2310,21 @@ class Orchestrator:
                 composed.asked = ""
                 composed.move = "handoff"
 
-        asked = guards.asked_field(reply)
+        reply_asked = guards.asked_field(reply)
+        asked = reply_asked
         asking = guards.count_questions(reply) > 0
         if not asked and asking and expected:
             asked = expected[0]
         if state.flags.get("invalid_email"):
             asked = "email"
-        # Never pin last_question on a field already settled this turn.
+        # If the sentence still asks a settled field, the visitor's next message
+        # answers that sentence. Only move on when the reply itself moved on.
         if (
             asked
             and asked in state.fields
             and state.fields[asked].done
             and not (asked == "sizes" and state.size_needs_unit())
+            and reply_asked != asked
         ):
             nxt = state.next_question()
             asked = nxt[0] if nxt else ""
